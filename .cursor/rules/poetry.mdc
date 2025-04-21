@@ -1,0 +1,6 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+All python commands must be prefixed with poetry e.g. poetry run pytest, poetry run flake8.

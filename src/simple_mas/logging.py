@@ -2,9 +2,10 @@
 
 import logging
 import sys
-from typing import Optional, Union
+from typing import Optional, Union, cast
 
 import structlog
+from structlog.stdlib import BoundLogger
 from structlog.types import Processor
 
 
@@ -24,7 +25,7 @@ def configure_logging(
     """
     level = log_level.upper() if isinstance(log_level, str) else log_level
 
-    processors = [
+    processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
@@ -56,7 +57,7 @@ def configure_logging(
     )
 
 
-def get_logger(name: str) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str) -> BoundLogger:
     """Get a logger instance.
 
     Args:
@@ -65,4 +66,4 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     Returns:
         A configured logger
     """
-    return structlog.get_logger(name)
+    return cast(BoundLogger, structlog.get_logger(name))

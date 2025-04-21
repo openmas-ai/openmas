@@ -4,7 +4,7 @@ This module provides adapters to use the Anthropic MCP SDK with SimpleMAS.
 It includes both client and server adapters.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Set, Type, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Type, TypeVar, Union, cast
 
 from mcp.client.session import ClientSession
 from mcp.client.sse import SseClient
@@ -19,6 +19,7 @@ from simple_mas.logging import get_logger
 logger = get_logger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 class McpClientAdapter(BaseCommunicator):
@@ -129,16 +130,18 @@ class McpClientAdapter(BaseCommunicator):
             if method == "tool/list":
                 return {"tools": await self.list_tools(target_service)}
             elif method == "tool/call":
-                tool_name = params.get("name", "")
-                arguments = params.get("arguments", {})
+                params_dict = params or {}
+                tool_name = cast(str, params_dict.get("name", ""))
+                arguments = cast(Dict[str, Any], params_dict.get("arguments", {}))
                 result = await self.call_tool(target_service, tool_name, arguments)
                 return {"result": result}
         elif method.startswith("prompt/"):
             if method == "prompt/list":
                 return {"prompts": await self.list_prompts(target_service)}
             elif method == "prompt/get":
-                prompt_name = params.get("name", "")
-                arguments = params.get("arguments", {})
+                params_dict = params or {}
+                prompt_name = cast(str, params_dict.get("name", ""))
+                arguments = cast(Dict[str, Any], params_dict.get("arguments", {}))
                 return await self.get_prompt(target_service, prompt_name, arguments)
         elif method.startswith("resource/"):
             if method == "resource/list":
@@ -146,7 +149,8 @@ class McpClientAdapter(BaseCommunicator):
             elif method == "resource/listTemplates":
                 return {"templates": await self.list_resource_templates(target_service)}
             elif method == "resource/read":
-                uri = params.get("uri", "")
+                params_dict = params or {}
+                uri = cast(str, params_dict.get("uri", ""))
                 return {"contents": await self.read_resource(target_service, uri)}
 
         raise CommunicationError(f"Unsupported method: {method}", target=target_service)
@@ -445,7 +449,7 @@ class McpServerWrapper:
         self,
         name: Optional[str] = None,
         description: Optional[str] = None,
-    ) -> Callable:
+    ) -> Callable[[F], F]:
         """Decorator to register a tool.
 
         Args:
@@ -455,7 +459,7 @@ class McpServerWrapper:
         Returns:
             A decorator for registering a function as a tool
         """
-        return self.mcp_server.tool(name, description)
+        return cast(Callable[[F], F], self.mcp_server.tool(name, description))
 
     def add_resource(self, resource: Any) -> None:
         """Add a resource to the server.
@@ -472,7 +476,7 @@ class McpServerWrapper:
         name: Optional[str] = None,
         description: Optional[str] = None,
         mime_type: Optional[str] = None,
-    ) -> Callable:
+    ) -> Callable[[F], F]:
         """Decorator to register a resource.
 
         Args:
@@ -484,11 +488,14 @@ class McpServerWrapper:
         Returns:
             A decorator for registering a function as a resource
         """
-        return self.mcp_server.resource(
-            uri,
-            name=name,
-            description=description,
-            mime_type=mime_type,
+        return cast(
+            Callable[[F], F],
+            self.mcp_server.resource(
+                uri,
+                name=name,
+                description=description,
+                mime_type=mime_type,
+            ),
         )
 
     def add_prompt(self, prompt: Any) -> None:
@@ -503,7 +510,7 @@ class McpServerWrapper:
         self,
         name: Optional[str] = None,
         description: Optional[str] = None,
-    ) -> Callable:
+    ) -> Callable[[F], F]:
         """Decorator to register a prompt.
 
         Args:
@@ -513,7 +520,7 @@ class McpServerWrapper:
         Returns:
             A decorator for registering a function as a prompt
         """
-        return self.mcp_server.prompt(name, description)
+        return cast(Callable[[F], F], self.mcp_server.prompt(name, description))
 
     def run(self, transport: str = "stdio") -> None:
         """Run the MCP server.

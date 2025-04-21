@@ -3,11 +3,13 @@
 import abc
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
+from pydantic import BaseModel
+
 from simple_mas.logging import get_logger
 
 logger = get_logger(__name__)
 
-T = TypeVar("T")
+T = TypeVar("T", bound=BaseModel)
 
 
 class BaseCommunicator(abc.ABC):
