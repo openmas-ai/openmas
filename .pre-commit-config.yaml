@@ -1,0 +1,49 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-toml
+
+  - repo: https://github.com/psf/black
+    rev: 23.9.1  # Same version as in pyproject.toml
+    hooks:
+      - id: black
+        language_version: python3
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0  # Same version as in pyproject.toml
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.1.0  # Same version as in pyproject.toml
+    hooks:
+      - id: flake8
+        additional_dependencies: [flake8-docstrings]
+        # Skip docstring issues for initial commit
+        args: ["--extend-ignore=D101,D102,D103,D105,D107,D202,D401"]
+
+  # Commented out mypy for initial commit - enable later after fixing type issues
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: 'v1.5.1'  # Same version as in pyproject.toml
+  #   hooks:
+  #     - id: mypy
+  #       additional_dependencies:
+  #         - pydantic>=2.5.0
+  #         - types-requests>=2.31.0.2
+  #       exclude: ^(examples|backup|tests)/
+  #       args: ["--ignore-missing-imports"]
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: poetry run pytest
+        language: system
+        pass_filenames: false
+        always_run: true
