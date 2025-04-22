@@ -7,7 +7,7 @@ It can be used as both a client (connecting to a subprocess) and a server (runni
 import asyncio
 import subprocess
 import sys
-from typing import Any, Callable, Dict, List, Optional, Set, Type, TypeVar
+from typing import Any, AsyncContextManager, Callable, Dict, List, Optional, Set, Tuple, Type, TypeVar
 
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
@@ -60,13 +60,13 @@ class McpStdioCommunicator(BaseCommunicator):
         super().__init__(agent_name, service_urls)
         self.server_mode = server_mode
         self.server_instructions = server_instructions
-        self.clients = {}  # Dictionary of client instances
-        self.sessions = {}  # Dictionary of ClientSession instances
+        self.clients: Dict[str, Tuple[Any, Any]] = {}  # Dictionary of client instances
+        self.sessions: Dict[str, ClientSession] = {}  # Dictionary of ClientSession instances
         self.connected_services: Set[str] = set()
         self.handlers: Dict[str, Callable] = {}
         self.server = None  # Server instance when in server mode
         self.subprocesses: Dict[str, subprocess.Popen] = {}
-        self._client_managers = {}  # Context managers for stdio clients
+        self._client_managers: Dict[str, AsyncContextManager] = {}  # Context managers for stdio clients
 
     async def _connect_to_service(self, service_name: str) -> None:
         """Connect to a MCP service using stdio.

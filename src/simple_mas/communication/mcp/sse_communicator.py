@@ -6,7 +6,7 @@ endpoint) and a server (integrated with a web framework like FastAPI/Starlette).
 """
 
 import asyncio
-from typing import Any, Callable, Dict, List, Optional, Set, Type, TypeVar
+from typing import Any, AsyncContextManager, Callable, Dict, List, Optional, Set, Tuple, Type, TypeVar
 
 from fastapi import FastAPI
 from mcp.client.session import ClientSession
@@ -66,14 +66,14 @@ class McpSseCommunicator(BaseCommunicator):
         self.server_mode = server_mode
         self.http_port = http_port
         self.server_instructions = server_instructions
-        self.clients = {}  # Dictionary of SSE client objects
-        self.sessions = {}  # Dictionary of ClientSession instances
+        self.clients: Dict[str, Tuple[Any, Any]] = {}  # Dictionary of SSE client objects
+        self.sessions: Dict[str, ClientSession] = {}  # Dictionary of ClientSession instances
         self.connected_services: Set[str] = set()
         self.handlers: Dict[str, Callable] = {}
         self.app = app or FastAPI(title=f"{agent_name} MCP Server")
         self.server = None  # FastMCP server instance
         self._server_task: Optional[asyncio.Task] = None
-        self._client_managers = {}  # Context managers for SSE clients
+        self._client_managers: Dict[str, AsyncContextManager] = {}  # Context managers for SSE clients
 
     async def _connect_to_service(self, service_name: str) -> None:
         """Connect to a MCP service using SSE.
@@ -456,3 +456,99 @@ class McpSseCommunicator(BaseCommunicator):
                 f"Failed to get prompt {prompt_name} from service '{target_service}': {e}",
                 target=target_service,
             )
+
+    async def _handle_mcp_request(
+        self, method: str, params: Optional[Dict[str, Any]] = None, target_service: Optional[str] = None
+    ) -> None:
+        """Handle an MCP request by dispatching to the appropriate handler.
+
+        Args:
+            method: The method to call.
+            params: The parameters to pass to the method.
+            target_service: The target service to forward the request to.
+
+        Raises:
+            NotImplementedError: If the method is not supported in server mode.
+        """
+        logger.debug(f"Handling MCP request: {method} with params: {params}")
+        if not self.server_mode:
+            raise NotImplementedError("Method handling is only available in server mode")
+
+        if target_service:
+            # Forward the request to the target service
+            return await self.send_request(target_service, method, params)
+
+        if method in self.handlers:
+            # Call the registered handler
+            handler = self.handlers[method]
+            if params:
+                return await handler(**params)
+            else:
+                return await handler()
+        else:
+            # Method not found
+            raise NotImplementedError(f"Method {method} not registered in server handlers")
+
+    async def register_tool(self, name: str, description: str, function: Callable) -> None:
+        """Register a tool with the server.
+
+        In server mode, this adds the tool to the FastMCP server.
+        In client mode, this is a no-op.
+
+        Args:
+            name: The name of the tool.
+            description: A description of the tool.
+            function: The function that implements the tool.
+        """
+        logger.debug(f"Registering tool: {name} - {description}")
+
+        if self.server_mode and self.server:
+            self.server.add_tool(function, name=name, description=description)
+            logger.info(f"Registered tool '{name}': {description} with FastMCP server")
+        else:
+            # In client mode or if server not started yet, register as a handler
+            self.handlers[name] = function
+            logger.debug(f"Stored tool '{name}' as handler for later registration with server")
+
+    async def register_prompt(self, name: str, description: str, function: Callable) -> None:
+        """Register a prompt with the server.
+
+        In server mode, this adds the prompt to the FastMCP server.
+        In client mode, this is a no-op.
+
+        Args:
+            name: The name of the prompt.
+            description: A description of the prompt.
+            function: The function that implements the prompt.
+        """
+        logger.debug(f"Registering prompt: {name} - {description}")
+
+        if self.server_mode and self.server:
+            self.server.add_prompt(function, name=name, description=description)
+            logger.info(f"Registered prompt '{name}': {description} with FastMCP server")
+        else:
+            # In client mode or if server not started yet, store for later
+            logger.debug(f"Client mode or server not started, cannot register prompt '{name}' yet")
+
+    async def register_resource(
+        self, name: str, description: str, function: Callable, mime_type: str = "text/plain"
+    ) -> None:
+        """Register a resource with the server.
+
+        In server mode, this adds the resource to the FastMCP server.
+        In client mode, this is a no-op.
+
+        Args:
+            name: The name of the resource (URI path).
+            description: A description of the resource.
+            function: The function that implements the resource.
+            mime_type: The MIME type of the resource.
+        """
+        logger.debug(f"Registering resource: {name} - {description}")
+
+        if self.server_mode and self.server:
+            self.server.add_resource(function, uri=name, description=description, mime_type=mime_type)
+            logger.info(f"Registered resource '{name}': {description} with FastMCP server")
+        else:
+            # In client mode or if server not started yet, store for later
+            logger.debug(f"Client mode or server not started, cannot register resource '{name}' yet")

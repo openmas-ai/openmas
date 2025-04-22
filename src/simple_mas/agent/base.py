@@ -1,0 +1,164 @@
+"""Base agent implementation for SimpleMAS."""
+
+import abc
+import asyncio
+from typing import Any, Dict, Optional, Type
+
+from simple_mas.communication import BaseCommunicator, HttpCommunicator
+from simple_mas.config import AgentConfig, load_config
+from simple_mas.exceptions import LifecycleError
+from simple_mas.logging import configure_logging, get_logger
+
+logger = get_logger(__name__)
+
+
+class BaseAgent(abc.ABC):
+    """Base agent class for all SimpleMAS agents.
+
+    This class provides the basic structure for agents, including configuration loading,
+    communication setup, and lifecycle management.
+    """
+
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        config_model: Type[AgentConfig] = AgentConfig,
+        communicator_class: Type[BaseCommunicator] = HttpCommunicator,
+        env_prefix: str = "",
+    ):
+        """Initialize the agent.
+
+        Args:
+            name: The name of the agent (overrides config)
+            config: The agent configuration (if not provided, will be loaded from environment)
+            config_model: The configuration model class to use
+            communicator_class: The communicator class to use
+            env_prefix: Optional prefix for environment variables
+        """
+        # Load configuration
+        self.config = config if isinstance(config, AgentConfig) else load_config(config_model, env_prefix)
+
+        # Override name if provided
+        if name:
+            self.config.name = name
+
+        # Configure logging
+        configure_logging(log_level=self.config.log_level)
+        self.logger = get_logger(self.__class__.__name__)
+
+        # Create communicator
+        self.communicator = communicator_class(self.config.name, self.config.service_urls)
+
+        # Internal state
+        self._is_running = False
+        self._task: Optional[asyncio.Task] = None
+
+        self.logger.info("Initialized agent", agent_name=self.config.name, agent_type=self.__class__.__name__)
+
+    @property
+    def name(self) -> str:
+        """Get the agent name."""
+        return self.config.name
+
+    def set_communicator(self, communicator: BaseCommunicator) -> None:
+        """Set the communicator for this agent.
+
+        This method allows changing the communicator after agent initialization.
+
+        Args:
+            communicator: The communicator to use
+        """
+        self.communicator = communicator
+        self.logger.info("Set communicator", agent_name=self.name, communicator_type=communicator.__class__.__name__)
+
+    async def start(self) -> None:
+        """Start the agent.
+
+        This method initializes the agent, sets up the communicator, and starts the main loop.
+        """
+        if self._is_running:
+            raise LifecycleError("Agent is already running")
+
+        self.logger.info("Starting agent", agent_name=self.name)
+
+        # Start the communicator
+        await self.communicator.start()
+
+        # Call setup hook
+        await self.setup()
+
+        # Start the main loop
+        self._is_running = True
+        self._task = asyncio.create_task(self._run_lifecycle())
+
+        self.logger.info("Agent started", agent_name=self.name)
+
+    async def stop(self) -> None:
+        """Stop the agent.
+
+        This method stops the main loop, calls the shutdown hook, and stops the communicator.
+        """
+        if not self._is_running:
+            return
+
+        self.logger.info("Stopping agent", agent_name=self.name)
+
+        # Cancel the main loop task
+        if self._task is not None:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+
+        # Call shutdown hook
+        await self.shutdown()
+
+        # Stop the communicator
+        await self.communicator.stop()
+
+        self._is_running = False
+        self.logger.info("Agent stopped", agent_name=self.name)
+
+    async def _run_lifecycle(self) -> None:
+        """Run the agent lifecycle.
+
+        This method runs the main loop and handles exceptions.
+        """
+        try:
+            await self.run()
+        except asyncio.CancelledError:
+            self.logger.info("Agent lifecycle cancelled", agent_name=self.name)
+            raise
+        except Exception as e:
+            self.logger.exception("Error in agent lifecycle", agent_name=self.name, error=str(e))
+            raise
+
+    @abc.abstractmethod
+    async def setup(self) -> None:
+        """Set up the agent.
+
+        This method is called when the agent starts and can be used to initialize
+        resources, register handlers, etc.
+        """
+        pass
+
+    @abc.abstractmethod
+    async def run(self) -> None:
+        """Run the agent's main loop.
+
+        This method should implement the agent's core logic. It will be called
+        after setup() and should run until the agent is stopped.
+        """
+        pass
+
+    @abc.abstractmethod
+    async def shutdown(self) -> None:
+        """Shut down the agent.
+
+        This method is called when the agent stops and can be used to clean up
+        resources, close connections, etc.
+        """
+        pass

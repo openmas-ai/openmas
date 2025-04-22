@@ -1,199 +1,276 @@
-"""Example of how to create an MCP server with SimpleMAS."""
+#!/usr/bin/env python3
+"""Example MCP server agent implementation.
 
+This example shows how to create an MCP server agent that provides
+tools, prompts, and resources to clients.
+
+To run:
+    poetry run python examples/mcp_server_example.py
+"""
 import asyncio
-import os
-import sys
-from typing import Any, Dict, List, Optional
+import logging
+from dataclasses import dataclass
+from typing import Dict, Optional
 
-from mcp.messages import Message, MessageRole, TextContent
+from pydantic import BaseModel
 
-from simple_mas.agent import Agent
-from simple_mas.communication.mcp import McpServerWrapper
 from simple_mas.config import AgentConfig
-from simple_mas.logging import get_logger, setup_logging
+from simple_mas.logging import configure_logging
+from simple_mas.mcp_agent import McpServerAgent, mcp_prompt, mcp_resource, mcp_tool
 
-# Set up logging
-setup_logging()
-logger = get_logger(__name__)
+# Configure logging
+configure_logging(level=logging.DEBUG)
 
 
-class McpServer:
-    """Example MCP server using the MCP SDK."""
+# Pydantic models for request and response
+class AddRequest(BaseModel):
+    """Request model for the add tool."""
 
-    def __init__(self, name: str, instructions: Optional[str] = None):
-        """Initialize the MCP server.
+    a: int
+    b: int
 
-        Args:
-            name: The name of the server
-            instructions: Optional instructions for the server
-        """
-        self.mcp = McpServerWrapper(name=name, instructions=instructions)
-        self._setup_tools()
-        self._setup_prompts()
-        self._setup_resources()
 
-    def _setup_tools(self) -> None:
-        """Set up tools for the MCP server."""
+class MultiplyRequest(BaseModel):
+    """Request model for the multiply tool."""
 
-        @self.mcp.tool(description="Generate text based on a prompt")
-        async def generate_text(prompt: str) -> str:
-            """Generate text based on a prompt.
+    a: int
+    b: int
 
-            Args:
-                prompt: The prompt to generate text for
 
-            Returns:
-                The generated text
-            """
-            logger.info(f"Generating text for prompt: {prompt}")
-            return f"Generated text in response to: {prompt}"
+class CalculationResult(BaseModel):
+    """Response model for calculation tools."""
 
-        @self.mcp.tool(description="Analyze the sentiment of text")
-        async def analyze_sentiment(text: str) -> Dict[str, Any]:
-            """Analyze the sentiment of text.
+    result: int
+    operation: str
 
-            Args:
-                text: The text to analyze
 
-            Returns:
-                A dictionary with sentiment analysis results
-            """
-            logger.info(f"Analyzing sentiment for text: {text}")
-            sentiment = "positive" if "good" in text.lower() else "negative"
-            return {"sentiment": sentiment, "confidence": 0.85}
+class WeatherRequest(BaseModel):
+    """Request model for the weather tool."""
 
-    def _setup_prompts(self) -> None:
-        """Set up prompts for the MCP server."""
+    location: str
+    units: Optional[str] = "celsius"
 
-        @self.mcp.prompt(description="A simple question-answering prompt")
-        async def simple_question(question: str) -> List[Message]:
-            """Create a simple question-answering prompt.
 
-            Args:
-                question: The question to answer
+class WeatherResponse(BaseModel):
+    """Response model for the weather tool."""
 
-            Returns:
-                A list of messages forming the prompt
-            """
-            logger.info(f"Creating prompt for question: {question}")
-            return [
-                Message(role=MessageRole.SYSTEM, content=[TextContent(text="You are a helpful assistant.")]),
-                Message(role=MessageRole.USER, content=[TextContent(text=question)]),
-            ]
+    temperature: float
+    condition: str
+    location: str
+    units: str
 
-    def _setup_resources(self) -> None:
-        """Set up resources for the MCP server."""
 
-        @self.mcp.resource(
-            "resource://example", name="Example Resource", description="An example resource", mime_type="text/plain"
-        )
-        async def example_resource() -> str:
-            """Provide the content for the example resource.
+@dataclass
+class MemoryEntry:
+    """Data model for a single memory entry."""
 
-            Returns:
-                The resource content as a string
-            """
-            logger.info("Reading example resource")
-            return "This is an example resource."
+    value: str
+    created_at: float
 
-        @self.mcp.resource(
-            "resource://{id}",
-            name="Parameterized Resource",
-            description="A resource with parameters",
-            mime_type="text/plain",
-        )
-        async def parameterized_resource(id: str) -> str:
-            """Provide content for a parameterized resource.
 
-            Args:
-                id: The resource ID
+class MathAgent(McpServerAgent):
+    """Example MCP server agent that provides math and utility tools."""
 
-            Returns:
-                The resource content as a string
-            """
-            logger.info(f"Reading parameterized resource with ID: {id}")
-            return f"This is resource with ID: {id}"
+    def __init__(self, **kwargs):
+        """Initialize the math agent."""
+        config = AgentConfig(name="math_agent")
+        super().__init__(config=config, **kwargs)
 
-    def run(self, transport: str = "stdio") -> None:
-        """Run the MCP server.
+        # Initialize memory store
+        self._memory: Dict[str, MemoryEntry] = {}
+        self._creation_time = asyncio.get_event_loop().time()
+
+    @mcp_tool(description="Add two numbers together")
+    def add(self, a: int, b: int) -> CalculationResult:
+        """Add two numbers and return the result.
 
         Args:
-            transport: Transport protocol to use ("stdio" or "sse")
-        """
-        logger.info(f"Starting MCP server with transport: {transport}")
-        self.mcp.run(transport)
+            a: First number.
+            b: Second number.
 
-    async def run_async(self, transport: str = "stdio") -> None:
-        """Run the MCP server asynchronously.
+        Returns:
+            Result of the addition.
+        """
+        result = a + b
+        return CalculationResult(result=result, operation="add")
+
+    @mcp_tool(description="Multiply two numbers")
+    def multiply(self, a: int, b: int) -> CalculationResult:
+        """Multiply two numbers and return the result.
 
         Args:
-            transport: Transport protocol to use ("stdio" or "sse")
+            a: First number.
+            b: Second number.
+
+        Returns:
+            Result of the multiplication.
         """
-        logger.info(f"Starting MCP server with transport: {transport}")
-        if transport == "sse":
-            await self.mcp.run_sse_async()
+        result = a * b
+        return CalculationResult(result=result, operation="multiply")
+
+    @mcp_tool(name="get_weather", description="Get weather information for a location")
+    async def get_weather(self, location: str, units: str = "celsius") -> WeatherResponse:
+        """Get weather information for a location.
+
+        Args:
+            location: Name of the location.
+            units: Temperature units ("celsius" or "fahrenheit").
+
+        Returns:
+            Weather information.
+        """
+        # Simulate API call with delay
+        await asyncio.sleep(0.5)
+
+        # Generate fake weather data
+        weather_data = {
+            "New York": (25, "Sunny"),
+            "London": (18, "Cloudy"),
+            "Tokyo": (28, "Rainy"),
+            "Sydney": (22, "Clear"),
+        }
+
+        if location not in weather_data:
+            default_temp = 20
+            default_condition = "Unknown"
         else:
-            await self.mcp.run_stdio_async()
+            default_temp, default_condition = weather_data[location]
 
+        # Convert temperature if needed
+        temp = default_temp
+        if units.lower() == "fahrenheit":
+            temp = temp * 9 / 5 + 32
 
-class ServerAgent(Agent):
-    """Agent that hosts an MCP server."""
+        return WeatherResponse(temperature=temp, condition=default_condition, location=location, units=units)
 
-    def __init__(self, config: AgentConfig, server: McpServer):
-        """Initialize the server agent.
+    @mcp_tool(description="Store a value in memory")
+    def store(self, key: str, value: str) -> Dict[str, str]:
+        """Store a value in memory.
 
         Args:
-            config: Agent configuration
-            server: MCP server to host
+            key: Memory key.
+            value: Value to store.
+
+        Returns:
+            Status information.
         """
-        super().__init__(config)
-        self.server = server
+        self._memory[key] = MemoryEntry(value=value, created_at=asyncio.get_event_loop().time())
+        return {"status": "success", "key": key}
 
-    async def run(self) -> None:
-        """Run the agent, which hosts the MCP server."""
-        logger.info("Starting MCP server agent")
+    @mcp_tool(description="Retrieve a value from memory")
+    def retrieve(self, key: str) -> Dict[str, str]:
+        """Retrieve a value from memory.
 
-        # The transport type can be configured via environment variable
-        transport = os.environ.get("MCP_TRANSPORT", "stdio")
+        Args:
+            key: Memory key.
 
-        # Run the server asynchronously
-        await self.server.run_async(transport)
+        Returns:
+            Stored value or error message.
+        """
+        if key not in self._memory:
+            return {"status": "error", "message": f"Key '{key}' not found"}
+
+        entry = self._memory[key]
+        age = asyncio.get_event_loop().time() - entry.created_at
+
+        return {"status": "success", "key": key, "value": entry.value, "age_seconds": round(age, 2)}
+
+    @mcp_prompt(name="greeting", description="Get a greeting message")
+    def get_greeting(self, name: str = "User") -> str:
+        """Generate a greeting message.
+
+        Args:
+            name: Name to include in the greeting.
+
+        Returns:
+            Greeting message.
+        """
+        return f"Hello, {name}! Welcome to the Math Agent service."
+
+    @mcp_prompt(name="help", description="Get help text for using the agent")
+    def get_help(self) -> str:
+        """Generate help text.
+
+        Returns:
+            Help text.
+        """
+        return """
+        Math Agent provides the following services:
+
+        Tools:
+        - add: Add two numbers together
+        - multiply: Multiply two numbers
+        - get_weather: Get weather information for a location
+        - store: Store a value in memory
+        - retrieve: Retrieve a value from memory
+
+        Prompts:
+        - greeting: Get a greeting message
+        - help: Get this help text
+
+        Resources:
+        - info: Get information about the agent
+        - uptime: Get agent uptime information
+        """
+
+    @mcp_resource(name="info", description="Get information about the agent")
+    def get_info(self) -> str:
+        """Get agent information.
+
+        Returns:
+            Agent information in JSON format.
+        """
+        import json
+
+        info = {
+            "name": self.config.name,
+            "type": "Math Agent",
+            "version": "1.0.0",
+            "tools": len(self._tools),
+            "prompts": len(self._prompts),
+            "resources": len(self._resources),
+            "memory_entries": len(self._memory),
+        }
+
+        return json.dumps(info, indent=2)
+
+    @mcp_resource(name="uptime", description="Get agent uptime information")
+    def get_uptime(self) -> bytes:
+        """Get agent uptime.
+
+        Returns:
+            Uptime information.
+        """
+        uptime_seconds = asyncio.get_event_loop().time() - self._creation_time
+        minutes, seconds = divmod(uptime_seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+
+        uptime_str = f"Uptime: {int(hours)}h {int(minutes)}m {int(seconds)}s"
+        return uptime_str.encode("utf-8")
 
 
-def main_cli() -> None:
-    """Run the MCP server as a standalone CLI application."""
-    # Set up the MCP server
-    server = McpServer(name="SimpleMasServer", instructions="This is an example MCP server hosted by SimpleMAS.")
+async def main():
+    """Run the MCP server agent."""
+    # Create and start the agent
+    agent = MathAgent(mcp_host="localhost", mcp_port=8000)
 
-    # Get the transport type from command line arguments or environment
-    transport = "stdio"
-    if len(sys.argv) > 1:
-        transport = sys.argv[1]
-    elif os.environ.get("MCP_TRANSPORT"):
-        transport = os.environ.get("MCP_TRANSPORT")
+    try:
+        await agent.start()
+        print(f"MCP server agent '{agent.config.name}' started on localhost:8000")
+        print("Press Ctrl+C to stop the server...")
 
-    # Run the server
-    server.run(transport)
+        # Keep the server running
+        while True:
+            await asyncio.sleep(1)
 
-
-async def main_agent() -> None:
-    """Run the MCP server as a SimpleMAS agent."""
-    # Set up the MCP server
-    server = McpServer(name="SimpleMasServer", instructions="This is an example MCP server hosted by SimpleMAS.")
-
-    # Create and run the agent
-    config = AgentConfig(name="McpServerAgent")
-    agent = ServerAgent(config=config, server=server)
-
-    # Start and run the agent
-    await agent.start()
-    await agent.run()
-    # The agent.run() method will block indefinitely as it hosts the server
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        await agent.stop()
+        print("Server stopped.")
 
 
 if __name__ == "__main__":
-    # Check if we should run as an agent or as a CLI
-    if os.environ.get("RUN_AS_AGENT", "false").lower() == "true":
-        asyncio.run(main_agent())
-    else:
-        main_cli()
+    asyncio.run(main())

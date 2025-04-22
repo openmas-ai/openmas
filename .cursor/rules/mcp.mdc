@@ -1,7 +1,7 @@
 ---
 description:
 globs:
-alwaysApply: false
+alwaysApply: true
 ---
 mcp stands for model context protocol. All mcp work must be done using Anthropic's python-sdk 1.6 which internally uses the FastMCP library.
 Package installation: poetry install mcp

@@ -1,85 +1,129 @@
-"""Example of SimpleMAS agent using MCP communicators."""
+#!/usr/bin/env python3
+"""Example MCP client implementation.
 
+This example shows how to create an MCP client that connects to
+the MCP server and uses its tools, prompts, and resources.
+
+To run:
+    poetry run python examples/mcp_client_example.py
+"""
 import asyncio
-import os
+import json
+import logging
 
-from simple_mas.agent import Agent
-from simple_mas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
 from simple_mas.config import AgentConfig
-from simple_mas.logging import get_logger, setup_logging
+from simple_mas.logging import configure_logging
+from simple_mas.mcp_agent import McpAgent
 
-# Set up logging
-setup_logging()
-logger = get_logger(__name__)
+# Configure logging
+configure_logging(level=logging.DEBUG)
 
 
-class McpExampleAgent(Agent):
-    """Example agent using MCP communicators."""
+class MathClient(McpAgent):
+    """Example client that connects to the MCP math server."""
 
-    async def run(self) -> None:
-        """Run the agent."""
-        logger.info("Starting MCP Example Agent")
+    def __init__(self):
+        """Initialize the client agent."""
+        config = AgentConfig(name="math_client")
+        super().__init__(config=config)
 
-        # Get references to the services
-        llm_service = "llm"
 
+async def run_client():
+    """Run the client and interact with the MCP server."""
+    client = MathClient()
+
+    try:
+        # Connect to the server
+        await client.connect_to_service("math", "localhost", 8000)
+        print("Connected to math service")
+
+        # List available tools
+        tools = await client.list_tools("math")
+        print("\nAvailable tools:")
+        for tool in tools:
+            print(f"- {tool['name']}: {tool['description']}")
+
+        # List available prompts
+        prompts = await client.list_prompts("math")
+        print("\nAvailable prompts:")
+        for prompt in prompts:
+            print(f"- {prompt['name']}: {prompt['description']}")
+
+        # List available resources
+        resources = await client.list_resources("math")
+        print("\nAvailable resources:")
+        for resource in resources:
+            print(f"- {resource['name']}: {resource['description']}")
+
+        # Use the add tool
+        print("\nCalling add tool...")
+        add_result = await client.call_tool("math", "add", {"a": 5, "b": 3})
+        print(f"5 + 3 = {add_result['result']} (Operation: {add_result['operation']})")
+
+        # Use the multiply tool
+        print("\nCalling multiply tool...")
+        multiply_result = await client.call_tool("math", "multiply", {"a": 4, "b": 7})
+        print(f"4 * 7 = {multiply_result['result']} (Operation: {multiply_result['operation']})")
+
+        # Get weather information
+        print("\nGetting weather information...")
+        weather = await client.call_tool("math", "get_weather", {"location": "London", "units": "fahrenheit"})
+        print(
+            f"Weather in {weather['location']}: {weather['temperature']}°"
+            f"{weather['units'][0].upper()} ({weather['condition']})"
+        )
+
+        # Store a value
+        print("\nStoring value in memory...")
+        store_result = await client.call_tool("math", "store", {"key": "favorite_color", "value": "blue"})
+        print(f"Store result: {store_result['status']}")
+
+        # Retrieve the value
+        print("\nRetrieving value from memory...")
+        retrieve_result = await client.call_tool("math", "retrieve", {"key": "favorite_color"})
+        print(f"Retrieved: {retrieve_result['value']} (Age: {retrieve_result['age_seconds']} seconds)")
+
+        # Try retrieving a non-existent key
+        print("\nTrying to retrieve non-existent key...")
         try:
-            # List available tools
-            tools = await self.comm.list_tools(llm_service)
-            logger.info(f"Available tools: {tools}")
-
-            # Call a tool
-            result = await self.comm.call_tool(
-                llm_service, "generate_text", {"prompt": "What is the capital of France?"}
-            )
-            logger.info(f"Tool result: {result}")
-
-            # List available prompts
-            prompts = await self.comm.list_prompts(llm_service)
-            logger.info(f"Available prompts: {prompts}")
-
-            # Get a prompt
-            prompt_result = await self.comm.get_prompt(
-                llm_service, "simple_question", {"question": "What is the capital of France?"}
-            )
-            logger.info(f"Prompt result: {prompt_result}")
-
-            # List available resources
-            resources = await self.comm.list_resources(llm_service)
-            logger.info(f"Available resources: {resources}")
-
-            # Read a resource
-            resource_result = await self.comm.read_resource(llm_service, "resource://example")
-            logger.info(f"Resource result: {resource_result}")
-
+            missing_result = await client.call_tool("math", "retrieve", {"key": "non_existent"})
+            print(f"Result: {missing_result['message']}")
         except Exception as e:
-            logger.exception("Error during agent execution", error=str(e))
+            print(f"Error: {e}")
 
+        # Get the greeting prompt
+        print("\nGetting greeting prompt...")
+        greeting = await client.get_prompt("math", "greeting", {"name": "Math Client"})
+        print(f"Greeting: {greeting}")
 
-async def main():
-    """Run the example agent."""
-    # Determine which transport to use based on environment
-    use_sse = os.environ.get("USE_SSE", "false").lower() == "true"
+        # Get the help prompt
+        print("\nGetting help prompt...")
+        help_text = await client.get_prompt("math", "help")
+        print(f"Help:\n{help_text}")
 
-    # Define service URLs
-    service_urls = {
-        "llm": "http://localhost:8000" if use_sse else "python -m llm_service.main",
-    }
+        # Get the info resource
+        print("\nGetting info resource...")
+        info = await client.get_resource("math", "info")
+        info_dict = json.loads(info)
+        print("Server info:")
+        for key, value in info_dict.items():
+            print(f"  {key}: {value}")
 
-    # Create the appropriate MCP communicator based on transport type
-    if use_sse:
-        communicator = McpSseCommunicator(agent_name="McpExampleAgent", service_urls=service_urls)
-    else:
-        communicator = McpStdioCommunicator(agent_name="McpExampleAgent", service_urls=service_urls)
+        # Get the uptime resource
+        print("\nGetting uptime resource...")
+        uptime = await client.get_resource("math", "uptime")
+        print(f"Server uptime: {uptime.decode('utf-8')}")
 
-    # Create and run the agent
-    config = AgentConfig(name="McpExampleAgent")
-    agent = McpExampleAgent(config=config, communicator=communicator)
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        # Disconnect from the service
+        await client.disconnect_from_service("math")
+        print("\nDisconnected from math service")
 
-    await agent.start()
-    await agent.run()
-    await agent.stop()
+        # Stop the client
+        await client.stop()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_client())
