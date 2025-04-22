@@ -1,0 +1,12 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+mcp stands for model context protocol. All mcp work must be done using Anthropic's python-sdk 1.6 which internally uses the FastMCP library.
+Package installation: poetry install mcp
+Example of classic imports
+from mcp.client.session import ClientSession
+from mcp.client.sse import sse_client
+from mcp.types import TextContent, CallToolResult
+from mcp.server.fastmcp import FastMCP, Context

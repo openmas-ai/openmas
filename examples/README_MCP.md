@@ -8,7 +8,8 @@ The MCP SDK from Anthropic provides a client and server implementation for the M
 
 SimpleMAS provides adapters to use MCP with SimpleMAS agents:
 
-- `McpClientAdapter`: Adapter for SimpleMAS agents to connect to MCP services
+- `McpStdioCommunicator`: Communicator for connecting to MCP services over stdin/stdout
+- `McpSseCommunicator`: Communicator for connecting to MCP services over HTTP/SSE
 - `McpServerWrapper`: Wrapper for hosting MCP servers within SimpleMAS agents
 
 ## Installation
@@ -28,14 +29,20 @@ To use MCP as a client in a SimpleMAS agent:
 ```python
 from simple_mas.agent import Agent
 from simple_mas.config import AgentConfig
-from simple_mas.communication.mcp import McpClientAdapter
+from simple_mas.communication.mcp import McpStdioCommunicator, McpSseCommunicator
 from simple_mas.logging import get_logger
 
-# Create a MCP client adapter
-communicator = McpClientAdapter(
+# Choose the appropriate communicator based on transport
+# For stdin/stdout transport:
+communicator = McpStdioCommunicator(
     agent_name="MyAgent",
-    service_urls={"service_name": "command_or_url"},
-    use_sse=False  # Use SSE (True) or stdio (False)
+    service_urls={"service_name": "command_to_start_service"}
+)
+
+# OR for HTTP/SSE transport:
+communicator = McpSseCommunicator(
+    agent_name="MyAgent",
+    service_urls={"service_name": "http://localhost:8000"}
 )
 
 # Create and run the agent
@@ -47,9 +54,9 @@ await agent.run()
 await agent.stop()
 ```
 
-### MCP Client Methods
+### MCP Communicator Methods
 
-The `McpClientAdapter` provides methods for interacting with MCP services:
+Both `McpStdioCommunicator` and `McpSseCommunicator` provide methods for interacting with MCP services:
 
 - **Tools**
   - `list_tools(service_name)`: List available tools
@@ -103,7 +110,7 @@ server.run("stdio")  # or "sse" for SSE transport
 
 Check out the example implementations:
 
-- **Client**: `mcp_client_example.py` - SimpleMAS agent using MCP client
+- **Client**: `mcp_client_example.py` - SimpleMAS agent using MCP communicators
 - **Server**: `mcp_server_example.py` - SimpleMAS agent hosting a MCP server
 - **Service**: `llm_service/main.py` - MCP service that agents can connect to
 
@@ -112,19 +119,27 @@ Check out the example implementations:
 ### Running the LLM Service
 
 ```bash
-python examples/llm_service/main.py
+poetry run python examples/llm_service/main.py
 ```
 
 ### Running the Client Example
 
 ```bash
-python examples/mcp_client_example.py
+# Using stdio transport (default)
+poetry run python examples/mcp_client_example.py
+
+# Using SSE transport
+USE_SSE=true poetry run python examples/mcp_client_example.py
 ```
 
 ### Running the Server Example
 
 ```bash
-python examples/mcp_server_example.py
+# Using stdio transport (default)
+poetry run python examples/mcp_server_example.py
+
+# Using SSE transport
+MCP_TRANSPORT=sse poetry run python examples/mcp_server_example.py
 ```
 
 ## Transport Options
@@ -132,20 +147,25 @@ python examples/mcp_server_example.py
 MCP supports two transport protocols:
 
 1. **stdio**: Uses standard input/output for communication (default)
-2. **SSE (Server-Sent Events)**: Uses HTTP with Server-Sent Events for communication
+   - Use `McpStdioCommunicator` for client connections
+   - Service URLs should be commands to start the service processes
 
-To use SSE transport:
+2. **SSE (Server-Sent Events)**: Uses HTTP with Server-Sent Events for communication
+   - Use `McpSseCommunicator` for client connections
+   - Service URLs should be HTTP endpoints (e.g., "http://localhost:8000")
 
 ```python
-# For client
-communicator = McpClientAdapter(
+# For stdio transport
+communicator = McpStdioCommunicator(
     agent_name="MyAgent",
-    service_urls={"service_name": "http://localhost:8000"},
-    use_sse=True
+    service_urls={"service_name": "python -m service.main"}
 )
 
-# For server
-server.run("sse")
+# For SSE transport
+communicator = McpSseCommunicator(
+    agent_name="MyAgent",
+    service_urls={"service_name": "http://localhost:8000"}
+)
 ```
 
 ## Resources

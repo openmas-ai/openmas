@@ -1,10 +1,10 @@
-"""Example of SimpleMAS agent using MCP client adapter."""
+"""Example of SimpleMAS agent using MCP communicators."""
 
 import asyncio
 import os
 
 from simple_mas.agent import Agent
-from simple_mas.communication.mcp import McpClientAdapter
+from simple_mas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
 from simple_mas.config import AgentConfig
 from simple_mas.logging import get_logger, setup_logging
 
@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class McpExampleAgent(Agent):
-    """Example agent using MCP client adapter."""
+    """Example agent using MCP communicators."""
 
     async def run(self) -> None:
         """Run the agent."""
@@ -66,8 +66,11 @@ async def main():
         "llm": "http://localhost:8000" if use_sse else "python -m llm_service.main",
     }
 
-    # Create the MCP client adapter
-    communicator = McpClientAdapter(agent_name="McpExampleAgent", service_urls=service_urls, use_sse=use_sse)
+    # Create the appropriate MCP communicator based on transport type
+    if use_sse:
+        communicator = McpSseCommunicator(agent_name="McpExampleAgent", service_urls=service_urls)
+    else:
+        communicator = McpStdioCommunicator(agent_name="McpExampleAgent", service_urls=service_urls)
 
     # Create and run the agent
     config = AgentConfig(name="McpExampleAgent")
