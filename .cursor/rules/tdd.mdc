@@ -1,0 +1,6 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+Implement all features using TDD by first writing failing tests in test/, then developing the minimum code required for them to pass. When creating new tests they must adhere to the existing layout structure and naming convention of the testing suite.
