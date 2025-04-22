@@ -362,3 +362,167 @@ The Orchestrator-Worker pattern is ideal for scenarios such as:
 - **Content Generation**: Multi-stage content creation with specialist agents
 - **Customer Support**: Routing customer queries to specialized support agents
 - **Decision Systems**: Complex decision processes requiring multiple analyses
+
+## Chaining Pattern
+
+The Chaining pattern provides a way to execute a sequence of service calls, where each step can depend on the results of previous steps. This pattern is useful for implementing multi-stage processes where operations need to be performed in order.
+
+### Key Components
+
+SimpleMAS implements the Chaining pattern with the following components:
+
+- `ServiceChain`: A class for defining and executing a chain of service calls
+- `ChainBuilder`: A builder for creating chains with a fluent interface
+- `ChainStep`: A model representing a step in the chain
+- `ChainStepResult`: A model representing the result of executing a step
+- `ChainResult`: A model representing the result of executing the entire chain
+
+### Benefits
+
+- **Sequential Execution**: Execute operations in a specific order
+- **Data Flow**: Pass data between steps in the chain
+- **Error Handling**: Handle errors at each step and abort or continue as needed
+- **Retries**: Configure retry policies for individual steps
+- **Conditional Execution**: Skip steps based on conditions
+- **Transformations**: Transform inputs and outputs at each step
+
+### Example Usage
+
+```python
+from simple_mas.patterns.chaining import ChainBuilder
+
+# Create a chain builder
+chain = ChainBuilder(communicator, name="weather_forecast_chain")
+
+# Add steps to the chain
+chain.add_step(
+    target_service="auth_service",
+    method="authenticate",
+    parameters={"api_key": "my_api_key"},
+    name="auth",
+    retry_count=2,
+)
+
+chain.add_step(
+    target_service="location_service",
+    method="get_coordinates",
+    parameters={"city": "New York"},
+    name="location",
+    transform_output=lambda resp: resp.get("coordinates"),
+)
+
+# Execute the chain
+result = await chain.execute()
+
+if result.successful:
+    print(f"Final result: {result.final_result}")
+else:
+    print(f"Chain execution failed: {result.results[-1].error}")
+```
+
+## Routing Pattern
+
+The Routing pattern provides a flexible way to dispatch requests to different handlers based on various criteria. This pattern is useful for implementing request handling systems that need to route requests based on content, type, or other properties.
+
+### Key Components
+
+SimpleMAS implements the Routing pattern with the following components:
+
+- `Router`: A class for defining routing rules and dispatching requests
+- `RoutingAgent`: A base agent class that includes routing capabilities
+- `Route`: A class representing a routing rule
+- Decorators: Various decorators for defining routing rules on methods
+
+### Benefits
+
+- **Flexible Routing**: Route requests based on method name, parameters, content, or custom conditions
+- **Priority-Based**: Specify priorities for routing rules to control which rules take precedence
+- **Transparent Forwarding**: Forward requests to other services without additional code
+- **Centralized Routing Logic**: Keep all routing logic in one place for easier maintenance
+- **Declarative Syntax**: Use decorators for a clean, declarative syntax
+
+### Example Usage
+
+```python
+from simple_mas.patterns.routing import (
+    RoutingAgent,
+    route_method,
+    route_param,
+    route_content,
+    route_default
+)
+
+class ExampleRoutingAgent(RoutingAgent):
+    @route_method(method="get_user")
+    async def handle_get_user(self, user_id: str, **kwargs):
+        # Handle get_user method
+        return {"user_id": user_id, "name": f"User {user_id}"}
+
+    @route_param(param_name="action", param_value="create")
+    async def handle_create_action(self, **kwargs):
+        # Handle create actions
+        return {"status": "created"}
+
+    @route_default()
+    async def handle_default(self, **kwargs):
+        # Handle any request that doesn't match other routes
+        return {"status": "unknown_request"}
+```
+
+## Combining Patterns
+
+These patterns are designed to work together, allowing you to build complex agent systems:
+
+### Orchestrator-Worker with Routing
+
+```python
+class RoutingOrchestrator(BaseOrchestratorAgent, RoutingAgent):
+    async def setup(self) -> None:
+        await BaseOrchestratorAgent.setup(self)
+        await RoutingAgent.setup(self)
+
+    @route_method(method="process")
+    async def handle_process(self, data: Dict[str, Any], **kwargs):
+        # Use orchestration for processing
+        workflow = [
+            {"task_type": "validate", "parameters": {"data": data}},
+            {"task_type": "transform", "include_previous_results": True}
+        ]
+        return await self.orchestrate_workflow(workflow)
+```
+
+### Chaining with Routing
+
+```python
+class ApiGateway(RoutingAgent):
+    @route_method(method="get_user_weather")
+    async def handle_get_user_weather(self, user_id: str, **kwargs):
+        chain = ChainBuilder(self.communicator, "user_weather_chain")
+
+        chain.add_step(
+            target_service="user_service",
+            method="get_user",
+            parameters={"user_id": user_id}
+        )
+
+        chain.add_step(
+            target_service="location_service",
+            method="get_user_location",
+            parameters={"user_id": user_id}
+        )
+
+        chain.add_step(
+            target_service="weather_service",
+            method="get_forecast",
+            transform_input=lambda ctx: {
+                "coordinates": ctx["get_user_location"]
+            }
+        )
+
+        result = await chain.execute()
+        return {
+            "user": result.results[0].result,
+            "location": result.results[1].result,
+            "weather": result.results[2].result
+        }
+```
