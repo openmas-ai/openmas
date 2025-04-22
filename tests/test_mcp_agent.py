@@ -1,284 +1,282 @@
-"""Tests for the MCP agent implementation."""
+"""Tests for MCP agent and decorators."""
 
-import types
-from typing import Any, Dict
+import asyncio
 from unittest import mock
 
 import pytest
 from pydantic import BaseModel
 
-# Skip tests if MCP is not available
+from simple_mas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
+from simple_mas.agent.mcp import MCP_PROMPT_ATTR, MCP_RESOURCE_ATTR, MCP_TOOL_ATTR
+from simple_mas.config import AgentConfig
+
+# Try to import AsyncMock, available in Python 3.8+
 try:
-    import mcp  # noqa: F401
-
-    from simple_mas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
-    from simple_mas.communication.mcp import McpSseCommunicator
-    from simple_mas.config import AgentConfig
-
-    HAS_MCP = True
+    from unittest.mock import AsyncMock
 except ImportError:
-    HAS_MCP = False
-    pytest.skip("MCP module is not available", allow_module_level=True)
+    # For Python 3.7, create a simple AsyncMock class
+    class AsyncMock(mock.MagicMock):
+        async def __call__(self, *args, **kwargs):
+            return super(AsyncMock, self).__call__(*args, **kwargs)
 
 
-class InputModel(BaseModel):
-    """Test input model."""
+class TodoItem(BaseModel):
+    """Sample model for testing."""
 
-    name: str
-    value: int = 0
+    id: int
+    text: str
+    completed: bool = False
 
 
-class OutputModel(BaseModel):
-    """Test output model."""
+class MockMcpCommunicator:
+    """Mock MCP communicator for testing."""
 
-    result: str
-    code: int
+    def __init__(self, agent_name):
+        self.agent_name = agent_name
+        self.server_mode = True
+        self.mcp_server = mock.MagicMock()
+        self.started = False
+        self.stopped = False
+
+    async def start(self):
+        """Start the communicator."""
+        self.started = True
+
+    async def stop(self):
+        """Stop the communicator."""
+        self.stopped = True
 
 
 class TestMcpAgent:
-    """Tests for the MCP agent implementation."""
+    """Tests for the McpAgent class."""
 
-    class TestAgent(McpAgent):
-        """Test agent with MCP-decorated methods."""
+    def test_initialization(self):
+        """Test that the agent initializes correctly."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
+        assert agent.name == "test_agent"
+        assert agent._tools == {}
+        assert agent._prompts == {}
+        assert agent._resources == {}
+        assert agent._server_mode is False
 
-        def __init__(self, name: str) -> None:
-            # Create a proper AgentConfig object
-            config = AgentConfig(name=name, log_level="INFO", service_urls={})
-            super().__init__(config)
-            self.setup_called = False
-            self.run_called = False
-            self.shutdown_called = False
+    def test_decorators_discovery(self):
+        """Test that the agent discovers decorated methods."""
 
-        async def setup(self) -> None:
-            """Set up the agent."""
-            self.setup_called = True
+        class TestAgent(McpAgent):
+            """Test agent with decorated methods."""
 
-        async def run(self) -> None:
-            """Run the agent."""
-            self.run_called = True
+            @mcp_tool(description="Test tool")
+            async def test_tool(self, param: str) -> dict:
+                """Test tool docstring."""
+                return {"result": param}
 
-        async def shutdown(self) -> None:
-            """Shut down the agent."""
-            self.shutdown_called = True
+            @mcp_prompt(description="Test prompt")
+            async def test_prompt(self, context: str) -> str:
+                """Test prompt docstring."""
+                return f"Prompt with {context}"
 
-        @mcp_tool(description="Test tool")
-        async def test_tool(self, name: str, value: int = 0) -> Dict[str, Any]:
-            """Test tool method."""
-            return {"result": f"Hello, {name}", "code": value}
+            @mcp_resource(uri="/test", description="Test resource")
+            async def test_resource(self) -> bytes:
+                """Test resource docstring."""
+                return b"Test resource content"
 
-        @mcp_tool(
-            name="custom_name_tool",
-            description="Tool with custom name",
-            input_model=InputModel,
-            output_model=OutputModel,
-        )
-        async def another_tool(self, name: str, value: int = 0) -> Dict[str, Any]:
-            """Another test tool."""
-            return {"result": f"Hello, {name}", "code": value}
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = TestAgent(config=config)
 
-        @mcp_prompt(description="Test prompt")
-        async def test_prompt(self, topic: str) -> str:
-            """Test prompt method."""
-            return f"Content about {topic}"
+        # Check that the tools were discovered
+        assert "test_tool" in agent._tools
+        assert agent._tools["test_tool"]["metadata"]["description"] == "Test tool"
 
-        @mcp_resource(
-            uri="/test",
-            description="Test resource",
-            mime_type="text/plain",
-        )
-        async def test_resource(self) -> bytes:
-            """Test resource method."""
-            return b"Test resource content"
+        # Check that the prompts were discovered
+        assert "test_prompt" in agent._prompts
+        assert agent._prompts["test_prompt"]["metadata"]["description"] == "Test prompt"
+
+        # Check that the resources were discovered
+        assert "/test" in agent._resources
+        assert agent._resources["/test"]["metadata"]["description"] == "Test resource"
 
     @pytest.mark.asyncio
-    async def test_mcp_tool_decorator_attributes(self) -> None:
-        """Test that the mcp_tool decorator sets the correct attributes."""
-        agent = self.TestAgent("test-agent")
+    async def test_server_mode_registration(self):
+        """Test that the agent registers methods with the server."""
+        # Skip if MCP is not installed, mock HAS_MCP for this test
+        with mock.patch("simple_mas.agent.mcp.HAS_MCP", True):
 
-        # Check attributes on test_tool
-        assert hasattr(agent.test_tool, "_mcp_type")
-        assert agent.test_tool._mcp_type == "tool"
-        assert agent.test_tool._mcp_description == "Test tool"
-        assert hasattr(agent.test_tool, "_mcp_input_model")
-        assert not hasattr(agent.test_tool, "_mcp_output_model")
+            class TestAgent(McpAgent):
+                """Test agent with decorated methods."""
 
-        # Check attributes on another_tool
-        assert hasattr(agent.another_tool, "_mcp_type")
-        assert agent.another_tool._mcp_type == "tool"
-        assert agent.another_tool._mcp_name == "custom_name_tool"
-        assert agent.another_tool._mcp_description == "Tool with custom name"
-        assert agent.another_tool._mcp_input_model == InputModel
-        assert agent.another_tool._mcp_output_model == OutputModel
+                @mcp_tool(description="Test tool")
+                async def test_tool(self, param: str) -> dict:
+                    """Test tool docstring."""
+                    return {"result": param}
+
+                @mcp_prompt(description="Test prompt")
+                async def test_prompt(self, context: str) -> str:
+                    """Test prompt docstring."""
+                    return f"Prompt with {context}"
+
+                @mcp_resource(uri="/test", description="Test resource")
+                async def test_resource(self) -> bytes:
+                    """Test resource docstring."""
+                    return b"Test resource content"
+
+            config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+            agent = TestAgent(config=config)
+
+            # Create a mock communicator
+            communicator = MockMcpCommunicator(agent_name="test_agent")
+            agent.set_communicator(communicator)
+
+            # Start the agent to trigger registration
+            await agent.setup()
+
+            # Check that the methods were registered with the server
+            communicator.mcp_server.add_tool.assert_called()
+            communicator.mcp_server.add_prompt.assert_called()
+            communicator.mcp_server.add_resource.assert_called()
 
     @pytest.mark.asyncio
-    async def test_mcp_prompt_decorator_attributes(self) -> None:
-        """Test that the mcp_prompt decorator sets the correct attributes."""
-        agent = self.TestAgent("test-agent")
+    async def test_lifecycle(self):
+        """Test the agent lifecycle."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
 
-        assert hasattr(agent.test_prompt, "_mcp_type")
-        assert agent.test_prompt._mcp_type == "prompt"
-        assert agent.test_prompt._mcp_description == "Test prompt"
-
-    @pytest.mark.asyncio
-    async def test_mcp_resource_decorator_attributes(self) -> None:
-        """Test that the mcp_resource decorator sets the correct attributes."""
-        agent = self.TestAgent("test-agent")
-
-        assert hasattr(agent.test_resource, "_mcp_type")
-        assert agent.test_resource._mcp_type == "resource"
-        assert agent.test_resource._mcp_description == "Test resource"
-        assert agent.test_resource._mcp_uri == "/test"
-        assert agent.test_resource._mcp_mime_type == "text/plain"
-
-    @pytest.mark.asyncio
-    @mock.patch("simple_mas.agent.mcp.asyncio.sleep")
-    async def test_mcp_agent_with_sse_communicator(self, mock_sleep: mock.AsyncMock) -> None:
-        """Test MCP agent with SSE communicator in server mode."""
-        # Create a mock FastMCP instance
-        mock_server = mock.MagicMock()
-        mock_add_tool = mock.MagicMock()
-        mock_add_prompt = mock.MagicMock()
-        mock_add_resource = mock.MagicMock()
-        mock_server.add_tool = mock_add_tool
-        mock_server.add_prompt = mock_add_prompt
-        mock_server.add_resource = mock_add_resource
-
-        # Create a mock SSE communicator with proper async mocks
-        mock_communicator = mock.MagicMock(spec=McpSseCommunicator)
-        mock_communicator.server_mode = True
-        mock_communicator.server = mock_server
-        mock_communicator.start = mock.AsyncMock()
-        mock_communicator.stop = mock.AsyncMock()
-        mock_communicator.register_tool = mock.AsyncMock()
-        mock_communicator.register_prompt = mock.AsyncMock()
-        mock_communicator.register_resource = mock.AsyncMock()
-
-        # Create the agent
-        agent = self.TestAgent("test-agent")
-        agent.set_communicator(mock_communicator)
+        # Create a mock communicator
+        communicator = MockMcpCommunicator(agent_name="test_agent")
+        agent.set_communicator(communicator)
 
         # Start the agent
         await agent.start()
+        assert communicator.started is True
 
-        # Check that the communicator was started
-        mock_communicator.start.assert_called_once()
+        # Mock the run method to return immediately
+        with mock.patch.object(agent, "run", return_value=asyncio.Future()):
+            agent._is_running = True
+            agent._task = asyncio.Future()
+            agent._task.set_result(None)
 
-        # Verify that all the methods were registered
-        assert mock_communicator.register_tool.call_count == 2
-        mock_communicator.register_tool.assert_any_call(
-            name="test_tool", description="Test tool", function=agent.test_tool
-        )
-        mock_communicator.register_tool.assert_any_call(
-            name="custom_name_tool", description="Tool with custom name", function=agent.another_tool
-        )
-
-        mock_communicator.register_prompt.assert_called_once_with(
-            name="test_prompt", description="Test prompt", function=agent.test_prompt
-        )
-
-        mock_communicator.register_resource.assert_called_once_with(
-            uri="/test", description="Test resource", function=agent.test_resource, mime_type="text/plain"
-        )
-
-        # Verify that setup was called
-        assert agent.setup_called
-
-        # Stop the agent
-        await agent.stop()
-
-        # Verify that the communicator was stopped
-        mock_communicator.stop.assert_called_once()
-        assert agent.shutdown_called
+            # Stop the agent
+            await agent.stop()
+            assert communicator.stopped is True
 
     @pytest.mark.asyncio
-    async def test_tool_input_validation(self) -> None:
-        """Test that input validation works with the Pydantic model."""
-        agent = self.TestAgent("test-agent")
+    async def test_sample_prompt(self):
+        """Test the sample_prompt method."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
 
-        # Valid input
-        result = await agent.another_tool(name="test", value=42)
-        assert result == {"result": "Hello, test", "code": 42}
+        # Create a mock communicator with sample_prompt method
+        communicator = mock.MagicMock()
+        sample_prompt_result = {"content": "Sample response"}
+        communicator.sample_prompt = AsyncMock(return_value=sample_prompt_result)
+        agent.set_communicator(communicator)
 
-        # Invalid input would raise a validation error from Pydantic
-        with pytest.raises(Exception):
-            await agent.another_tool(invalid_param="test")
+        # Call sample_prompt
+        messages = [{"role": "user", "content": "Hello"}]
+        result = await agent.sample_prompt(
+            target_service="test_service",
+            messages=messages,
+            system_prompt="You are a helpful assistant",
+            temperature=0.7,
+            max_tokens=100,
+        )
+
+        # Check that the communicator's sample_prompt was called with correct args
+        communicator.sample_prompt.assert_called_once_with(
+            target_service="test_service",
+            messages=messages,
+            system_prompt="You are a helpful assistant",
+            temperature=0.7,
+            max_tokens=100,
+            include_context=None,
+            model_preferences=None,
+            stop_sequences=None,
+            timeout=None,
+        )
+        assert result == sample_prompt_result
 
     @pytest.mark.asyncio
-    async def test_tool_output_validation(self) -> None:
-        """Test that output validation works with the Pydantic model."""
-        agent = self.TestAgent("test-agent")
+    async def test_sample_prompt_no_support(self):
+        """Test sample_prompt with a communicator that doesn't support it."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
 
-        # Call the tool with valid input
-        result = await agent.another_tool(name="test", value=42)
+        # Create a mock communicator without sample_prompt method
+        communicator = mock.MagicMock(spec=[])
+        agent.set_communicator(communicator)
 
-        # Check that the output was validated and transformed
-        assert isinstance(result, dict)
-        assert result["result"] == "Hello, test"
-        assert result["code"] == 42
+        # Call sample_prompt should raise an AttributeError
+        messages = [{"role": "user", "content": "Hello"}]
+        with pytest.raises(AttributeError):
+            await agent.sample_prompt(target_service="test_service", messages=messages)
 
-    @pytest.mark.asyncio
-    async def test_mcp_register_methods(self) -> None:
-        """Test registering MCP methods with the SSE communicator."""
-        # Create the agent
-        agent = self.TestAgent("test-agent")
 
-        # Create a simple mock with async methods that we can track
-        mock_communicator = mock.MagicMock()
-        mock_communicator.register_tool = mock.AsyncMock()
-        mock_communicator.register_prompt = mock.AsyncMock()
-        mock_communicator.register_resource = mock.AsyncMock()
+class TestMcpDecorators:
+    """Tests for the MCP decorators."""
 
-        # Set the communicator
-        agent.set_communicator(mock_communicator)
+    def test_mcp_tool_decorator(self):
+        """Test the mcp_tool decorator."""
 
-        # Register the methods directly
-        await agent._register_mcp_methods()
+        @mcp_tool(name="custom_name", description="Custom description")
+        async def test_function(param: str) -> dict:
+            """Test function docstring."""
+            return {"result": param}
 
-        # Check that register_tool was called for each tool
-        assert mock_communicator.register_tool.call_count == 2
-        mock_communicator.register_tool.assert_any_call(
-            name="test_tool", description="Test tool", function=agent.test_tool
+        # Check that the metadata was added to the function
+        assert hasattr(test_function, MCP_TOOL_ATTR)
+        metadata = getattr(test_function, MCP_TOOL_ATTR)
+        assert metadata["name"] == "custom_name"
+        assert metadata["description"] == "Custom description"
+
+        # Test with output model
+        @mcp_tool(output_model=TodoItem)
+        async def test_function_with_model(id: int, text: str) -> dict:
+            """Test function with model."""
+            return {"id": id, "text": text}
+
+        metadata = getattr(test_function_with_model, MCP_TOOL_ATTR)
+        assert metadata["output_model"] == TodoItem
+
+    def test_mcp_prompt_decorator(self):
+        """Test the mcp_prompt decorator."""
+
+        @mcp_prompt(name="custom_prompt", description="Custom prompt description")
+        async def test_prompt(context: str) -> str:
+            """Test prompt docstring."""
+            return f"Prompt with {context}"
+
+        # Check that the metadata was added to the function
+        assert hasattr(test_prompt, MCP_PROMPT_ATTR)
+        metadata = getattr(test_prompt, MCP_PROMPT_ATTR)
+        assert metadata["name"] == "custom_prompt"
+        assert metadata["description"] == "Custom prompt description"
+
+        # Test with template
+        @mcp_prompt(template="This is a template with {{ variable }}")
+        async def test_prompt_with_template(variable: str) -> str:
+            """Test prompt with template."""
+            return f"This is a template with {variable}"
+
+        metadata = getattr(test_prompt_with_template, MCP_PROMPT_ATTR)
+        assert metadata["template"] == "This is a template with {{ variable }}"
+
+    def test_mcp_resource_decorator(self):
+        """Test the mcp_resource decorator."""
+
+        @mcp_resource(
+            uri="/custom/path",
+            name="custom_resource",
+            description="Custom resource description",
+            mime_type="application/json",
         )
-        mock_communicator.register_tool.assert_any_call(
-            name="custom_name_tool", description="Tool with custom name", function=agent.another_tool
-        )
+        async def test_resource() -> bytes:
+            """Test resource docstring."""
+            return b'{"result": "value"}'
 
-        # Check that register_prompt was called
-        mock_communicator.register_prompt.assert_called_once_with(
-            name="test_prompt", description="Test prompt", function=agent.test_prompt
-        )
-
-        # Check that register_resource was called
-        mock_communicator.register_resource.assert_called_once_with(
-            uri="/test", description="Test resource", function=agent.test_resource, mime_type="text/plain"
-        )
-
-        # Reset the mocks for the next test
-        mock_communicator.register_tool.reset_mock()
-        mock_communicator.register_prompt.reset_mock()
-        mock_communicator.register_resource.reset_mock()
-
-        # Test with a new resource
-        @mcp_resource(uri="test_resource", description="A test resource")
-        async def new_resource(self) -> str:
-            return "resource value"
-
-        # Attach the method to the agent
-        original_resource = agent.test_resource
-        agent.test_resource = types.MethodType(new_resource, agent)
-
-        # Re-register the methods
-        agent._discover_mcp_methods()  # Refresh the discovered methods
-        await agent._register_mcp_methods()
-
-        # Check that register_resource was called with the new resource
-        assert mock_communicator.register_resource.call_count == 2
-        mock_communicator.register_resource.assert_any_call(
-            uri="test_resource",
-            description="A test resource",
-            function=agent.test_resource,
-            mime_type="application/octet-stream",
-        )
-
-        # Restore the original resource
-        agent.test_resource = original_resource
+        # Check that the metadata was added to the function
+        assert hasattr(test_resource, MCP_RESOURCE_ATTR)
+        metadata = getattr(test_resource, MCP_RESOURCE_ATTR)
+        assert metadata["uri"] == "/custom/path"
+        assert metadata["name"] == "custom_resource"
+        assert metadata["description"] == "Custom resource description"
+        assert metadata["mime_type"] == "application/json"

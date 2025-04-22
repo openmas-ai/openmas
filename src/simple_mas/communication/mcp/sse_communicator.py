@@ -381,6 +381,78 @@ class McpSseCommunicator(BaseCommunicator):
                 target=target_service,
             )
 
+    async def sample_prompt(
+        self,
+        target_service: str,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        include_context: Optional[str] = None,
+        model_preferences: Optional[Dict[str, Any]] = None,
+        stop_sequences: Optional[List[str]] = None,
+        timeout: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Request an LLM sampling from the MCP client for a given prompt.
+
+        This method allows MCP servers to request generation from LLMs through the MCP client,
+        which is especially useful for implementing agentic capabilities in MCP servers.
+
+        Args:
+            target_service: The service to request sampling from.
+            messages: List of messages to include in the sampling request,
+                     each with 'role' and 'content' fields.
+            system_prompt: Optional system prompt to use.
+            temperature: Optional temperature for sampling (0.0 to 1.0).
+            max_tokens: Optional maximum number of tokens to generate.
+            include_context: Optional context inclusion mode ("none", "thisServer", "allServers").
+            model_preferences: Optional dictionary of model preferences (hints, priorities).
+            stop_sequences: Optional list of sequences that should stop generation.
+            timeout: Optional timeout in seconds.
+
+        Returns:
+            The sampling result, including generated content.
+
+        Raises:
+            ServiceNotFoundError: If the target service is not found.
+            CommunicationError: If there's a problem with the communication.
+        """
+        await self._connect_to_service(target_service)
+        session = self.sessions[target_service]
+
+        # Prepare sampling parameters
+        params: Dict[str, Any] = {
+            "messages": messages,
+        }
+
+        # Add optional parameters if provided
+        if system_prompt is not None:
+            params["systemPrompt"] = system_prompt
+        if temperature is not None:
+            params["temperature"] = temperature
+        if max_tokens is not None:
+            params["maxTokens"] = max_tokens
+        if include_context is not None:
+            params["includeContext"] = include_context
+        if model_preferences is not None:
+            params["modelPreferences"] = model_preferences
+        if stop_sequences is not None:
+            params["stopSequences"] = stop_sequences
+
+        try:
+            # Use the sampling/createMessage method to request sampling
+            result = await session._call_method("sampling/createMessage", params=params, timeout=timeout)
+            return result
+        except Exception as e:
+            logger.exception(
+                f"Failed to sample prompt from service: {target_service}",
+                error=str(e),
+            )
+            raise CommunicationError(
+                f"Failed to sample prompt from service '{target_service}': {e}",
+                target=target_service,
+            )
+
     async def call_tool(
         self,
         target_service: str,

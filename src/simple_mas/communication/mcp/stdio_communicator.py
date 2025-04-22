@@ -395,3 +395,193 @@ class McpStdioCommunicator(BaseCommunicator):
                 f"Failed to call tool {tool_name} on service '{target_service}': {e}",
                 target=target_service,
             )
+
+    async def get_prompt(
+        self,
+        target_service: str,
+        prompt_name: str,
+        arguments: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> Any:
+        """Get a prompt from a service.
+
+        Args:
+            target_service: The service to get the prompt from.
+            prompt_name: The name of the prompt to get.
+            arguments: The arguments to pass to the prompt.
+            timeout: Optional timeout in seconds.
+
+        Returns:
+            The result of the prompt.
+
+        Raises:
+            ServiceNotFoundError: If the target service is not found.
+            CommunicationError: If there's a problem with the communication.
+        """
+        await self._connect_to_service(target_service)
+        session = self.sessions[target_service]
+
+        try:
+            result = await session.get_prompt(prompt_name, arguments or {}, timeout=timeout)
+            return result
+        except Exception as e:
+            logger.exception(
+                f"Failed to get prompt {prompt_name} from service: {target_service}",
+                error=str(e),
+            )
+            raise CommunicationError(
+                f"Failed to get prompt {prompt_name} from service '{target_service}': {e}",
+                target=target_service,
+            )
+
+    async def sample_prompt(
+        self,
+        target_service: str,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        include_context: Optional[str] = None,
+        model_preferences: Optional[Dict[str, Any]] = None,
+        stop_sequences: Optional[List[str]] = None,
+        timeout: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Request an LLM sampling from the MCP client for a given prompt.
+
+        This method allows MCP servers to request generation from LLMs through the MCP client,
+        which is especially useful for implementing agentic capabilities in MCP servers.
+
+        Args:
+            target_service: The service to request sampling from.
+            messages: List of messages to include in the sampling request,
+                     each with 'role' and 'content' fields.
+            system_prompt: Optional system prompt to use.
+            temperature: Optional temperature for sampling (0.0 to 1.0).
+            max_tokens: Optional maximum number of tokens to generate.
+            include_context: Optional context inclusion mode ("none", "thisServer", "allServers").
+            model_preferences: Optional dictionary of model preferences (hints, priorities).
+            stop_sequences: Optional list of sequences that should stop generation.
+            timeout: Optional timeout in seconds.
+
+        Returns:
+            The sampling result, including generated content.
+
+        Raises:
+            ServiceNotFoundError: If the target service is not found.
+            CommunicationError: If there's a problem with the communication.
+        """
+        await self._connect_to_service(target_service)
+        session = self.sessions[target_service]
+
+        # Prepare sampling parameters
+        params: Dict[str, Any] = {
+            "messages": messages,
+        }
+
+        # Add optional parameters if provided
+        if system_prompt is not None:
+            params["systemPrompt"] = system_prompt
+        if temperature is not None:
+            params["temperature"] = temperature
+        if max_tokens is not None:
+            params["maxTokens"] = max_tokens
+        if include_context is not None:
+            params["includeContext"] = include_context
+        if model_preferences is not None:
+            params["modelPreferences"] = model_preferences
+        if stop_sequences is not None:
+            params["stopSequences"] = stop_sequences
+
+        try:
+            # Use the sampling/createMessage method to request sampling
+            result = await session._call_method("sampling/createMessage", params=params, timeout=timeout)
+            return result
+        except Exception as e:
+            logger.exception(
+                f"Failed to sample prompt from service: {target_service}",
+                error=str(e),
+            )
+            raise CommunicationError(
+                f"Failed to sample prompt from service '{target_service}': {e}",
+                target=target_service,
+            )
+
+    async def _handle_mcp_request(
+        self,
+        target_service: str,
+        method: str,
+        params: Optional[Dict[str, Any]] = None,
+        response_model: Optional[Type[T]] = None,
+        timeout: Optional[float] = None,
+    ) -> Any:
+        """Handle an MCP request.
+
+        This method is used to handle MCP requests in both client and server modes.
+
+        Args:
+            target_service: The name of the service to send the request to.
+            method: The method to call on the service.
+            params: The parameters to pass to the method.
+            response_model: Optional Pydantic model to validate the response.
+            timeout: Optional timeout in seconds.
+
+        Returns:
+            The response from the service.
+
+        Raises:
+            ServiceNotFoundError: If the target service is not found.
+            CommunicationError: If there's a problem with the communication.
+        """
+        if self.server_mode:
+            logger.warning("send_request called in server mode, which is not fully supported")
+            return None
+
+        # Connect to the service if needed
+        await self._connect_to_service(target_service)
+        session = self.sessions[target_service]
+
+        # Map the method to MCP SDK calls
+        try:
+            if method.startswith("tool/"):
+                if method == "tool/list":
+                    tools = await session.list_tools()
+                    return {"tools": [tool.model_dump() for tool in tools]}
+                elif method == "tool/call":
+                    params_dict = params or {}
+                    tool_name = params_dict.get("name", "")
+                    arguments = params_dict.get("arguments", {})
+                    result = await session.call_tool(tool_name, arguments, timeout=timeout)
+                    return {"result": result}
+            elif method.startswith("prompt/"):
+                if method == "prompt/list":
+                    prompts = await session.list_prompts()
+                    return {"prompts": [prompt.model_dump() for prompt in prompts]}
+                elif method == "prompt/get":
+                    params_dict = params or {}
+                    prompt_name = params_dict.get("name", "")
+                    arguments = params_dict.get("arguments", {})
+                    result = await session.get_prompt(prompt_name, arguments, timeout=timeout)
+                    return result
+            elif method.startswith("resource/"):
+                if method == "resource/list":
+                    resources = await session.list_resources()
+                    return {"resources": [resource.model_dump() for resource in resources]}
+                elif method == "resource/read":
+                    params_dict = params or {}
+                    uri = params_dict.get("uri", "")
+                    content = await session.read_resource(uri)
+                    return {"content": content}
+
+            # Handle custom methods by directly calling tools
+            result = await session.call_tool(method, params or {}, timeout=timeout)
+            return result
+
+        except Exception as e:
+            logger.exception(
+                f"Error sending request to {target_service}.{method}",
+                error=str(e),
+            )
+            raise CommunicationError(
+                f"Failed to send request to {target_service}.{method}: {e}",
+                target=target_service,
+            )
