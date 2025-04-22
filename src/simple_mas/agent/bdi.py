@@ -309,8 +309,10 @@ class BdiAgent(BaseAgent):
         if self._bdi_task is not None and not self._bdi_task.done():
             self._bdi_task.cancel()
             try:
-                await self._bdi_task
-            except asyncio.CancelledError:
+                # Wait for the task to be cancelled
+                await asyncio.wait_for(asyncio.shield(self._bdi_task), timeout=0.1)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                # Expected exceptions
                 pass
             self._bdi_task = None
 

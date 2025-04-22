@@ -38,6 +38,156 @@ async def test_echo_handler(test_agent):
     assert result == {"echo": "hello"}
 ```
 
+## Using the MockCommunicator
+
+SimpleMAS provides a mock communicator specifically designed for testing. The `MockCommunicator` allows you to:
+
+1. Set up expected requests and predefined responses
+2. Record calls made to it for later assertions
+3. Simulate handler registration and triggering
+4. Verify that all expected interactions occurred
+
+### Basic Usage
+
+```python
+import pytest
+from simple_mas import Agent
+from simple_mas.testing import MockCommunicator
+
+@pytest.fixture
+async def agent_with_mock():
+    # Create a mock communicator
+    mock_comm = MockCommunicator(agent_name="test_agent")
+
+    # Create an agent using the mock communicator
+    agent = Agent(
+        name="test_agent",
+        communicator=mock_comm
+    )
+
+    # Set up a request handler
+    @agent.handler("test_handler")
+    async def handle_test(params):
+        return {"result": params.get("value", "") + "_processed"}
+
+    await agent.start()
+    yield agent, mock_comm
+    await agent.stop()
+
+async def test_agent_with_mock(agent_with_mock):
+    agent, mock_comm = agent_with_mock
+
+    # Set up an expected request and response
+    mock_comm.expect_request(
+        target_service="external_service",
+        method="get_data",
+        params={"id": "123"},
+        response={"data": "test_data"}
+    )
+
+    # Have the agent make a request
+    response = await agent.send_request(
+        target_service="external_service",
+        method="get_data",
+        params={"id": "123"}
+    )
+
+    # Verify the response
+    assert response == {"data": "test_data"}
+
+    # Verify all expectations were met
+    mock_comm.verify_all_expectations_met()
+```
+
+### Advanced Features
+
+#### Setting Up Expected Requests with Specific Responses
+
+```python
+# Set up a response for a specific request
+mock_comm.expect_request(
+    target_service="service1",
+    method="get_user",
+    params={"user_id": "123"},
+    response={"name": "Test User", "email": "test@example.com"}
+)
+
+# Set up an exception to be raised
+from simple_mas.exceptions import ServiceNotFoundError
+mock_comm.expect_request(
+    target_service="service2",
+    method="get_data",
+    params={"id": "456"},
+    exception=ServiceNotFoundError("Service not found")
+)
+```
+
+#### Handling Notifications
+
+```python
+# Set up an expected notification
+mock_comm.expect_notification(
+    target_service="logging_service",
+    method="log_event",
+    params={"level": "info", "message": "Test event"}
+)
+
+# Send a notification
+await agent.send_notification(
+    target_service="logging_service",
+    method="log_event",
+    params={"level": "info", "message": "Test event"}
+)
+
+# Verify all expectations were met
+mock_comm.verify_all_expectations_met()
+```
+
+#### Testing Handler Callbacks
+
+```python
+# Register a handler in the agent
+@agent.handler("process_data")
+async def handle_process_data(params):
+    return {"processed": params.get("data", "") + "_processed"}
+
+# Trigger the handler directly through the mock communicator
+result = await mock_comm.trigger_handler(
+    method="process_data",
+    params={"data": "test_input"}
+)
+
+# Verify the result
+assert result == {"processed": "test_input_processed"}
+```
+
+#### Checking Call History
+
+```python
+# Make some calls through the agent
+await agent.send_request(
+    target_service="service1",
+    method="method1",
+    params={"param1": "value1"}
+)
+
+await agent.send_notification(
+    target_service="service2",
+    method="method2",
+    params={"param2": "value2"}
+)
+
+# Check the call history
+assert len(mock_comm.calls) == 2
+assert mock_comm.calls[0].method_name == "send_request"
+assert mock_comm.calls[0].args[0] == "service1"  # target_service
+assert mock_comm.calls[0].args[1] == "method1"   # method
+assert mock_comm.calls[0].args[2] == {"param1": "value1"}  # params
+
+assert mock_comm.calls[1].method_name == "send_notification"
+assert mock_comm.calls[1].args[0] == "service2"  # target_service
+```
+
 ### Integration Testing
 
 Test multiple agents communicating:
