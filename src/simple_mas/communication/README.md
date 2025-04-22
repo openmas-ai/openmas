@@ -23,27 +23,155 @@ The `BaseCommunicator` abstract base class defines the interface that all protoc
 
 Any new protocol implementation must adhere to this interface to ensure compatibility with the SimpleMas framework.
 
-## Protocol Plugin System
+## Communicator Plugin System
 
-The communication module is designed with a plugin architecture to allow easy addition of new protocol implementations:
+SimpleMas provides a flexible plugin system that allows developers to easily add custom communicator implementations. The plugin architecture consists of:
 
-1. Implement the `BaseCommunicator` interface
-2. Register the implementation in the module's `__init__.py`
-3. Document the protocol's characteristics, configuration, and use cases
+1. **Registry Mechanism**: A central registry that maps communicator types to their implementation classes
+2. **Discovery API**: Functions to look up available communicator types and retrieve their classes
+3. **Configuration Integration**: Support for communicator-specific configuration options
+4. **Dynamic Instantiation**: Ability to create communicator instances based on configuration
 
-This design allows for easy extension of SimpleMas with custom protocols tailored to specific deployment environments or performance requirements.
+### Using the Plugin System
+
+To use a specific communicator in your agent:
+
+```python
+from simple_mas.agent import BaseAgent
+
+# Configure through environment variables
+# COMMUNICATOR_TYPE=mcp_stdio
+# COMMUNICATOR_OPTION_SERVER_MODE=true
+
+# Or through direct initialization
+agent = BaseAgent(
+    name="my-agent",
+    config=AgentConfig(
+        name="my-agent",
+        communicator_type="http",  # or "mcp_stdio", "mcp_sse", etc.
+        communicator_options={
+            "server_mode": True,
+            "http_port": 8000
+        }
+    )
+)
+```
+
+### Implementing Custom Communicators
+
+To create a custom communicator plugin:
+
+1. Implement the `BaseCommunicator` interface:
+
+```python
+from simple_mas.communication.base import BaseCommunicator
+
+class MyCustomCommunicator(BaseCommunicator):
+    """Custom communicator implementation."""
+
+    def __init__(self, agent_name: str, service_urls: Dict[str, str], custom_option: str = "default"):
+        super().__init__(agent_name, service_urls)
+        self.custom_option = custom_option
+
+    # Implement all required abstract methods
+    async def send_request(self, target_service, method, params=None, response_model=None, timeout=None):
+        # Implementation...
+
+    async def send_notification(self, target_service, method, params=None):
+        # Implementation...
+
+    async def register_handler(self, method, handler):
+        # Implementation...
+
+    async def start(self):
+        # Implementation...
+
+    async def stop(self):
+        # Implementation...
+```
+
+2. Register your communicator with the registry:
+
+```python
+from simple_mas.communication.base import register_communicator
+from mypackage.communicator import MyCustomCommunicator
+
+# Register the communicator type
+register_communicator("my_custom", MyCustomCommunicator)
+```
+
+### Registration Methods
+
+There are three main ways to register a custom communicator:
+
+#### 1. Direct Registration in Code
+
+Call `register_communicator` directly in your code, typically in your package's `__init__.py`:
+
+```python
+from simple_mas.communication.base import register_communicator
+from mypackage.communicator import MyCustomCommunicator
+
+register_communicator("my_custom", MyCustomCommunicator)
+```
+
+#### 2. Using Python Entry Points (Recommended)
+
+Define entry points in your package's `pyproject.toml` or `setup.py`:
+
+```toml
+# In pyproject.toml
+[project.entry-points."simple_mas.communicators"]
+my_custom = "mypackage.communicator:MyCustomCommunicator"
+```
+
+```python
+# In setup.py
+setup(
+    # ... other setup parameters
+    entry_points={
+        "simple_mas.communicators": [
+            "my_custom=mypackage.communicator:MyCustomCommunicator",
+        ],
+    },
+)
+```
+
+This allows SimpleMas to discover your communicator when your package is installed, without requiring explicit imports.
+
+#### 3. Import Hook
+
+If you prefer to register your communicator when it's imported:
+
+```python
+# In mypackage/__init__.py
+from simple_mas.communication.base import register_communicator
+from mypackage.communicator import MyCustomCommunicator
+
+# Automatically register when package is imported
+register_communicator("my_custom", MyCustomCommunicator)
+```
+
+### Plugin Discovery Process
+
+When a SimpleMas agent is initialized:
+
+1. The agent configuration specifies a `communicator_type` (e.g., "http", "mcp_stdio", "my_custom").
+2. The agent looks up the corresponding communicator class in the registry.
+3. The communicator is instantiated with the agent name, service URLs, and any additional options specified in `communicator_options`.
+4. The communicator's lifecycle is managed by the agent (start/stop).
 
 ## Directory Structure
 
 ```
 communication/
 ├── __init__.py          # Module initialization and protocol registration
-├── base.py              # BaseCommunicator abstract base class
+├── base.py              # BaseCommunicator abstract base class and plugin registry
 ├── http.py              # HTTP protocol implementation
 ├── mcp/                 # Message Channel Protocol implementation
 │   ├── __init__.py
-│   ├── channel.py       # Channel implementation
-│   └── communicator.py  # MCP communicator implementation
+│   ├── stdio_communicator.py   # MCP stdio communicator
+│   └── sse_communicator.py     # MCP SSE communicator
 └── README.md            # This file
 ```
 
@@ -57,9 +185,18 @@ For details, see the [HTTP Protocol Documentation](../../docs/communication.md#h
 
 ### Message Channel Protocol (MCP)
 
-The Message Channel Protocol implementation (`mcp/`) provides high-performance in-memory communication for agents running in the same process. It's optimized for low-latency, high-throughput communication.
+The Message Channel Protocol implementation (`mcp/`) provides high-performance in-memory communication for agents running in the same process. It's optimized for low-latency, high-throughput communication between LLM-based agents.
 
 For details, see the [MCP Documentation](../../docs/communication.md#message-channel-protocol-mcp).
+
+## Best Practices for Plugin Developers
+
+1. **Clear Documentation**: Document your communicator's configuration options, constraints, and use cases.
+2. **Comprehensive Testing**: Thoroughly test your communicator in isolation and integrated with SimpleMas.
+3. **Error Handling**: Implement proper error handling and provide clear error messages.
+4. **Resource Management**: Ensure proper cleanup in the `stop()` method to prevent resource leaks.
+5. **Configuration**: Design your communicator to accept configuration options through `communicator_options`.
+6. **Compatibility**: Only advertise compatibility with SimpleMas versions you've tested against.
 
 ## For Developers
 

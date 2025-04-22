@@ -4,9 +4,9 @@ import abc
 import asyncio
 from typing import Optional, Type
 
-from simple_mas.communication import BaseCommunicator, HttpCommunicator
+from simple_mas.communication import BaseCommunicator, get_available_communicator_types, get_communicator_class
 from simple_mas.config import AgentConfig, load_config
-from simple_mas.exceptions import LifecycleError
+from simple_mas.exceptions import ConfigurationError, LifecycleError
 from simple_mas.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +24,7 @@ class BaseAgent(abc.ABC):
         name: Optional[str] = None,
         config: Optional[AgentConfig] = None,
         config_model: Type[AgentConfig] = AgentConfig,
-        communicator_class: Type[BaseCommunicator] = HttpCommunicator,
+        communicator_class: Optional[Type[BaseCommunicator]] = None,
         env_prefix: str = "",
     ):
         """Initialize the agent.
@@ -33,8 +33,11 @@ class BaseAgent(abc.ABC):
             name: The name of the agent (overrides config)
             config: The agent configuration (if not provided, will be loaded from environment)
             config_model: The configuration model class to use
-            communicator_class: The communicator class to use
+            communicator_class: Optional communicator class to use (overrides config.communicator_type)
             env_prefix: Optional prefix for environment variables
+
+        Raises:
+            ConfigurationError: If the specified communicator type is not available
         """
         # Load configuration
         self.config = config or load_config(config_model, env_prefix)
@@ -48,7 +51,40 @@ class BaseAgent(abc.ABC):
         self.logger = get_logger(self.__class__.__name__)
 
         # Create communicator
-        self.communicator = communicator_class(self.config.name, self.config.service_urls)
+        if communicator_class is not None:
+            # Use explicitly provided communicator class
+            self.communicator = communicator_class(self.config.name, self.config.service_urls)
+            self.logger.debug(
+                "Using explicitly provided communicator class", communicator_class=communicator_class.__name__
+            )
+        else:
+            # Use communicator type from config
+            try:
+                comm_class = get_communicator_class(self.config.communicator_type)
+
+                # Initialize the communicator with required args and any additional options
+                self.communicator = comm_class(
+                    self.config.name, self.config.service_urls, **self.config.communicator_options
+                )
+
+                self.logger.debug(
+                    "Using communicator from registry",
+                    communicator_type=self.config.communicator_type,
+                    communicator_class=comm_class.__name__,
+                    communicator_options=self.config.communicator_options,
+                )
+            except ValueError as e:
+                available_types = ", ".join(get_available_communicator_types().keys())
+                error_msg = (
+                    f"Invalid communicator type '{self.config.communicator_type}'. "
+                    f"Available types: {available_types}"
+                )
+                self.logger.error(error_msg)
+                raise ConfigurationError(error_msg) from e
+            except Exception as e:
+                error_msg = f"Failed to initialize communicator of type '{self.config.communicator_type}': {e}"
+                self.logger.error(error_msg)
+                raise ConfigurationError(error_msg) from e
 
         # Internal state
         self._is_running = False

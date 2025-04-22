@@ -133,3 +133,146 @@ SimpleMas's request/response model maps to MCP's tool/prompt/resource model as f
 ## Extending with Custom Protocols
 
 SimpleMas allows you to create custom protocol implementations by extending the `BaseCommunicator` class. See the developer documentation for details on implementing your own communicator.
+
+## Communicator Plugin System
+
+SimpleMas includes a plugin system that allows developers to create and register their own communicator implementations. This system enables easy extension of SimpleMas with custom communication protocols.
+
+### Using the Plugin System
+
+The communicator plugin system allows users to specify a communicator type in their agent configuration:
+
+```python
+from simple_mas.agent import BaseAgent
+from simple_mas.config import AgentConfig
+
+# Configure through environment variables
+# COMMUNICATOR_TYPE=mcp_stdio
+# COMMUNICATOR_OPTION_SERVER_MODE=true
+
+# Or through direct initialization with config
+agent = BaseAgent(
+    name="my-agent",
+    config=AgentConfig(
+        name="my-agent",
+        communicator_type="http",  # or "mcp_stdio", "mcp_sse", etc.
+        communicator_options={
+            "server_mode": True,
+            "http_port": 8000
+        }
+    )
+)
+
+# Or just override the communicator class directly
+from simple_mas.communication import HttpCommunicator
+agent = BaseAgent(
+    name="my-agent",
+    communicator_class=HttpCommunicator
+)
+```
+
+### Available Configuration Options
+
+#### HTTP Communicator
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| None currently | | |
+
+#### MCP Stdio Communicator
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `server_mode` | `False` | Whether to run in server mode |
+| `server_instructions` | `None` | Instructions for the server |
+
+#### MCP SSE Communicator
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `server_mode` | `False` | Whether to run in server mode |
+| `http_port` | `8000` | Port for the HTTP server (server mode only) |
+| `server_instructions` | `None` | Instructions for the server |
+
+### Creating a Custom Communicator Plugin
+
+To create a custom communicator plugin:
+
+1. Implement the `BaseCommunicator` interface:
+
+```python
+from simple_mas.communication.base import BaseCommunicator
+
+class MyCustomCommunicator(BaseCommunicator):
+    """Custom communicator implementation."""
+
+    def __init__(self, agent_name: str, service_urls: Dict[str, str], custom_option: str = "default"):
+        super().__init__(agent_name, service_urls)
+        self.custom_option = custom_option
+
+    # Implement all required abstract methods
+    async def send_request(self, target_service, method, params=None, response_model=None, timeout=None):
+        # Implementation...
+
+    async def send_notification(self, target_service, method, params=None):
+        # Implementation...
+
+    async def register_handler(self, method, handler):
+        # Implementation...
+
+    async def start(self):
+        # Implementation...
+
+    async def stop(self):
+        # Implementation...
+```
+
+2. Register your communicator with SimpleMas. There are several ways to do this:
+
+#### Direct Registration
+
+```python
+from simple_mas.communication.base import register_communicator
+from mypackage.communicator import MyCustomCommunicator
+
+register_communicator("my_custom", MyCustomCommunicator)
+```
+
+#### Python Entry Points (Recommended)
+
+Add this to your package's `pyproject.toml`:
+
+```toml
+[project.entry-points."simple_mas.communicators"]
+my_custom = "mypackage.communicator:MyCustomCommunicator"
+```
+
+Or in `setup.py`:
+
+```python
+setup(
+    # ... other setup parameters
+    entry_points={
+        "simple_mas.communicators": [
+            "my_custom=mypackage.communicator:MyCustomCommunicator",
+        ],
+    },
+)
+```
+
+Once registered, users can use your communicator with:
+
+```python
+agent = BaseAgent(
+    name="my-agent",
+    config=AgentConfig(
+        name="my-agent",
+        communicator_type="my_custom",
+        communicator_options={
+            "custom_option": "my_value"
+        }
+    )
+)
+```
+
+For more details on implementing custom communicators, see the [Communication Module README](../src/simple_mas/communication/README.md).
