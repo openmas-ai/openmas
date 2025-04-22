@@ -7,14 +7,17 @@ import pytest
 
 # Check if MCP module is available
 try:
+    # First, check basic import of the mcp package
     import mcp  # noqa: F401
 
+    # Then try to import the McpStdioCommunicator class
     from simple_mas.communication.mcp import McpStdioCommunicator
 
     HAS_MCP = True
-except ImportError:
+except ImportError as e:
     HAS_MCP = False
-    pytest.skip("MCP module is not available", allow_module_level=True)
+    # More descriptive skip reason with the actual import error
+    pytest.skip(f"MCP module is not available: {e}", allow_module_level=True)
 
 from simple_mas.exceptions import ServiceNotFoundError
 from simple_mas.logging import get_logger
