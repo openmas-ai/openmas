@@ -38,6 +38,138 @@ async def test_echo_handler(test_agent):
     assert result == {"echo": "hello"}
 ```
 
+## Using the AgentTestHarness
+
+SimpleMAS provides a comprehensive test harness specifically designed to make testing agents easier. The `AgentTestHarness` takes care of:
+
+1. Creating agent instances with test configuration
+2. Setting up agents with MockCommunicator for intercepting communications
+3. Managing agent lifecycle (start/stop) within test contexts
+4. Facilitating simulated request handling and assertions
+
+### Basic Usage
+
+```python
+import pytest
+from simple_mas.agent import Agent
+from simple_mas.testing import AgentTestHarness
+
+@pytest.fixture
+def agent_harness():
+    # Create a harness for the specific agent type
+    return AgentTestHarness(
+        Agent,  # Agent class to test
+        default_config={"name": "test-agent", "service_urls": {}}
+    )
+
+@pytest.mark.asyncio
+async def test_agent_behavior(agent_harness):
+    # Create an agent with the harness
+    agent = await agent_harness.create_agent()
+
+    # Start the agent using a context manager
+    async with agent_harness.running_agent(agent):
+        # Set up an expected external service request
+        agent_harness.communicator.expect_request(
+            "external-service", "get_data", {"id": "123"}, {"result": "test_data"}
+        )
+
+        # Trigger a handler on the agent (simulating an incoming request)
+        result = await agent_harness.trigger_handler(
+            agent, "process_request", {"params": "value"}
+        )
+
+        # Verify the result
+        assert result == expected_value
+
+        # Verify that all expected communications occurred
+        agent_harness.communicator.verify()
+```
+
+### Advanced Features
+
+#### Waiting for Asynchronous Conditions
+
+The harness provides a utility to wait for asynchronous conditions:
+
+```python
+@pytest.mark.asyncio
+async def test_async_behavior(agent_harness):
+    agent = await agent_harness.create_agent()
+
+    async with agent_harness.running_agent(agent):
+        # Start some asynchronous operation
+        asyncio.create_task(agent.some_async_operation())
+
+        # Wait for a condition to be met with a timeout
+        condition_met = await agent_harness.wait_for(
+            lambda: getattr(agent, 'operation_complete', False),
+            timeout=1.0
+        )
+
+        # Verify the condition was met
+        assert condition_met is True
+        assert agent.operation_complete is True
+```
+
+#### Testing Agent Interactions
+
+When testing interactions between multiple agents:
+
+```python
+@pytest.mark.asyncio
+async def test_agent_interaction():
+    # Create harnesses for two different agents
+    agent1_harness = AgentTestHarness(Agent1)
+    agent2_harness = AgentTestHarness(Agent2)
+
+    # Create agent instances
+    agent1 = await agent1_harness.create_agent(name="agent1")
+    agent2 = await agent2_harness.create_agent(name="agent2")
+
+    # Configure agent1 to know about agent2
+    agent1.communicator.service_urls["agent2"] = "mcp://agent2"
+
+    # Set up the expected request to agent2
+    agent2_harness.communicator.expect_request(
+        "agent2", "get_info", {"query": "test"}, {"info": "test_result"}
+    )
+
+    # Start both agents
+    async with agent1_harness.running_agent(agent1), agent2_harness.running_agent(agent2):
+        # Trigger a handler on agent1 that will interact with agent2
+        result = await agent1_harness.trigger_handler(
+            agent1, "process_with_agent2", {"query": "test"}
+        )
+
+        # Verify the result
+        assert result == {"status": "success", "data": "test_result"}
+
+        # Verify that all expected communications occurred
+        agent2_harness.communicator.verify()
+```
+
+#### Customizing the Test Agent
+
+For more complex testing scenarios, you can subclass `AgentTestHarness`:
+
+```python
+class CustomTestHarness(AgentTestHarness):
+    """Custom test harness with additional utilities."""
+
+    async def setup_test_scenario(self, agent):
+        """Set up a common test scenario."""
+        # Configure the agent for a specific test scenario
+        agent.some_property = "test_value"
+
+        # Set up expected communications
+        self.communicator.expect_request(
+            "service1", "method1", {"param": "value"}, {"result": "response"}
+        )
+
+        return agent
+```
+
 ## Using the MockCommunicator
 
 SimpleMAS provides a mock communicator specifically designed for testing. The `MockCommunicator` allows you to:
