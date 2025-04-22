@@ -20,26 +20,38 @@ try:
     register_communicator("mcp_sse", McpSseCommunicator)
     register_communicator("mcp_stdio", McpStdioCommunicator)
 
-    __all__ = [
-        "BaseCommunicator",
-        "HttpCommunicator",
-        "McpServerWrapper",
-        "McpStdioCommunicator",
-        "McpSseCommunicator",
-        "register_communicator",
-        "get_communicator_class",
-        "get_available_communicator_types",
-        "discover_communicator_plugins",
-    ]
+    mcp_available = True
 except ImportError:
-    __all__ = [
-        "BaseCommunicator",
-        "HttpCommunicator",
-        "register_communicator",
-        "get_communicator_class",
-        "get_available_communicator_types",
-        "discover_communicator_plugins",
-    ]
+    mcp_available = False
+
+# Try to import gRPC components, but don't fail if gRPC packages aren't installed
+try:
+    from simple_mas.communication.grpc import GrpcCommunicator
+
+    # Register gRPC communicator type if available
+    register_communicator("grpc", GrpcCommunicator)
+
+    grpc_available = True
+except ImportError:
+    grpc_available = False
+
+# Define __all__ based on available modules
+all_list = [
+    "BaseCommunicator",
+    "HttpCommunicator",
+    "register_communicator",
+    "get_communicator_class",
+    "get_available_communicator_types",
+    "discover_communicator_plugins",
+]
+
+if mcp_available:
+    all_list.extend(["McpServerWrapper", "McpStdioCommunicator", "McpSseCommunicator"])
+
+if grpc_available:
+    all_list.append("GrpcCommunicator")
+
+__all__ = all_list
 
 # Discover and register communicator plugins from installed packages
 discover_communicator_plugins()

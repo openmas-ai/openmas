@@ -194,6 +194,88 @@ agent = BaseAgent(
 | `http_port` | `8000` | Port for the HTTP server (server mode only) |
 | `server_instructions` | `None` | Instructions for the server |
 
+#### gRPC Communicator
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `server_mode` | `False` | Whether to run in server mode |
+| `server_address` | `[::]:50051` | Address to bind the server to (server mode only) |
+| `max_workers` | `10` | Maximum number of server worker threads |
+| `channel_options` | `{}` | Additional gRPC channel options |
+
+### gRPC Communication
+
+The gRPC communicator provides efficient, high-performance communication using Google's gRPC framework. It's suitable for:
+
+- High-performance, type-safe communication
+- Cross-language interoperability
+- Bidirectional streaming
+- Microservice architectures
+
+**Server Mode Example:**
+```python
+from simple_mas.agent import BaseAgent
+from simple_mas.config import AgentConfig
+
+agent = BaseAgent(
+    name="grpc_server_agent",
+    config=AgentConfig(
+        name="grpc_server_agent",
+        communicator_type="grpc",
+        communicator_options={
+            "server_mode": True,
+            "server_address": "localhost:50051",
+            "max_workers": 10
+        },
+        service_urls={}  # Not used in server mode
+    )
+)
+
+# Register handlers
+await agent.communicator.register_handler("my_method", handler_function)
+```
+
+**Client Mode Example:**
+```python
+from simple_mas.agent import BaseAgent
+from simple_mas.config import AgentConfig
+
+agent = BaseAgent(
+    name="grpc_client_agent",
+    config=AgentConfig(
+        name="grpc_client_agent",
+        communicator_type="grpc",
+        communicator_options={},  # Default client options
+        service_urls={
+            "server": "localhost:50051"  # URL of the gRPC server
+        }
+    )
+)
+
+# Send a request
+response = await agent.communicator.send_request(
+    target_service="server",
+    method="my_method",
+    params={"param1": "value1"},
+    timeout=5.0
+)
+```
+
+### When to Use gRPC
+
+gRPC is an excellent choice when:
+
+1. **Performance is critical**: gRPC uses Protocol Buffers for serialization, which is more efficient than JSON.
+2. **Type safety is important**: The protocol definition provides strong typing.
+3. **Cross-language services**: You need to communicate with services written in different languages.
+4. **Streaming data**: You need to stream large datasets or real-time updates.
+5. **Complex service definitions**: Your API has complex method signatures or data structures.
+
+The main trade-offs compared to HTTP communicator:
+- Requires more setup (protocol definition, code generation)
+- Less human-readable message format
+- Requires gRPC infrastructure support
+
 ### Creating a Custom Communicator Plugin
 
 To create a custom communicator plugin:
