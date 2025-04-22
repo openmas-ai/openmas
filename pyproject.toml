@@ -6,6 +6,9 @@ authors = ["Wilson <your-email@example.com>"]
 readme = "README.md"
 packages = [{include = "simple_mas", from = "src"}]
 
+[tool.poetry.scripts]
+simplemas = "simple_mas.deployment.cli:main"
+
 [tool.poetry.dependencies]
 python = "^3.10"
 pydantic = "^2.5.0"
@@ -13,6 +16,7 @@ httpx = ">=0.25.0"
 structlog = "^23.2.0"
 fastapi = "^0.115.12"
 mcp = "1.6.0"
+pyyaml = "^6.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
@@ -24,6 +28,7 @@ flake8 = "^6.1.0"
 mypy = "^1.5.1"
 types-requests = "^2.31.0.2"
 pre-commit = "^4.2.0"
+types-pyyaml = "^6.0.12.20250402"
 
 [build-system]
 requires = ["poetry-core"]

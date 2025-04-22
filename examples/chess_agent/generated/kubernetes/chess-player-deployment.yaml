@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chess-player
+  labels:
+    app: chess-player
+    component-type: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chess-player
+  template:
+    metadata:
+      labels:
+        app: chess-player
+    spec:
+      containers:
+      - name: chess-player
+        image: chess-player:latest
+        env:
+        - name: AGENT_NAME
+          value: chess-player
+        - name: LOG_LEVEL
+          value: INFO
+        - name: COMMUNICATOR_TYPE
+          value: mcp_stdio
+        - name: COMMUNICATOR_OPTIONS
+          value: '{"model": "claude-3-opus-20240229"}'
+        - name: MCP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: chess-player-secrets
+              key: MCP_API_KEY
+        - name: SERVICE_URL_MCP_SERVER
+          value: http://mcp-server:8000
+        - name: SERVICE_URL_GAME_COORDINATOR
+          value: http://game-coordinator:8002
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        - containerPort: 8001
+          protocol: UDP
+        volumeMounts:
+        - name: chess-player-chess-memory
+          mountPath: /app/data/memory
+        - name: chess-player-logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            cpu: '0.5'
+            memory: 512Mi
+          limits:
+            cpu: '0.5'
+            memory: 512Mi
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+      volumes:
+      - name: chess-player-chess-memory
+        emptyDir: {}
+      - name: chess-player-logs
+        emptyDir: {}

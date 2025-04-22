@@ -229,3 +229,137 @@ logger.info(
     connections=["agent2", "agent3"]
 )
 ```
+
+## Deployment Metadata Definition
+
+SimpleMas provides a standardized way to define deployment requirements for each component through the `simplemas.deploy.yaml` file. This metadata format allows the SimpleMas deployment tooling to automatically generate configurations for Docker Compose, Kubernetes, and other orchestration systems.
+
+### Metadata File Format (simplemas.deploy.yaml)
+
+The deployment metadata is defined using a YAML file at the root of your SimpleMas component:
+
+```yaml
+# simplemas.deploy.yaml - Component deployment metadata
+version: "1.0"  # SimpleMas deployment metadata version
+
+component:
+  name: "agent-name"  # Logical name of the component
+  type: "agent"       # Component type: agent, service, etc.
+  description: "Description of what this component does"
+
+docker:
+  build:
+    context: "."      # Docker build context relative to this file
+    dockerfile: "Dockerfile"  # Optional, defaults to "Dockerfile"
+  # Alternative: use existing image
+  # image: "name:tag"  # Docker image to use instead of building
+
+environment:
+  # Required environment variables
+  - name: "AGENT_NAME"
+    value: "${component.name}"  # Variables can reference other properties
+  - name: "LOG_LEVEL"
+    value: "INFO"
+    description: "Logging level for the agent"
+  # Secret environment variables (will be handled securely in deployment)
+  - name: "API_KEY"
+    secret: true
+    description: "API key for external service"
+
+ports:
+  - port: 8000
+    protocol: "http"
+    description: "Main API endpoint"
+  - port: 8001
+    protocol: "websocket"
+    description: "WebSocket for real-time communication"
+
+volumes:
+  - name: "data-volume"
+    path: "/app/data"
+    description: "Storage for persistent data"
+  - name: "logs"
+    path: "/app/logs"
+    description: "Log storage"
+
+dependencies:
+  # Other SimpleMas components this component depends on
+  - name: "knowledge-base"
+    required: true
+    description: "Knowledge base service for retrieving information"
+  - name: "reasoning-engine"
+    required: false
+    description: "Optional reasoning engine for complex decisions"
+```
+
+### Using Variables and Templating
+
+The metadata format supports variable references using `${var.path}` syntax to make configurations DRY and maintainable:
+
+- Component properties: `${component.name}`, `${component.type}`
+- Environment references: `${env.VARIABLE_NAME}`
+- Dependency references: `${dependencies.name.property}`
+
+### Example Metadata for a Hypothetical Agent
+
+Here's an example `simplemas.deploy.yaml` file for a hypothetical chess playing agent:
+
+```yaml
+version: "1.0"
+
+component:
+  name: "chess-player"
+  type: "agent"
+  description: "An agent that can play chess using MCP protocol"
+
+docker:
+  build:
+    context: "."
+    dockerfile: "Dockerfile"
+
+environment:
+  - name: "AGENT_NAME"
+    value: "${component.name}"
+  - name: "LOG_LEVEL"
+    value: "INFO"
+  - name: "COMMUNICATOR_TYPE"
+    value: "mcp_stdio"
+  - name: "COMMUNICATOR_OPTIONS"
+    value: '{"model": "claude-3-opus-20240229"}'
+  - name: "MCP_API_KEY"
+    secret: true
+    description: "API key for MCP service"
+
+ports:
+  - port: 8000
+    protocol: "http"
+    description: "HTTP API for agent interaction"
+
+volumes:
+  - name: "chess-memory"
+    path: "/app/data/memory"
+    description: "Persistent memory for chess games"
+
+dependencies:
+  - name: "mcp-server"
+    required: true
+    description: "MCP server for model access"
+  - name: "game-coordinator"
+    required: true
+    description: "Service that coordinates chess games"
+```
+
+### CLI for Deployment Generation
+
+The SimpleMas deployment tooling provides a CLI for generating deployment configurations:
+
+```bash
+# Generate Docker Compose configuration
+simplemas deploy compose --input simplemas.deploy.yaml --output docker-compose.yml
+
+# Generate Kubernetes manifests
+simplemas deploy k8s --input simplemas.deploy.yaml --output k8s/
+
+# Validate deployment metadata
+simplemas deploy validate --input simplemas.deploy.yaml
+```
