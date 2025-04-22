@@ -321,81 +321,19 @@ class McpAgent(BaseAgent):
         # Check if this is an MCP communicator with server mode
         self._server_mode = hasattr(communicator, "server_mode") and getattr(communicator, "server_mode")
 
+        # Set a reference to this agent in the communicator for server registration
+        if self._server_mode:
+            setattr(communicator, "agent", self)
+
         # Call parent method to set the communicator
         super().set_communicator(communicator)
 
         self.logger.debug(f"Set communicator: {communicator.__class__.__name__}, " f"server_mode: {self._server_mode}")
 
-    async def _register_with_mcp_server(self) -> None:
-        """Register all MCP methods with the MCP server in the communicator."""
-        if not HAS_MCP:
-            self.logger.warning("MCP package is not installed. Cannot register MCP methods.")
-            return
-
-        if not hasattr(self.communicator, "mcp_server"):
-            self.logger.warning("Communicator does not have an MCP server, cannot register MCP methods")
-            return
-
-        mcp_server: Any = getattr(self.communicator, "mcp_server")
-
-        # Register tools
-        for tool_name, tool_data in self._tools.items():
-            metadata = tool_data["metadata"]
-            function = tool_data["function"]
-
-            # Register with the MCP server
-            if hasattr(mcp_server, "add_tool"):
-                mcp_server.add_tool(
-                    function,
-                    name=metadata.get("name"),
-                    description=metadata.get("description"),
-                )
-                self.logger.debug(f"Registered MCP tool: {tool_name}")
-
-        # Register prompts
-        for prompt_name, prompt_data in self._prompts.items():
-            metadata = prompt_data["metadata"]
-            function = prompt_data["function"]
-
-            # Create Prompt object
-            prompt = Prompt(
-                fn=function,
-                name=metadata.get("name"),
-                description=metadata.get("description"),
-            )
-
-            # Register with the MCP server
-            if hasattr(mcp_server, "add_prompt"):
-                mcp_server.add_prompt(prompt)
-                self.logger.debug(f"Registered MCP prompt: {prompt_name}")
-
-        # Register resources
-        for resource_uri, resource_data in self._resources.items():
-            metadata = resource_data["metadata"]
-            function = resource_data["function"]
-
-            # Create Resource object
-            resource = Resource(
-                uri=metadata.get("uri"),
-                fn=function,
-                name=metadata.get("name"),
-                description=metadata.get("description"),
-                mime_type=metadata.get("mime_type"),
-            )
-
-            # Register with the MCP server
-            if hasattr(mcp_server, "add_resource"):
-                mcp_server.add_resource(resource)
-                self.logger.debug(f"Registered MCP resource: {resource_uri}")
-
     async def setup(self) -> None:
-        """Set up the agent.
-
-        In server mode, this registers all MCP methods with the MCP server.
-        """
-        # If in server mode, register MCP methods with the server
-        if self._server_mode:
-            await self._register_with_mcp_server()
+        """Set up the agent."""
+        # All server-side registration is now handled in the communicator's start method
+        pass
 
     async def run(self) -> None:
         """Run the agent.

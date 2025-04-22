@@ -268,20 +268,63 @@ class McpSseCommunicator(BaseCommunicator):
     async def start(self) -> None:
         """Start the communicator.
 
-        In server mode, this starts the FastMCP server with FastAPI.
+        In server mode, this starts the FastMCP server with FastAPI and registers all MCP tools,
+        prompts, and resources from the associated agent.
         In client mode, this is a no-op as connections are established as needed.
         """
         if self.server_mode:
             logger.info("Starting MCP SSE server")
 
-            # Create and start the server
+            # Import here to ensure MCP is available
             from mcp.server.fastmcp import create_fastmcp
+            from mcp.server.prompts import Prompt
+            from mcp.server.resources import Resource
 
+            # Create and start the server
             fastmcp_cm = create_fastmcp(
                 name=self.agent_name,
                 instructions=self.server_instructions,
             )
             self.server = await fastmcp_cm.__aenter__()
+
+            # Register tools, prompts, and resources from the associated agent if available
+            if hasattr(self, "agent") and self.agent is not None:
+                # Register tools
+                for tool_name, tool_data in self.agent._tools.items():
+                    metadata = tool_data["metadata"]
+                    function = tool_data["function"]
+                    self.server.add_tool(
+                        function,
+                        name=metadata.get("name"),
+                        description=metadata.get("description"),
+                    )
+                    logger.debug(f"Registered MCP tool: {tool_name}")
+
+                # Register prompts
+                for prompt_name, prompt_data in self.agent._prompts.items():
+                    metadata = prompt_data["metadata"]
+                    function = prompt_data["function"]
+                    prompt = Prompt(
+                        fn=function,
+                        name=metadata.get("name"),
+                        description=metadata.get("description"),
+                    )
+                    self.server.add_prompt(prompt)
+                    logger.debug(f"Registered MCP prompt: {prompt_name}")
+
+                # Register resources
+                for resource_uri, resource_data in self.agent._resources.items():
+                    metadata = resource_data["metadata"]
+                    function = resource_data["function"]
+                    resource = Resource(
+                        uri=metadata.get("uri"),
+                        fn=function,
+                        name=metadata.get("name"),
+                        description=metadata.get("description"),
+                        mime_type=metadata.get("mime_type"),
+                    )
+                    self.server.add_resource(resource)
+                    logger.debug(f"Registered MCP resource: {resource_uri}")
 
             # Register all handlers as tools
             for method, handler in self.handlers.items():

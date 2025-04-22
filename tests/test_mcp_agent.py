@@ -37,10 +37,45 @@ class MockMcpCommunicator:
         self.mcp_server = mock.MagicMock()
         self.started = False
         self.stopped = False
+        self.agent = None  # Reference to the agent when set_communicator is called
 
     async def start(self):
         """Start the communicator."""
         self.started = True
+
+        # Register tools, prompts, and resources from the agent if available
+        if hasattr(self, "agent") and self.agent is not None:
+            # Register tools
+            for tool_name, tool_data in self.agent._tools.items():
+                metadata = tool_data["metadata"]
+                function = tool_data["function"]
+                self.mcp_server.add_tool(
+                    function,
+                    name=metadata.get("name"),
+                    description=metadata.get("description"),
+                )
+
+            # Register prompts
+            for prompt_name, prompt_data in self.agent._prompts.items():
+                metadata = prompt_data["metadata"]
+                function = prompt_data["function"]
+                self.mcp_server.add_prompt(
+                    function,
+                    name=metadata.get("name"),
+                    description=metadata.get("description"),
+                )
+
+            # Register resources
+            for resource_uri, resource_data in self.agent._resources.items():
+                metadata = resource_data["metadata"]
+                function = resource_data["function"]
+                self.mcp_server.add_resource(
+                    function,
+                    uri=metadata.get("uri"),
+                    name=metadata.get("name"),
+                    description=metadata.get("description"),
+                    mime_type=metadata.get("mime_type"),
+                )
 
     async def stop(self):
         """Stop the communicator."""
@@ -125,10 +160,18 @@ class TestMcpAgent:
 
             # Create a mock communicator
             communicator = MockMcpCommunicator(agent_name="test_agent")
+
+            # Manually set the agent reference (this happens in the real set_communicator method)
+            communicator.agent = agent
+
+            # Set the communicator for the agent
             agent.set_communicator(communicator)
 
             # Start the agent to trigger registration
             await agent.setup()
+
+            # Now we need to start the communicator to trigger registration
+            await communicator.start()
 
             # Check that the methods were registered with the server
             communicator.mcp_server.add_tool.assert_called()

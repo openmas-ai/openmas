@@ -1,13 +1,13 @@
 # MCP Integration in SimpleMAS
 
-SimpleMAS provides seamless integration with the Model Context Protocol (MCP) through the specialized `McpAgent` class and decorators. This allows you to create MCP-compatible agents with minimal effort.
+SimpleMAS provides seamless integration with the Model Context Protocol (MCP) through the specialized `McpAgent` class and its subclasses, along with convenient decorators. This allows you to create MCP-compatible agents with minimal effort.
 
 ## Overview
 
 MCP (Model Context Protocol) is a protocol for building model-backed applications. It's particularly useful for integrating LLMs like Claude into your applications. SimpleMAS provides a straightforward way to create MCP-compatible agents by:
 
 1. Decorating methods with `@mcp_tool`, `@mcp_prompt`, or `@mcp_resource`
-2. Creating a subclass of `McpAgent`
+2. Creating a subclass of `McpAgent`, `McpClientAgent`, or `McpServerAgent`
 3. Using an MCP-compatible communicator (such as `McpSseCommunicator` or `McpStdioCommunicator`)
 
 ## MCP Decorators
@@ -122,25 +122,24 @@ class MyMcpAgent(McpAgent):
         return b'{"data": "some resource content"}'
 ```
 
-## Creating an MCP Server Agent
+## Creating an MCP Server
 
-To create an agent that acts as an MCP server:
+SimpleMAS offers two approaches to create an MCP server:
+
+### Using McpServerAgent (Recommended)
+
+The simplest way to create an MCP server is to use the specialized `McpServerAgent` class:
 
 ```python
-from simple_mas.agent import McpAgent, mcp_tool
-from simple_mas.communication.mcp import McpSseCommunicator
+from simple_mas.agent import McpServerAgent, mcp_tool
 
-class MyServerAgent(McpAgent):
-    def __init__(self, name):
-        super().__init__(name=name)
-
-        # Set up an MCP communicator in server mode
-        self.set_communicator(McpSseCommunicator(
-            agent_name=self.name,
-            service_urls={},
-            server_mode=True,  # This is critical for running as a server
-            http_port=8000
-        ))
+class MyServerAgent(McpServerAgent):
+    def __init__(self, name="my-server"):
+        super().__init__(
+            name=name,
+            server_type="sse",  # Can be "sse" or "stdio"
+            port=8000
+        )
 
     @mcp_tool(description="Add two numbers")
     async def add(self, a: int, b: int) -> dict:
@@ -148,38 +147,101 @@ class MyServerAgent(McpAgent):
         result = a + b
         return {"sum": result}
 
-    @mcp_prompt(description="Math problem solver prompt")
-    async def math_problem_prompt(self, problem: str) -> str:
-        return f"""
-        Please solve the following math problem:
-
-        {problem}
-
-        Show your work and explain each step.
-        """
-
-    @mcp_resource(uri="/help", mime_type="text/html")
-    async def help_resource(self) -> bytes:
-        return b"""
-        <html>
-            <body>
-                <h1>MCP Server Help</h1>
-                <p>This server provides tools for mathematical operations.</p>
-            </body>
-        </html>
-        """
-
 # Create and start the agent
 async def main():
-    agent = MyServerAgent("math-server")
-    await agent.start()
+    agent = MyServerAgent()
+    await agent.setup_communicator()  # Set up the communicator
+    await agent.start_server()        # Start the server
 
     # Keep the agent running
     try:
         while True:
             await asyncio.sleep(1)
     except KeyboardInterrupt:
-        await agent.stop()
+        await agent.stop_server()
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
+```
+
+### Using McpAgent with a Communicator
+
+For more control, you can use the base `McpAgent` class and manually configure the communicator:
+
+```python
+from simple_mas.agent import McpAgent, mcp_tool
+from simple_mas.communication.mcp import McpSseCommunicator
+
+class MyServerAgent(McpAgent):
+    def __init__(self, name="my-server"):
+        super().__init__(name=name)
+
+        # Set up an MCP communicator in server mode
+        communicator = McpSseCommunicator(
+            agent_name=self.name,
+            service_urls={},
+            server_mode=True,  # This is critical for running as a server
+            http_port=8000
+        )
+        self.set_communicator(communicator)
+
+    @mcp_tool(description="Add two numbers")
+    async def add(self, a: int, b: int) -> dict:
+        """Add two numbers and return the result."""
+        result = a + b
+        return {"sum": result}
+
+# Create and start the agent
+async def main():
+    agent = MyServerAgent()
+    await agent.communicator.start()  # Start the server
+
+    # Keep the agent running
+    try:
+        await agent.run()  # This will keep running until interrupted
+    except KeyboardInterrupt:
+        await agent.communicator.stop()
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
+```
+
+## Creating an MCP Client
+
+The `McpClientAgent` class provides convenient methods for working with MCP servers:
+
+```python
+from simple_mas.agent import McpClientAgent
+from simple_mas.communication.mcp import McpSseCommunicator
+
+async def main():
+    # Create a client agent
+    client = McpClientAgent(name="math-client")
+
+    # Set a communicator
+    client.set_communicator(McpSseCommunicator(
+        agent_name=client.name,
+        service_urls={}  # We'll add connections dynamically
+    ))
+
+    await client.communicator.start()
+
+    # Connect to a server
+    await client.connect_to_service("math-server", "localhost", 8000)
+
+    # List available tools
+    tools = await client.list_tools("math-server")
+    print(f"Available tools: {tools}")
+
+    # Call a tool
+    result = await client.call_tool("math-server", "add", {"a": 5, "b": 3})
+    print(f"5 + 3 = {result['sum']}")
+
+    # Disconnect and stop
+    await client.disconnect_from_service("math-server")
+    await client.communicator.stop()
 
 if __name__ == "__main__":
     import asyncio
@@ -188,21 +250,30 @@ if __name__ == "__main__":
 
 ## How It Works
 
-When you create a subclass of `McpAgent` and apply the MCP decorators to its methods:
+The process of creating and running an MCP agent involves several components working together:
 
-1. The decorators store metadata on the methods
-2. When the agent is initialized, it scans for decorated methods using `_discover_mcp_methods()`
-3. When the agent is started with an MCP communicator in server mode, it registers the discovered methods with the MCP server during the `setup()` phase
+1. **Decorators**: `@mcp_tool`, `@mcp_prompt`, and `@mcp_resource` store metadata on the methods they decorate
+2. **McpAgent**: Discovers decorated methods during initialization using `_discover_mcp_methods()`
+3. **Communicators**: When in server mode, the communicator (either `McpSseCommunicator` or `McpStdioCommunicator`) registers the agent's tools, prompts, and resources with the underlying MCP server during its `start()` method
 
-The entire process is automatic - you just need to decorate your methods and make sure to use an MCP communicator in server mode.
+This design provides a clean separation of concerns:
+
+- The agent is responsible for discovering and exposing functionality
+- The communicator handles the actual server setup and communication
+- The decorators provide a clear, declarative way to define MCP-compatible methods
 
 ## Best Practices
 
-1. **Always provide descriptive docstrings** for your methods - they'll be used as descriptions if not explicitly provided
-2. **Be specific with parameter types** - this helps with automatic Pydantic model generation
-3. **Return structured data from tools** - preferably dictionaries that can be easily converted to JSON
-4. **Keep prompt templates simple** and avoid complex logic in prompt methods
-5. **Use resource URIs that follow RESTful conventions** - e.g., `/users/{id}` for resources that represent users
+1. **Choose the right agent class for your needs**:
+   - Use `McpServerAgent` for servers
+   - Use `McpClientAgent` for clients
+   - Use `McpAgent` directly for hybrid cases or when you need maximum flexibility
+
+2. **Always provide descriptive docstrings** for your methods - they'll be used as descriptions if not explicitly provided
+3. **Be specific with parameter types** - this helps with automatic Pydantic model generation
+4. **Return structured data from tools** - preferably dictionaries that can be easily converted to JSON
+5. **Keep prompt templates simple** and avoid complex logic in prompt methods
+6. **Use resource URIs that follow RESTful conventions** - e.g., `/users/{id}` for resources that represent users
 
 ## Communicators
 
@@ -217,7 +288,7 @@ Both can be used in server mode by setting `server_mode=True` when initializing 
 
 For more advanced use cases, you can:
 
-- Directly interact with the underlying FastMCP instance through `agent.communicator.mcp_server`
+- Directly interact with the underlying FastMCP instance through `agent.communicator.server`
 - Implement custom validation logic in your tool methods
 - Create dynamic resources that generate content on-the-fly
 - Use asynchronous processing for long-running operations

@@ -17,31 +17,15 @@ except ImportError:
 # Then try to import the real classes if MCP is available
 if HAS_MCP:
     try:
-        from simple_mas.communication.mcp.mcp_adapter import McpServerWrapper
         from simple_mas.communication.mcp.sse_communicator import McpSseCommunicator
         from simple_mas.communication.mcp.stdio_communicator import McpStdioCommunicator
 
-        __all__ = ["McpServerWrapper", "McpStdioCommunicator", "McpSseCommunicator"]
+        __all__ = ["McpStdioCommunicator", "McpSseCommunicator"]
     except ImportError as e:
         # This is an unexpected error since MCP is available
         # Re-raise with more context
         raise ImportError(f"MCP is installed but failed to import MCP modules: {e}") from e
 else:
-    # Define dummy classes that raise ImportError when used
-    class McpServerWrapper:
-        """Dummy class that raises ImportError when MCP is not installed."""
-
-        def __init__(self, name: str, instructions: Optional[str] = None) -> None:
-            """Raise ImportError when initialized.
-
-            Args:
-                name: The name of the server
-                instructions: Optional instructions for the server
-
-            Raises:
-                ImportError: Always raised since MCP is not installed
-            """
-            raise ImportError("MCP package is not installed. Install it with: pip install mcp==1.6.0")
 
     class McpStdioCommunicator:
         """Dummy class that raises ImportError when MCP is not installed."""
@@ -93,4 +77,4 @@ else:
             """
             raise ImportError("MCP package is not installed. Install it with: pip install mcp==1.6.0")
 
-    __all__ = ["McpServerWrapper", "McpStdioCommunicator", "McpSseCommunicator"]
+    __all__ = ["McpStdioCommunicator", "McpSseCommunicator"]

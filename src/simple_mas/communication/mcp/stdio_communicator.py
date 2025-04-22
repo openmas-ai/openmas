@@ -1,4 +1,4 @@
-"""MCP Stdio communicator for SimpleMAS.
+"""MCP stdio communicator for SimpleMAS.
 
 This module provides a communicator that uses the MCP protocol over stdin/stdout.
 It can be used as both a client (connecting to a subprocess) and a server (running as the main process).
@@ -11,7 +11,6 @@ from typing import Any, AsyncContextManager, Callable, Dict, List, Optional, Set
 
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.server.stdio import stdio_server
 from pydantic import BaseModel
 
 from simple_mas.communication.base import BaseCommunicator
@@ -267,18 +266,60 @@ class McpStdioCommunicator(BaseCommunicator):
     async def start(self) -> None:
         """Start the communicator.
 
-        In server mode, this starts the server.
+        In server mode, this starts the server and registers all MCP tools, prompts, and resources
+        from the associated agent.
         In client mode, this is a no-op.
         """
         if self.server_mode:
             logger.info("Starting MCP stdio server")
 
+            # Import here to ensure MCP is available
+            from mcp.server.prompts import Prompt
+            from mcp.server.resources import Resource
+            from mcp.server.stdio import stdio_server as create_stdio_server
+
             # Start the server
-            server_cm = stdio_server()
+            server_cm = create_stdio_server(name=self.agent_name, instructions=self.server_instructions)
             self.server = await server_cm.__aenter__()
 
-            # Register handlers for the server
-            # TODO: Implement handler registration
+            # Register tools, prompts, and resources from the associated agent if available
+            if hasattr(self, "agent") and self.agent is not None:
+                # Register tools
+                for tool_name, tool_data in self.agent._tools.items():
+                    metadata = tool_data["metadata"]
+                    function = tool_data["function"]
+                    self.server.add_tool(
+                        function,
+                        name=metadata.get("name"),
+                        description=metadata.get("description"),
+                    )
+                    logger.debug(f"Registered MCP tool: {tool_name}")
+
+                # Register prompts
+                for prompt_name, prompt_data in self.agent._prompts.items():
+                    metadata = prompt_data["metadata"]
+                    function = prompt_data["function"]
+                    prompt = Prompt(
+                        fn=function,
+                        name=metadata.get("name"),
+                        description=metadata.get("description"),
+                    )
+                    self.server.add_prompt(prompt)
+                    logger.debug(f"Registered MCP prompt: {prompt_name}")
+
+                # Register resources
+                for resource_uri, resource_data in self.agent._resources.items():
+                    metadata = resource_data["metadata"]
+                    function = resource_data["function"]
+                    resource = Resource(
+                        uri=metadata.get("uri"),
+                        fn=function,
+                        name=metadata.get("name"),
+                        description=metadata.get("description"),
+                        mime_type=metadata.get("mime_type"),
+                    )
+                    self.server.add_resource(resource)
+                    logger.debug(f"Registered MCP resource: {resource_uri}")
 
             logger.info("MCP stdio server started")
         else:
