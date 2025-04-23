@@ -354,12 +354,128 @@ dependencies:
 The SimpleMas deployment tooling provides a CLI for generating deployment configurations:
 
 ```bash
-# Generate Docker Compose configuration
-simplemas deploy compose --input simplemas.deploy.yaml --output docker-compose.yml
+# Generate Docker Compose configuration for a single component
+simplemas compose --input simplemas.deploy.yaml --output docker-compose.yml
 
-# Generate Kubernetes manifests
-simplemas deploy k8s --input simplemas.deploy.yaml --output k8s/
+# Generate Kubernetes manifests for a single component
+simplemas k8s --input simplemas.deploy.yaml --output k8s/
 
 # Validate deployment metadata
-simplemas deploy validate --input simplemas.deploy.yaml
+simplemas validate --input simplemas.deploy.yaml
+```
+
+## Multi-component Deployment Orchestration
+
+SimpleMas provides powerful tools for orchestrating the deployment of multi-agent systems consisting of multiple components.
+
+### Component Discovery
+
+You can automatically discover all SimpleMas components in a directory structure:
+
+```bash
+# Discover all components in the current directory and subdirectories
+simplemas discover
+
+# Discover components in a specific directory
+simplemas discover --directory path/to/project
+
+# Use a custom pattern to match metadata files
+simplemas discover --pattern "agent*/simplemas.deploy.yaml"
+```
+
+### Orchestrating Multiple Components
+
+Generate a combined Docker Compose file for multiple components with automatic dependency resolution:
+
+```bash
+# Orchestrate all components in the current directory
+simplemas orchestrate --output docker-compose.yml
+
+# Orchestrate components in a specific directory with dependency validation
+simplemas orchestrate --directory path/to/project --validate --output docker-compose.yml
+```
+
+This automatically configures:
+- Service dependencies
+- Environment variables for inter-service communication
+- Shared volumes
+- Networking between services
+
+### Central Manifest Orchestration
+
+For more complex deployments, you can define a central manifest file that coordinates multiple components:
+
+```yaml
+# simplemas.manifest.yaml
+version: "1.0"
+
+# Define the components to orchestrate
+components:
+  - name: agent1
+    path: agent1/simplemas.deploy.yaml
+    # Optional overrides for specific values
+    overrides:
+      environment:
+        - name: SERVICE_URL_AGENT2
+          value: http://agent2:8001
+
+  - name: agent2
+    path: agent2/simplemas.deploy.yaml
+
+# Global configuration (applied to all components)
+global:
+  networks:
+    - name: agent-network
+      driver: bridge
+```
+
+Generate a deployment from the manifest:
+
+```bash
+# Generate Docker Compose from a manifest
+simplemas manifest --manifest simplemas.manifest.yaml --output docker-compose.yml
+```
+
+## Examples
+
+### Multi-agent System Example
+
+Here's an example of a multi-agent system with two agents:
+
+**Agent 1 (agent1/simplemas.deploy.yaml):**
+```yaml
+version: "1.0"
+component:
+  name: "agent1"
+  type: "agent"
+  description: "First agent in a multi-agent system"
+environment:
+  - name: "SERVICE_URL_AGENT2"
+    value: "http://agent2:8001"
+dependencies:
+  - name: "agent2"
+    required: true
+# ... other configuration ...
+```
+
+**Agent 2 (agent2/simplemas.deploy.yaml):**
+```yaml
+version: "1.0"
+component:
+  name: "agent2"
+  type: "agent"
+  description: "Second agent in a multi-agent system"
+environment:
+  - name: "SERVICE_URL_AGENT1"
+    value: "http://agent1:8000"
+# ... other configuration ...
+```
+
+**Orchestrating the system:**
+```bash
+# Discover and verify the components
+simplemas discover --directory .
+
+# Generate a combined Docker Compose file
+simplemas orchestrate --directory . --output docker-compose.yml --validate
 ```

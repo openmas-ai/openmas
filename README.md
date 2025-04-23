@@ -4,10 +4,11 @@ A lightweight SDK for building Multi-Agent Systems with a focus on the Model Con
 
 ## Features
 
-- Simplified agent structure with configuration management
-- Pluggable communication backends (MCP over SSE and Stdio)
-- Standardized error handling and logging
-- Reduced boilerplate for creating MCP servers and clients
+- **Agent communication** - HTTP, WebSockets, and MCP-based communication between agents
+- **Environment-based configuration** - Configure agents using environment variables
+- **Belief-Desire-Intention (BDI) agents** - Build agents that reason about beliefs, desires, and intentions
+- **Reasoning integration** - Easily integrate LLMs and other reasoning systems
+- **Deployment tools** - Generate and orchestrate deployment configurations for Docker Compose and Kubernetes
 
 ## Installation
 
@@ -20,6 +21,44 @@ Or with Poetry:
 ```bash
 poetry add simple-mas
 ```
+
+## Usage
+
+### Basic Agent
+
+```python
+from simple_mas import Agent
+from simple_mas.communication import HTTPCommunicator
+
+agent = Agent(
+    name="my-agent",
+    communicator=HTTPCommunicator(
+        agent_name="my-agent",
+        service_urls={"other-agent": "http://other-agent:8000/"}
+    )
+)
+
+# Add capabilities, start the agent, etc.
+```
+
+### Deployment Orchestration
+
+SimpleMas includes powerful tools for deploying multi-agent systems:
+
+```bash
+# Discover SimpleMas components in your project
+simplemas discover --directory ./my-project
+
+# Orchestrate components into a single Docker Compose file
+simplemas orchestrate --directory ./my-project --output docker-compose.yml
+
+# Generate Kubernetes manifests for a component
+simplemas k8s --input ./my-project/agent/simplemas.deploy.yaml --output k8s/
+```
+
+## Documentation
+
+For more details, see the [documentation](docs/).
 
 ## Quick Start
 

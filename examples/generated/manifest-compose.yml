@@ -1,0 +1,36 @@
+version: '3'
+services:
+  agent1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+    - AGENT_NAME=agent1
+    - LOG_LEVEL=INFO
+    - COMMUNICATOR_TYPE=http
+    - SERVICE_URL_AGENT2=http://agent2:8001
+    ports:
+    - 8000:8000
+    volumes:
+    - agent1-data:/app/data
+    depends_on:
+    - agent2
+  agent2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+    - AGENT_NAME=agent2
+    - LOG_LEVEL=INFO
+    - COMMUNICATOR_TYPE=http
+    - SERVICE_URL_AGENT1=http://agent1:8000
+    ports:
+    - 8001:8001
+    volumes:
+    - agent2-data:/app/data
+    depends_on: []
+volumes:
+  agent1-data:
+    driver: local
+  agent2-data:
+    driver: local

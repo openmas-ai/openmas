@@ -1,0 +1,32 @@
+version: "1.0"
+
+component:
+  name: "mcp-server"
+  type: "service"
+  description: "MCP server for model access"
+
+docker:
+  build:
+    context: "."
+    dockerfile: "Dockerfile"
+
+environment:
+  - name: "SERVICE_NAME"
+    value: "${component.name}"
+  - name: "LOG_LEVEL"
+    value: "INFO"
+  - name: "MCP_API_KEY"
+    secret: true
+    description: "API key for MCP service"
+
+ports:
+  - port: 8000
+    protocol: "http"
+    description: "HTTP API for MCP access"
+
+volumes:
+  - name: "data"
+    path: "/app/data"
+    description: "Data storage"
+
+dependencies: []

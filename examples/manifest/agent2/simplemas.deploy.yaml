@@ -1,0 +1,40 @@
+version: "1.0"
+
+component:
+  name: "agent2"
+  type: "agent"
+  description: "A second agent that interacts with the chess player"
+
+docker:
+  build:
+    context: "."
+    dockerfile: "Dockerfile"
+
+environment:
+  - name: "AGENT_NAME"
+    value: "${component.name}"
+  - name: "LOG_LEVEL"
+    value: "INFO"
+  - name: "COMMUNICATOR_TYPE"
+    value: "http"
+  - name: "SERVICE_URL_AGENT1"
+    value: "http://agent1:8000"
+    description: "URL for agent1"
+
+ports:
+  - port: 8001
+    protocol: "http"
+    description: "HTTP API for agent interaction"
+
+volumes:
+  - name: "data"
+    path: "/app/data"
+    description: "Data storage"
+  - name: "logs"
+    path: "/app/logs"
+    description: "Log storage"
+
+dependencies:
+  - name: "agent1"
+    required: false
+    description: "The chess player agent"
