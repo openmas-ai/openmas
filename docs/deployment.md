@@ -511,6 +511,116 @@ Generate a deployment from the manifest:
 simplemas deploy manifest --manifest simplemas.manifest.yaml --output docker-compose.yml
 ```
 
+## Dockerfile Generation
+
+SimpleMas provides a command to generate standardized, best-practice Dockerfiles for your agents. This ensures consistent containerization across your multi-agent system.
+
+### Using the `simplemas deploy generate-dockerfile` Command
+
+You can use the `generate-dockerfile` command to create a Dockerfile customized for your specific agent:
+
+```bash
+# Basic usage - creates a standard Dockerfile in the current directory
+simplemas deploy generate-dockerfile
+
+# Customize Python version
+simplemas deploy generate-dockerfile --python-version 3.11
+
+# Specify a different entrypoint (default is agent.py)
+simplemas deploy generate-dockerfile --app-entrypoint main.py
+
+# Specify a different requirements file
+simplemas deploy generate-dockerfile --requirements-file requirements-prod.txt
+
+# Generate a Dockerfile that uses Poetry for dependency management
+simplemas deploy generate-dockerfile --use-poetry
+
+# Change the output path
+simplemas deploy generate-dockerfile --output ./docker/Dockerfile
+```
+
+### Command Options
+
+- `--python-version`, `-p`: Python version to use (default: "3.10")
+- `--app-entrypoint`, `-e`: Application entrypoint file (default: "agent.py")
+- `--requirements-file`, `-r`: Path to requirements file (default: "requirements.txt")
+- `--output`, `-o`: Output file path (default: "Dockerfile")
+- `--use-poetry`: Generate Dockerfile using Poetry instead of pip
+- `--port`: Port to expose in the Dockerfile (default: 8000)
+
+### Generated Dockerfile Examples
+
+#### Standard Pip-based Dockerfile
+
+```dockerfile
+# SimpleMas Agent Dockerfile
+# Generated with simplemas deploy generate-dockerfile
+
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE 8000
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    AGENT_PORT=8000
+
+# Run the application
+CMD ["python", "agent.py"]
+```
+
+#### Poetry-based Dockerfile
+
+```dockerfile
+# SimpleMas Agent Dockerfile
+# Generated with simplemas deploy generate-dockerfile
+
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install Poetry
+RUN pip install --no-cache-dir poetry && \
+    poetry config virtualenvs.create false
+
+# Copy Poetry configuration files
+COPY pyproject.toml poetry.lock* ./
+
+# Install dependencies
+RUN poetry install --no-dev --no-interaction --no-ansi
+
+# Copy application code
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE 8000
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    AGENT_PORT=8000
+
+# Run the application
+CMD ["poetry", "run", "python", "agent.py"]
+```
+
+These Dockerfiles follow best practices for Python applications:
+- Using the slim image variant to reduce size
+- Installing dependencies before copying application code for better layer caching
+- Setting appropriate environment variables for Python applications
+- Following a multi-stage build pattern
+- Proper configuration of the workdir and port exposure
+
 ## Examples
 
 ### Multi-agent System Example

@@ -104,6 +104,126 @@ class DockerComposeGenerator:
         return path
 
 
+class DockerfileGenerator:
+    """Generator for Dockerfiles."""
+
+    def generate_pip_dockerfile(
+        self, python_version: str, app_entrypoint: str, requirements_file: str, port: int
+    ) -> str:
+        """Generate a Dockerfile using pip for dependencies.
+
+        Args:
+            python_version: Python version to use
+            app_entrypoint: Application entrypoint file
+            requirements_file: Path to requirements file
+            port: Port to expose
+
+        Returns:
+            Dockerfile content as a string
+        """
+        return f"""# SimpleMas Agent Dockerfile
+# Generated with simplemas deploy generate-dockerfile
+
+FROM python:{python_version}-slim
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY {requirements_file} .
+RUN pip install --no-cache-dir -r {requirements_file}
+
+# Copy application code
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE {port}
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \\
+    PYTHONDONTWRITEBYTECODE=1 \\
+    AGENT_PORT={port}
+
+# Run the application
+CMD ["python", "{app_entrypoint}"]
+"""
+
+    def generate_poetry_dockerfile(self, python_version: str, app_entrypoint: str, port: int) -> str:
+        """Generate a Dockerfile using Poetry for dependencies.
+
+        Args:
+            python_version: Python version to use
+            app_entrypoint: Application entrypoint file
+            port: Port to expose
+
+        Returns:
+            Dockerfile content as a string
+        """
+        return f"""# SimpleMas Agent Dockerfile
+# Generated with simplemas deploy generate-dockerfile
+
+FROM python:{python_version}-slim
+
+WORKDIR /app
+
+# Install Poetry
+RUN pip install --no-cache-dir poetry && \\
+    poetry config virtualenvs.create false
+
+# Copy Poetry configuration files
+COPY pyproject.toml poetry.lock* ./
+
+# Install dependencies
+RUN poetry install --no-dev --no-interaction --no-ansi
+
+# Copy application code
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE {port}
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \\
+    PYTHONDONTWRITEBYTECODE=1 \\
+    AGENT_PORT={port}
+
+# Run the application
+CMD ["poetry", "run", "python", "{app_entrypoint}"]
+"""
+
+    def save(
+        self,
+        output_path: Union[str, Path],
+        python_version: str,
+        app_entrypoint: str,
+        requirements_file: str = "requirements.txt",
+        use_poetry: bool = False,
+        port: int = 8000,
+    ) -> Path:
+        """Generate and save a Dockerfile to a file.
+
+        Args:
+            output_path: Path to save the Dockerfile
+            python_version: Python version to use
+            app_entrypoint: Application entrypoint file
+            requirements_file: Path to requirements file (only for pip)
+            use_poetry: Whether to use Poetry for dependency management
+            port: Port to expose
+
+        Returns:
+            Path to the saved file
+        """
+        if use_poetry:
+            dockerfile_content = self.generate_poetry_dockerfile(python_version, app_entrypoint, port)
+        else:
+            dockerfile_content = self.generate_pip_dockerfile(python_version, app_entrypoint, requirements_file, port)
+
+        path = Path(output_path)
+        with open(path, "w") as f:
+            f.write(dockerfile_content)
+
+        return path
+
+
 class KubernetesGenerator:
     """Generator for Kubernetes manifests."""
 

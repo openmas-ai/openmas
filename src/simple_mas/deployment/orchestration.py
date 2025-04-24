@@ -1,12 +1,12 @@
 """Orchestration tools for SimpleMas deployment."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, Tuple, Union, cast
 
 import yaml
 
 from simple_mas.deployment.generators import DockerComposeGenerator
-from simple_mas.deployment.metadata import DeploymentMetadata
+from simple_mas.deployment.metadata import DeploymentMetadata, EnvironmentVar
 
 
 class ComposeOrchestrator:
@@ -149,6 +149,173 @@ class ComposeOrchestrator:
             yaml.safe_dump(compose_config, f, sort_keys=False)
 
         return path
+
+    def process_project_file(
+        self, project_file_path: Path, strict: bool = False, use_project_names: bool = False
+    ) -> Tuple[List[DeploymentMetadata], List[str], Dict[str, str]]:
+        """Process a SimpleMas project file to extract component metadata.
+
+        Args:
+            project_file_path: Path to the project file
+            strict: Whether to fail on missing metadata files
+            use_project_names: Whether to use project names instead of metadata names
+
+        Returns:
+            Tuple of (components list, warning messages, renamed components)
+        """
+        if not project_file_path.exists():
+            raise FileNotFoundError(f"Project file '{project_file_path}' not found")
+
+        # Load the project configuration
+        with open(project_file_path, "r") as f:
+            project_config = yaml.safe_load(f)
+
+        if not isinstance(project_config, dict):
+            raise ValueError(f"Project file '{project_file_path}' has invalid format")
+
+        if "agents" not in project_config or not isinstance(project_config["agents"], dict):
+            raise ValueError(f"Project file '{project_file_path}' is missing 'agents' section")
+
+        # Get agent paths from the project configuration
+        agent_paths = project_config["agents"]
+
+        # Discover deployment metadata for each agent
+        components: List[DeploymentMetadata] = []
+        warnings: List[str] = []
+        project_root = project_file_path.parent
+
+        # Keep track of renamed components (original_name -> new_name)
+        renamed_components: Dict[str, str] = {}
+
+        for agent_name, relative_path in agent_paths.items():
+            agent_path = project_root / relative_path
+            metadata_path = agent_path / "simplemas.deploy.yaml"
+
+            if not metadata_path.exists():
+                if strict:
+                    raise FileNotFoundError(
+                        f"Deployment metadata not found for agent '{agent_name}' at {metadata_path}"
+                    )
+                else:
+                    warnings.append(f"Skipping agent '{agent_name}': metadata file not found at {metadata_path}")
+                    continue
+
+            try:
+                metadata = DeploymentMetadata.from_file(metadata_path)
+
+                # Override component name if needed to ensure consistency with project config
+                if metadata.component.name != agent_name and use_project_names:
+                    # Store the original name
+                    original_name = metadata.component.name
+                    warnings.append(
+                        f"Renaming component from '{original_name}' to '{agent_name}' to match project config"
+                    )
+                    # Store the mapping for dependency resolution
+                    renamed_components[original_name] = agent_name
+                    metadata.component.name = agent_name
+
+                components.append(metadata)
+            except Exception as e:
+                if strict:
+                    raise ValueError(f"Error parsing metadata for agent '{agent_name}': {e}")
+                else:
+                    warnings.append(f"Skipping agent '{agent_name}': {e}")
+
+        if not components:
+            raise ValueError("No valid components found in the project")
+
+        return components, warnings, renamed_components
+
+    def update_dependencies(self, components: List[DeploymentMetadata], renamed_components: Dict[str, str]) -> None:
+        """Update dependencies to use project names instead of metadata names.
+
+        Args:
+            components: List of component metadata
+            renamed_components: Map of original component names to new names
+        """
+        for component in components:
+            for dependency in component.dependencies:
+                if dependency.name in renamed_components:
+                    dependency.name = renamed_components[dependency.name]
+
+    def configure_service_urls(self, components: List[DeploymentMetadata]) -> None:
+        """Configure SERVICE_URL_* environment variables based on dependencies.
+
+        Args:
+            components: List of component metadata
+        """
+        # Create a mapping of component name to its ports
+        component_ports: Dict[str, int] = {}
+        for component in components:
+            if component.ports:
+                # Get the first port for now (we could get more sophisticated later)
+                component_ports[component.component.name] = component.ports[0].port
+
+        # Add SERVICE_URL environment variables for each dependency
+        for component in components:
+            # Extract existing environment variable names
+            existing_env_names = {env.name for env in component.environment}
+
+            # Add SERVICE_URL variables for each dependency if not already defined
+            for dependency in component.dependencies:
+                dep_name = dependency.name
+                service_url_var = f"SERVICE_URL_{dep_name.upper().replace('-', '_')}"
+
+                # Skip if this environment variable is already defined
+                if service_url_var in existing_env_names:
+                    continue
+
+                # Only add if the dependency component exists and has a port
+                if dep_name in component_ports:
+                    port = component_ports[dep_name]
+                    url = f"http://{dep_name}:{port}"
+
+                    # Add the environment variable
+                    component.environment.append(
+                        EnvironmentVar(
+                            name=service_url_var,
+                            value=url,
+                            secret=False,
+                            description=f"URL for {dep_name} service",
+                        )
+                    )
+
+    def process_project_and_save_compose(
+        self,
+        project_file: Union[str, Path],
+        output_path: Union[str, Path],
+        strict: bool = False,
+        use_project_names: bool = False,
+    ) -> Tuple[Path, List[DeploymentMetadata], List[str]]:
+        """Process a project file and generate a Docker Compose configuration.
+
+        Args:
+            project_file: Path to the SimpleMas project file
+            output_path: Path to save the Docker Compose configuration file
+            strict: Whether to fail on missing metadata files
+            use_project_names: Whether to use project names instead of metadata names
+
+        Returns:
+            Tuple of (path to saved file, components list, warning messages)
+        """
+        project_file_path = Path(project_file)
+
+        # Process the project file
+        components, warnings, renamed_components = self.process_project_file(
+            project_file_path, strict, use_project_names
+        )
+
+        # If we're using project names, update dependencies to use them
+        if use_project_names and renamed_components:
+            self.update_dependencies(components, renamed_components)
+
+        # Configure service URLs from dependencies
+        self.configure_service_urls(components)
+
+        # Generate and save Docker Compose configuration
+        saved_path = self.save_compose(components, output_path)
+
+        return saved_path, components, warnings
 
 
 class OrchestrationManifest:

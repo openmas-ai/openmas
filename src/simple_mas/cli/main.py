@@ -8,7 +8,9 @@ from typing import Any, Dict, Optional
 import click
 import yaml
 
-from simple_mas.cli.deploy import deploy_cmd
+# Import the CLI commands from their respective modules
+# The deploy command will be added separately since it's using typer
+# from simple_mas.cli.deploy import deploy_cmd
 from simple_mas.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,8 +23,8 @@ def cli() -> None:
     pass
 
 
-# Register the deploy command group
-cli.add_command(deploy_cmd)
+# Register the deploy command group - we'll define this separately later
+# cli.add_command(deploy_cmd)
 
 
 @cli.command()
