@@ -1,6 +1,7 @@
 """Tests for the BDI agent implementation."""
 
 import asyncio
+from typing import Dict
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -22,7 +23,7 @@ class TestBdiAgent:
         return agent
 
     @pytest.mark.asyncio
-    async def test_add_belief(self, bdi_agent):
+    async def test_add_belief(self, bdi_agent: BdiAgent) -> None:
         """Test adding a belief to the agent."""
         # Mock the on_belief_change method
         bdi_agent.on_belief_change = AsyncMock()
@@ -40,7 +41,7 @@ class TestBdiAgent:
         bdi_agent.on_belief_change.assert_called_once_with("test_belief", "test_value")
 
     @pytest.mark.asyncio
-    async def test_remove_belief(self, bdi_agent):
+    async def test_remove_belief(self, bdi_agent: BdiAgent) -> None:
         """Test removing a belief from the agent."""
         # Add a belief
         bdi_agent.add_belief("test_belief", "test_value")
@@ -61,7 +62,7 @@ class TestBdiAgent:
         bdi_agent.on_belief_change.assert_called_once_with("test_belief", None)
 
     @pytest.mark.asyncio
-    async def test_add_desire(self, bdi_agent):
+    async def test_add_desire(self, bdi_agent: BdiAgent) -> None:
         """Test adding a desire to the agent."""
         # Mock the on_desire_change method
         bdi_agent.on_desire_change = AsyncMock()
@@ -79,7 +80,7 @@ class TestBdiAgent:
         bdi_agent.on_desire_change.assert_called_once_with("test_desire", True)
 
     @pytest.mark.asyncio
-    async def test_remove_desire(self, bdi_agent):
+    async def test_remove_desire(self, bdi_agent: BdiAgent) -> None:
         """Test removing a desire from the agent."""
         # Add a desire
         bdi_agent.add_desire("test_desire")
@@ -100,13 +101,13 @@ class TestBdiAgent:
         bdi_agent.on_desire_change.assert_called_once_with("test_desire", False)
 
     @pytest.mark.asyncio
-    async def test_add_intention(self, bdi_agent):
+    async def test_add_intention(self, bdi_agent: BdiAgent) -> None:
         """Test adding an intention to the agent."""
         # Mock the on_intention_change method
         bdi_agent.on_intention_change = AsyncMock()
 
         # Add an intention
-        intention = {"id": "test_intention", "goal": "test_goal"}
+        intention: Dict[str, str] = {"id": "test_intention", "goal": "test_goal"}
         bdi_agent.add_intention(intention)
 
         # Check that the intention was added
@@ -121,10 +122,10 @@ class TestBdiAgent:
         bdi_agent.on_intention_change.assert_called_once_with(intention, True)
 
     @pytest.mark.asyncio
-    async def test_remove_intention(self, bdi_agent):
+    async def test_remove_intention(self, bdi_agent: BdiAgent) -> None:
         """Test removing an intention from the agent."""
         # Add an intention
-        intention = {"id": "test_intention", "goal": "test_goal"}
+        intention: Dict[str, str] = {"id": "test_intention", "goal": "test_goal"}
         bdi_agent.add_intention(intention)
 
         # Mock the on_intention_change method
@@ -143,7 +144,7 @@ class TestBdiAgent:
         bdi_agent.on_intention_change.assert_called_once_with(intention, False)
 
     @pytest.mark.asyncio
-    async def test_bdi_cycle_starts_when_agent_runs(self, bdi_agent):
+    async def test_bdi_cycle_starts_when_agent_runs(self, bdi_agent: BdiAgent) -> None:
         """Test that the BDI cycle starts when the agent runs."""
         # Patch the _run_bdi_cycle method
         with patch.object(bdi_agent, "_run_bdi_cycle", new_callable=AsyncMock) as mock_run_bdi_cycle:
@@ -164,10 +165,10 @@ class TestBdiAgent:
             mock_run_bdi_cycle.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_shutdown_cancels_bdi_cycle(self, bdi_agent):
+    async def test_shutdown_cancels_bdi_cycle(self, bdi_agent: BdiAgent) -> None:
         """Test that shutdown cancels the BDI cycle."""
 
-        async def dummy_task():
+        async def dummy_task() -> None:
             try:
                 # Just wait forever
                 await asyncio.Future()
@@ -188,7 +189,7 @@ class TestBdiAgent:
             assert dummy_future.cancelled()
 
     @pytest.mark.asyncio
-    async def test_run_bdi_cycle_calls_lifecycle_methods(self, bdi_agent):
+    async def test_run_bdi_cycle_calls_lifecycle_methods(self, bdi_agent: BdiAgent) -> None:
         """Test that _run_bdi_cycle calls the BDI lifecycle methods."""
         # Mock the lifecycle methods
         bdi_agent.update_beliefs = AsyncMock()

@@ -8,14 +8,14 @@ import pytest
 from simple_mas.exceptions import LifecycleError
 
 # Import SimpleAgent from conftest.py
-from tests.conftest import SimpleAgent
+from tests.conftest import AgentConfig, SimpleAgent
 
 
 class TestBaseAgent:
     """Tests for the BaseAgent class."""
 
     @pytest.mark.asyncio
-    async def test_initialization(self, mock_communicator, config):
+    async def test_initialization(self, mock_communicator: mock.AsyncMock, config: AgentConfig) -> None:
         """Test that initialization sets up the agent correctly."""
         communicator_class = mock.MagicMock(return_value=mock_communicator)
 
@@ -31,7 +31,7 @@ class TestBaseAgent:
         communicator_class.assert_called_once_with("test-agent", {})
 
     @pytest.mark.asyncio
-    async def test_lifecycle(self, simple_agent, mock_communicator):
+    async def test_lifecycle(self, simple_agent: SimpleAgent, mock_communicator: mock.AsyncMock) -> None:
         """Test the agent lifecycle."""
         agent = simple_agent
 
@@ -68,7 +68,7 @@ class TestBaseAgent:
         mock_communicator.stop.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_start_already_running(self, simple_agent):
+    async def test_start_already_running(self, simple_agent: SimpleAgent) -> None:
         """Test that starting an already running agent raises an error."""
         # Start the agent
         await simple_agent.start()
@@ -81,7 +81,7 @@ class TestBaseAgent:
         await simple_agent.stop()
 
     @pytest.mark.asyncio
-    async def test_stop_not_running(self, simple_agent, mock_communicator):
+    async def test_stop_not_running(self, simple_agent: SimpleAgent, mock_communicator: mock.AsyncMock) -> None:
         """Test that stopping a non-running agent is a no-op."""
         # Stop the agent (should be a no-op)
         await simple_agent.stop()
@@ -93,11 +93,11 @@ class TestBaseAgent:
         mock_communicator.stop.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_exception_in_run(self, simple_agent):
+    async def test_exception_in_run(self, simple_agent: SimpleAgent) -> None:
         """Test that exceptions in the run method are propagated."""
 
         # Override the run method to raise an exception
-        async def run_with_exception():
+        async def run_with_exception() -> None:
             raise ValueError("Test exception")
 
         # Use patch to replace the run method

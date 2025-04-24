@@ -1,32 +1,29 @@
-"""Tests for the AgentTestHarness.
-
-This file demonstrates how to use the AgentTestHarness for testing SimpleMAS agents.
-"""
+"""Tests for the agent harness module."""
 
 import asyncio
 from typing import Any, Dict
 
 import pytest
 
-from simple_mas.agent import BaseAgent
+from simple_mas.agent.bdi import BdiAgent
 from simple_mas.config import AgentConfig
-from simple_mas.testing import AgentTestHarness
+from simple_mas.testing.harness import AgentTestHarness
 
 
-class SimpleTestAgent(BaseAgent):
+class SimpleTestAgent(BdiAgent):
     """A simple agent for testing the harness."""
 
     def __init__(
         self,
-        name=None,
-        config=None,
-        config_model=AgentConfig,
-        env_prefix="",
-    ):
+        name: str = None,
+        config: AgentConfig = None,
+        config_model: Any = AgentConfig,
+        env_prefix: str = "",
+    ) -> None:
         """Initialize the simple test agent."""
         super().__init__(name=name, config=config, config_model=config_model, env_prefix=env_prefix)
-        self.data_store = {}
-        self.processing_history = []
+        self.data_store: Dict[str, Any] = {}
+        self.processing_history: list[str] = []
 
     async def setup(self) -> None:
         """Set up the agent by registering handlers."""
@@ -116,7 +113,7 @@ class SimpleTestAgent(BaseAgent):
 
 # Create a test harness specifically for SimpleTestAgent for these tests
 @pytest.fixture
-def test_agent_harness():
+def test_agent_harness() -> AgentTestHarness:
     """Create an AgentTestHarness for testing SimpleTestAgent."""
     # Create the harness with the config
     return AgentTestHarness(SimpleTestAgent, default_config={"name": "test-agent", "service_urls": {}})
@@ -126,7 +123,7 @@ class TestAgentHarness:
     """Tests for the AgentTestHarness."""
 
     @pytest.mark.asyncio
-    async def test_basic_agent_functionality(self, test_agent_harness):
+    async def test_basic_agent_functionality(self, test_agent_harness: AgentTestHarness) -> None:
         """Test basic agent functionality with the harness."""
         # Create an agent with the harness
         agent = await test_agent_harness.create_agent()
@@ -144,7 +141,7 @@ class TestAgentHarness:
             assert result2 == {"key": "test_key", "value": "test_value"}
 
     @pytest.mark.asyncio
-    async def test_agent_with_external_service(self, test_agent_harness):
+    async def test_agent_with_external_service(self, test_agent_harness: AgentTestHarness) -> None:
         """Test agent interaction with an external service."""
         # Create an agent with the harness
         agent = await test_agent_harness.create_agent()
@@ -169,7 +166,7 @@ class TestAgentHarness:
             test_agent_harness.communicator.verify()
 
     @pytest.mark.asyncio
-    async def test_wait_for_condition(self, test_agent_harness):
+    async def test_wait_for_condition(self, test_agent_harness: AgentTestHarness) -> None:
         """Test the wait_for utility in the harness."""
         # Create an agent with the harness
         agent = await test_agent_harness.create_agent()
@@ -180,7 +177,7 @@ class TestAgentHarness:
             agent.flag_set = False
 
             # Start a task that will set the flag after a delay
-            async def delayed_set_flag():
+            async def delayed_set_flag() -> None:
                 await asyncio.sleep(0.05)
                 agent.flag_set = True
 
@@ -194,7 +191,7 @@ class TestAgentHarness:
             assert agent.flag_set is True
 
     @pytest.mark.asyncio
-    async def test_wait_for_timeout(self, test_agent_harness):
+    async def test_wait_for_timeout(self, test_agent_harness: AgentTestHarness) -> None:
         """Test the wait_for utility timeout."""
         # Create an agent with the harness
         agent = await test_agent_harness.create_agent()

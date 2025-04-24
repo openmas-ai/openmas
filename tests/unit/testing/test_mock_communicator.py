@@ -9,6 +9,8 @@ from typing import Any, Dict
 import pytest
 
 from simple_mas.exceptions import ServiceNotFoundError
+from simple_mas.testing.mock_communicator import MockCommunicator
+from tests.conftest import SimpleAgent
 
 # Import fixtures from conftest.py instead of defining them locally
 # The real_mock_communicator fixture replaces the local mock_communicator
@@ -19,7 +21,7 @@ class TestMockCommunicator:
     """Tests for the MockCommunicator class."""
 
     @pytest.mark.asyncio
-    async def test_send_request(self, real_mock_communicator):
+    async def test_send_request(self, real_mock_communicator: MockCommunicator) -> None:
         """Test sending a request with a predefined response."""
         # Arrange
         real_mock_communicator.expect_request("test-service", "test-method", {"param": "value"}, {"result": "success"})
@@ -32,7 +34,7 @@ class TestMockCommunicator:
         real_mock_communicator.verify()
 
     @pytest.mark.asyncio
-    async def test_send_notification(self, real_mock_communicator):
+    async def test_send_notification(self, real_mock_communicator: MockCommunicator) -> None:
         """Test sending a notification."""
         # Arrange
         real_mock_communicator.expect_notification("test-service", "test-method", {"param": "value"})
@@ -44,14 +46,14 @@ class TestMockCommunicator:
         real_mock_communicator.verify()
 
     @pytest.mark.asyncio
-    async def test_exception_for_unexpected_request(self, real_mock_communicator):
+    async def test_exception_for_unexpected_request(self, real_mock_communicator: MockCommunicator) -> None:
         """Test that an exception is raised for an unexpected request."""
         # Act & Assert
         with pytest.raises(AssertionError):
             await real_mock_communicator.send_request("test-service", "test-method", {"param": "value"})
 
     @pytest.mark.asyncio
-    async def test_exception_for_parameter_mismatch(self, real_mock_communicator):
+    async def test_exception_for_parameter_mismatch(self, real_mock_communicator: MockCommunicator) -> None:
         """Test that an exception is raised for a parameter mismatch."""
         # Arrange
         real_mock_communicator.expect_request(
@@ -63,7 +65,7 @@ class TestMockCommunicator:
             await real_mock_communicator.send_request("test-service", "test-method", {"param": "actual"})
 
     @pytest.mark.asyncio
-    async def test_predefined_exception(self, real_mock_communicator):
+    async def test_predefined_exception(self, real_mock_communicator: MockCommunicator) -> None:
         """Test that a predefined exception is raised."""
         # Arrange
         exception = ServiceNotFoundError("test-service not found")
@@ -76,7 +78,7 @@ class TestMockCommunicator:
         real_mock_communicator.verify()
 
     @pytest.mark.asyncio
-    async def test_register_and_trigger_handler(self, real_mock_communicator):
+    async def test_register_and_trigger_handler(self, real_mock_communicator: MockCommunicator) -> None:
         """Test registering and triggering a handler."""
         # Arrange
         handler_called = False
@@ -97,7 +99,7 @@ class TestMockCommunicator:
         assert received_params == {"param": "value"}
 
     @pytest.mark.asyncio
-    async def test_reset(self, real_mock_communicator):
+    async def test_reset(self, real_mock_communicator: MockCommunicator) -> None:
         """Test resetting the mock communicator."""
         # Arrange
         real_mock_communicator.expect_request("test-service", "test-method", {"param": "value"}, {"result": "success"})
@@ -110,7 +112,9 @@ class TestMockCommunicator:
             await real_mock_communicator.send_request("test-service", "test-method", {"param": "value"})
 
     @pytest.mark.asyncio
-    async def test_with_agent(self, agent_with_mock_communicator, real_mock_communicator):
+    async def test_with_agent(
+        self, agent_with_mock_communicator: SimpleAgent, real_mock_communicator: MockCommunicator
+    ) -> None:
         """Test using the mock communicator with an agent."""
         # Arrange
         agent = await agent_with_mock_communicator
@@ -124,7 +128,7 @@ class TestMockCommunicator:
         real_mock_communicator.verify()
 
     @pytest.mark.asyncio
-    async def test_multiple_expectations(self, real_mock_communicator):
+    async def test_multiple_expectations(self, real_mock_communicator: MockCommunicator) -> None:
         """Test handling multiple expectations in sequence."""
         # Arrange
         real_mock_communicator.expect_request("service1", "method1", {"param": "value1"}, {"result": "success1"})
@@ -140,7 +144,7 @@ class TestMockCommunicator:
         real_mock_communicator.verify()
 
     @pytest.mark.asyncio
-    async def test_verify_unmet_expectations(self, real_mock_communicator):
+    async def test_verify_unmet_expectations(self, real_mock_communicator: MockCommunicator) -> None:
         """Test that verify raises an exception if expectations are not met."""
         # Arrange
         real_mock_communicator.expect_request("test-service", "test-method", {"param": "value"}, {"result": "success"})
