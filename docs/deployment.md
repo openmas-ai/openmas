@@ -355,35 +355,35 @@ The SimpleMas deployment tooling provides a CLI for generating deployment config
 
 ```bash
 # Generate Docker Compose configuration for a single component
-simplemas compose --input simplemas.deploy.yaml --output docker-compose.yml
+simplemas deploy compose --input simplemas.deploy.yaml --output docker-compose.yml
 
 # Generate Kubernetes manifests for a single component
-simplemas k8s --input simplemas.deploy.yaml --output k8s/
+simplemas deploy k8s --input simplemas.deploy.yaml --output k8s/
 
 # Validate deployment metadata
-simplemas validate --input simplemas.deploy.yaml
+simplemas deploy validate --input simplemas.deploy.yaml
 ```
 
 ## Project-Based Deployment
 
 SimpleMas provides a simplified way to generate deployment configurations directly from your `simplemas_project.yml` file. This approach ensures that all agents defined in your project are properly included in the deployment with correct networking configuration.
 
-### Using the `simplemas-deploy generate-compose` Command
+### Using the `simplemas deploy generate-compose` Command
 
 The `generate-compose` command reads your project configuration and generates a Docker Compose file with all the agents connected:
 
 ```bash
 # Basic usage
-simplemas-deploy generate-compose
+simplemas deploy generate-compose
 
 # Specify custom project file and output location
-simplemas-deploy generate-compose --project-file=my-project.yml --output=compose/docker-compose.yml
+simplemas deploy generate-compose --project-file=my-project.yml --output=compose/docker-compose.yml
 
 # Fail if any agent is missing deployment metadata
-simplemas-deploy generate-compose --strict
+simplemas deploy generate-compose --strict
 
 # Use agent names from the project file instead of names in the metadata
-simplemas-deploy generate-compose --use-project-names
+simplemas deploy generate-compose --use-project-names
 ```
 
 #### Command Options
@@ -431,7 +431,7 @@ agents:
 # ...
 ```
 
-Running `simplemas-deploy generate-compose` will:
+Running `simplemas deploy generate-compose` will:
 
 1. Read metadata for both agents
 2. Configure the Docker Compose file with proper service URLs
@@ -449,13 +449,13 @@ You can automatically discover all SimpleMas components in a directory structure
 
 ```bash
 # Discover all components in the current directory and subdirectories
-simplemas discover
+simplemas deploy discover
 
 # Discover components in a specific directory
-simplemas discover --directory path/to/project
+simplemas deploy discover --directory path/to/project
 
 # Use a custom pattern to match metadata files
-simplemas discover --pattern "agent*/simplemas.deploy.yaml"
+simplemas deploy discover --pattern "agent*/simplemas.deploy.yaml"
 ```
 
 ### Orchestrating Multiple Components
@@ -464,10 +464,10 @@ Generate a combined Docker Compose file for multiple components with automatic d
 
 ```bash
 # Orchestrate all components in the current directory
-simplemas orchestrate --output docker-compose.yml
+simplemas deploy orchestrate --output docker-compose.yml
 
 # Orchestrate components in a specific directory with dependency validation
-simplemas orchestrate --directory path/to/project --validate --output docker-compose.yml
+simplemas deploy orchestrate --directory path/to/project --validate --output docker-compose.yml
 ```
 
 This automatically configures:
@@ -508,7 +508,7 @@ Generate a deployment from the manifest:
 
 ```bash
 # Generate Docker Compose from a manifest
-simplemas manifest --manifest simplemas.manifest.yaml --output docker-compose.yml
+simplemas deploy manifest --manifest simplemas.manifest.yaml --output docker-compose.yml
 ```
 
 ## Examples
@@ -549,8 +549,8 @@ environment:
 **Orchestrating the system:**
 ```bash
 # Discover and verify the components
-simplemas discover --directory .
+simplemas deploy discover --directory .
 
 # Generate a combined Docker Compose file
-simplemas orchestrate --directory . --output docker-compose.yml --validate
+simplemas deploy orchestrate --directory . --output docker-compose.yml --validate
 ```

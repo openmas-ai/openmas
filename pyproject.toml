@@ -8,7 +8,6 @@ packages = [{include = "simple_mas", from = "src"}]
 
 [tool.poetry.scripts]
 simplemas = "simple_mas.cli:main"
-simplemas-deploy = "simple_mas.deployment.cli:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -35,6 +34,7 @@ pre-commit = "^4.2.0"
 types-pyyaml = "^6.0.12.20250402"
 types-setuptools = "^79.0.0.20250422"
 uvicorn = "^0.34.2"
+pytest-timeout = "^2.3.1"
 
 [build-system]
 requires = ["poetry-core"]

@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 import click
 import yaml
 
+from simple_mas.cli.deploy import deploy_cmd
 from simple_mas.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,6 +19,10 @@ logger = get_logger(__name__)
 def cli() -> None:
     """Provide CLI tools for managing SimpleMAS projects."""
     pass
+
+
+# Register the deploy command group
+cli.add_command(deploy_cmd)
 
 
 @cli.command()
