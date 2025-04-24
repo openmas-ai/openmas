@@ -364,6 +364,81 @@ simplemas k8s --input simplemas.deploy.yaml --output k8s/
 simplemas validate --input simplemas.deploy.yaml
 ```
 
+## Project-Based Deployment
+
+SimpleMas provides a simplified way to generate deployment configurations directly from your `simplemas_project.yml` file. This approach ensures that all agents defined in your project are properly included in the deployment with correct networking configuration.
+
+### Using the `simplemas-deploy generate-compose` Command
+
+The `generate-compose` command reads your project configuration and generates a Docker Compose file with all the agents connected:
+
+```bash
+# Basic usage
+simplemas-deploy generate-compose
+
+# Specify custom project file and output location
+simplemas-deploy generate-compose --project-file=my-project.yml --output=compose/docker-compose.yml
+
+# Fail if any agent is missing deployment metadata
+simplemas-deploy generate-compose --strict
+
+# Use agent names from the project file instead of names in the metadata
+simplemas-deploy generate-compose --use-project-names
+```
+
+#### Command Options
+
+- `--project-file`, `-p`: Path to the SimpleMas project file (default: simplemas_project.yml)
+- `--output`, `-o`: Path to save the Docker Compose configuration file (default: docker-compose.yml)
+- `--strict`, `-s`: Fail if any agent is missing deployment metadata
+- `--use-project-names`, `-n`: Use agent names from project file instead of names in metadata
+
+#### How It Works
+
+The command performs the following steps:
+
+1. Reads the `simplemas_project.yml` file to get agent definitions and their paths
+2. Looks for a `simplemas.deploy.yaml` file in each agent's directory
+3. Parses each metadata file and collects the deployment information
+4. Automatically generates and configures `SERVICE_URL_*` environment variables based on dependencies
+5. Creates a Docker Compose file with all the services properly connected
+
+#### Example
+
+For a project structure like:
+
+```
+my_project/
+├── simplemas_project.yml
+├── agents/
+│   ├── orchestrator/
+│   │   ├── agent.py
+│   │   └── simplemas.deploy.yaml
+│   └── worker/
+│       ├── agent.py
+│       └── simplemas.deploy.yaml
+└── ...
+```
+
+Where `simplemas_project.yml` contains:
+
+```yaml
+name: "my_project"
+version: "0.1.0"
+agents:
+  orchestrator: "agents/orchestrator"
+  worker: "agents/worker"
+# ...
+```
+
+Running `simplemas-deploy generate-compose` will:
+
+1. Read metadata for both agents
+2. Configure the Docker Compose file with proper service URLs
+3. Set up dependencies so that services start in the correct order
+
+The resulting Docker Compose file will include both agents with networking automatically configured between them.
+
 ## Multi-component Deployment Orchestration
 
 SimpleMas provides powerful tools for orchestrating the deployment of multi-agent systems consisting of multiple components.

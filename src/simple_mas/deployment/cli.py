@@ -3,11 +3,13 @@
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
+
+import yaml
 
 from simple_mas.deployment.discovery import ComponentDiscovery
 from simple_mas.deployment.generators import DockerComposeGenerator, KubernetesGenerator
-from simple_mas.deployment.metadata import DeploymentMetadata
+from simple_mas.deployment.metadata import DeploymentMetadata, EnvironmentVar
 from simple_mas.deployment.orchestration import ComposeOrchestrator, OrchestrationManifest
 
 
@@ -206,6 +208,164 @@ def manifest_command(args: argparse.Namespace) -> int:
         return 1
 
 
+def generate_compose_from_project_command(args: argparse.Namespace) -> int:
+    """Run the generate-compose command that reads simplemas_project.yml.
+
+    Args:
+        args: Command-line arguments
+
+    Returns:
+        Exit code (0 for success, non-zero for failure)
+    """
+    try:
+        project_file = Path(args.project_file)
+        output_path = Path(args.output)
+
+        if not project_file.exists():
+            print(f"❌ Project file '{project_file}' not found", file=sys.stderr)
+            return 1
+
+        # Load the project configuration
+        with open(project_file, "r") as f:
+            project_config = yaml.safe_load(f)
+
+        if not isinstance(project_config, dict):
+            print(f"❌ Project file '{project_file}' has invalid format", file=sys.stderr)
+            return 1
+
+        if "agents" not in project_config or not isinstance(project_config["agents"], dict):
+            print(f"❌ Project file '{project_file}' is missing 'agents' section", file=sys.stderr)
+            return 1
+
+        # Get agent paths from the project configuration
+        agent_paths = project_config["agents"]
+
+        # Discover deployment metadata for each agent
+        components = []
+        project_root = project_file.parent
+
+        # Keep track of renamed components (original_name -> new_name)
+        renamed_components = {}
+
+        for agent_name, relative_path in agent_paths.items():
+            agent_path = project_root / relative_path
+            metadata_path = agent_path / "simplemas.deploy.yaml"
+
+            if not metadata_path.exists():
+                if args.strict:
+                    print(
+                        f"❌ Deployment metadata not found for agent '{agent_name}' at {metadata_path}", file=sys.stderr
+                    )
+                    return 1
+                else:
+                    print(f"⚠️ Skipping agent '{agent_name}': metadata file not found at {metadata_path}")
+                    continue
+
+            try:
+                metadata = DeploymentMetadata.from_file(metadata_path)
+
+                # Override component name if needed to ensure consistency with project config
+                if metadata.component.name != agent_name and args.use_project_names:
+                    # Print a warning about renaming
+                    original_name = metadata.component.name
+                    print(f"⚠️ Renaming component from '{original_name}' " f"to '{agent_name}' to match project config")
+                    # Store the mapping for dependency resolution
+                    renamed_components[metadata.component.name] = agent_name
+                    metadata.component.name = agent_name
+
+                components.append(metadata)
+            except Exception as e:
+                if args.strict:
+                    print(f"❌ Error parsing metadata for agent '{agent_name}': {e}", file=sys.stderr)
+                    return 1
+                else:
+                    print(f"⚠️ Skipping agent '{agent_name}': {e}")
+
+        if not components:
+            print("❌ No valid components found in the project", file=sys.stderr)
+            return 1
+
+        # If we're using project names, update dependencies to use them
+        if args.use_project_names and renamed_components:
+            _update_dependencies(components, renamed_components)
+
+        # Process service URLs from dependencies
+        _configure_service_urls(components)
+
+        # Generate Docker Compose configuration
+        orchestrator = ComposeOrchestrator()
+        saved_path = orchestrator.save_compose(components, output_path)
+
+        print(f"✅ Generated Docker Compose configuration for {len(components)} components:")
+        for metadata in components:
+            print(f"  - {metadata.component.name}")
+
+        print(f"✅ Generated Docker Compose configuration: {saved_path}")
+        return 0
+    except Exception as e:
+        print(f"❌ Error generating Docker Compose from project: {e}", file=sys.stderr)
+        return 1
+
+
+def _update_dependencies(components: List[DeploymentMetadata], renamed_components: Dict[str, str]) -> None:
+    """Update dependencies to use project names instead of metadata names.
+
+    Args:
+        components: List of component metadata to update
+        renamed_components: Map of original names to project names
+    """
+    for component in components:
+        for dependency in component.dependencies:
+            if dependency.name in renamed_components:
+                dependency.name = renamed_components[dependency.name]
+
+
+def _configure_service_urls(components: List[DeploymentMetadata]) -> None:
+    """Configure SERVICE_URL_* environment variables based on dependencies.
+
+    This function adds environment variables that follow the SERVICE_URL_<COMPONENT_NAME>
+    convention based on dependencies declared in the component metadata.
+
+    Args:
+        components: List of component metadata to process
+    """
+    # Create a mapping of component name to its ports
+    component_ports: Dict[str, int] = {}
+    for component in components:
+        if component.ports:
+            # Get the first port for now (we could get more sophisticated later)
+            component_ports[component.component.name] = component.ports[0].port
+
+    # Add SERVICE_URL environment variables for each dependency
+    for component in components:
+        # Extract existing environment variable names
+        existing_env_names = {env.name for env in component.environment}
+
+        # Add SERVICE_URL variables for each dependency if not already defined
+        for dependency in component.dependencies:
+            dep_name = dependency.name
+            service_url_var = f"SERVICE_URL_{dep_name.upper().replace('-', '_')}"
+
+            # Skip if this environment variable is already defined
+            if service_url_var in existing_env_names:
+                continue
+
+            # Only add if the dependency component exists and has a port
+            if dep_name in component_ports:
+                port = component_ports[dep_name]
+                url = f"http://{dep_name}:{port}"
+
+                # Add the environment variable
+                component.environment.append(
+                    EnvironmentVar(
+                        name=service_url_var,
+                        value=url,
+                        secret=False,
+                        description=f"URL for {dep_name} service",
+                    )
+                )
+
+
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     """Parse command-line arguments.
 
@@ -274,6 +434,27 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         "--output", "-o", default="docker-compose.yml", help="Path to save the Docker Compose configuration file"
     )
     manifest_parser.set_defaults(func=manifest_command)
+
+    # Generate Docker Compose from SimpleMas project
+    generate_compose_parser = subparsers.add_parser(
+        "generate-compose", help="Generate Docker Compose configuration from SimpleMas project"
+    )
+    generate_compose_parser.add_argument(
+        "--project-file", "-p", default="simplemas_project.yml", help="Path to the SimpleMas project file"
+    )
+    generate_compose_parser.add_argument(
+        "--output", "-o", default="docker-compose.yml", help="Path to save the Docker Compose configuration file"
+    )
+    generate_compose_parser.add_argument(
+        "--strict", "-s", action="store_true", help="Fail if any agent is missing deployment metadata"
+    )
+    generate_compose_parser.add_argument(
+        "--use-project-names",
+        "-n",
+        action="store_true",
+        help="Use agent names from project file instead of names in metadata",
+    )
+    generate_compose_parser.set_defaults(func=generate_compose_from_project_command)
 
     return parser.parse_args(args)
 
