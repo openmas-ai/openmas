@@ -28,16 +28,19 @@ repos:
         # Skip docstring issues for initial commit
         args: ["--extend-ignore=D101,D102,D103,D105,D107,D202,D401"]
 
-  # Commented out mypy for initial commit - enable later after fixing type issues
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: 'v1.5.1'  # Same version as in pyproject.toml
-  #   hooks:
-  #     - id: mypy
-  #       additional_dependencies:
-  #         - pydantic>=2.5.0
-  #         - types-requests>=2.31.0.2
-  #       exclude: ^(examples|backup|tests)/
-  #       args: ["--ignore-missing-imports"]
+  # Enabled mypy with custom configuration
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: 'v1.5.1'  # Same version as in pyproject.toml
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic>=2.5.0
+          - types-requests>=2.31.0.2
+          - types-PyYAML>=6.0.12
+          # Rely on ignore_missing_imports for libraries without type stubs
+        # Use root mypy.ini file for configuration
+        args: ["--config-file=mypy.ini", "src/", "tests/"]
+        pass_filenames: false  # Run on all files rather than just changed ones
 
   - repo: local
     hooks:

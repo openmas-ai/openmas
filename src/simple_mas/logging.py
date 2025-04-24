@@ -53,7 +53,7 @@ def configure_logging(
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
-        level=level,
+        level=cast(Union[int, str, None], level),
     )
 
 

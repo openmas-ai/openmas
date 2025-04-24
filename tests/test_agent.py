@@ -145,11 +145,11 @@ class TestBaseAgent:
         async def run_with_exception():
             raise ValueError("Test exception")
 
-        agent.run = run_with_exception
+        # Use patch to replace the run method
+        with mock.patch.object(agent, "run", new=run_with_exception):
+            # Start the agent
+            await agent.start()
 
-        # Start the agent
-        await agent.start()
-
-        # Wait for the exception to propagate
-        with pytest.raises(ValueError, match="Test exception"):
-            await agent._task
+            # Wait for the exception to propagate
+            with pytest.raises(ValueError, match="Test exception"):
+                await agent._task

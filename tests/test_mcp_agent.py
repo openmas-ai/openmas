@@ -2,6 +2,7 @@
 
 import asyncio
 from unittest import mock
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import BaseModel
@@ -9,15 +10,6 @@ from pydantic import BaseModel
 from simple_mas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
 from simple_mas.agent.mcp import MCP_PROMPT_ATTR, MCP_RESOURCE_ATTR, MCP_TOOL_ATTR
 from simple_mas.config import AgentConfig
-
-# Try to import AsyncMock, available in Python 3.8+
-try:
-    from unittest.mock import AsyncMock
-except ImportError:
-    # For Python 3.7, create a simple AsyncMock class
-    class AsyncMock(mock.MagicMock):
-        async def __call__(self, *args, **kwargs):
-            return super(AsyncMock, self).__call__(*args, **kwargs)
 
 
 class TodoItem(BaseModel):
