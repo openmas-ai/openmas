@@ -1,6 +1,0 @@
----
-description:
-globs:
-alwaysApply: true
----
-Once a coding activity is completed the entire code base and testing suite must be checked and corrected with quality checks: black, isort, flake8, mypy and pytest.

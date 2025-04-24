@@ -29,6 +29,7 @@ mypy = "^1.5.1"
 types-requests = "^2.31.0.2"
 pre-commit = "^4.2.0"
 types-pyyaml = "^6.0.12.20250402"
+types-setuptools = "^79.0.0.20250422"
 
 [build-system]
 requires = ["poetry-core"]

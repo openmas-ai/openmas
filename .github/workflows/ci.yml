@@ -35,8 +35,7 @@ jobs:
         poetry run black --check src tests
         poetry run isort --check-only src tests
         poetry run flake8 src tests
-        # poetry run mypy src tests
-        poetry run mypy src
+        poetry run mypy --config-file=mypy.ini src tests
 
     - name: Run tests
       run: |
