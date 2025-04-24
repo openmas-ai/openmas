@@ -14,8 +14,8 @@ from typing import Any, Dict, Optional, Union
 try:
     from anthropic.mcp.types import TextContent
 
-    from simple_mas.agent import AgentConfig, McpServerAgent
-    from simple_mas.communication.mcp.mcp_adapter import mcp_prompt, mcp_resource, mcp_tool
+    from simple_mas import McpServerAgent, mcp_prompt, mcp_resource, mcp_tool
+    from simple_mas.config import AgentConfig
     from simple_mas.logging import get_logger
 except ImportError:
     print("Error: This example requires the simple-mas package and Anthropic Python SDK v1.6.0")

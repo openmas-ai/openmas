@@ -76,7 +76,7 @@ class ServiceChain:
     conditions, retry logic, and error handling.
     """
 
-    def __init__(self, communicator, name: str = "service_chain"):
+    def __init__(self, communicator: Any, name: str = "service_chain"):
         """Initialize the ServiceChain.
 
         Args:
@@ -157,7 +157,8 @@ class ServiceChain:
             chain_result.results.append(step_result)
 
             # Add result to context for next steps
-            context[step.name] = step_result.result
+            if step.name is not None:
+                context[step.name] = step_result.result
 
             # Exit early if a step failed and no error handler recovered
             if step_result.status == ChainStepStatus.FAILURE:
@@ -315,7 +316,7 @@ class ChainBuilder:
     This builder provides a fluent interface for constructing service chains.
     """
 
-    def __init__(self, communicator, name: str = "service_chain"):
+    def __init__(self, communicator: Any, name: str = "service_chain"):
         """Initialize the ChainBuilder.
 
         Args:
@@ -438,7 +439,7 @@ async def example_usage(communicator):
 # Function for creating reusable chains
 
 
-def create_chain(communicator, name: str = "service_chain") -> ChainBuilder:
+def create_chain(communicator: Any, name: str = "service_chain") -> ChainBuilder:
     """Create a new service chain builder.
 
     Args:
@@ -452,7 +453,7 @@ def create_chain(communicator, name: str = "service_chain") -> ChainBuilder:
 
 
 async def execute_chain(
-    communicator,
+    communicator: Any,
     steps: List[Dict[str, Any]],
     initial_context: Optional[Dict[str, Any]] = None,
     name: str = "service_chain",

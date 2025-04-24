@@ -61,7 +61,7 @@ class BaseOrchestratorAgent(BaseAgent):
     5. Handling failures and retries
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize the orchestrator agent."""
         super().__init__(*args, **kwargs)
 
@@ -174,8 +174,8 @@ class BaseOrchestratorAgent(BaseAgent):
         self,
         worker_name: str,
         task_type: str,
-        parameters: Dict[str, Any] = None,
-        metadata: Dict[str, Any] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         callback: Optional[Callable[[TaskResult], Any]] = None,
     ) -> str:
@@ -264,7 +264,9 @@ class BaseOrchestratorAgent(BaseAgent):
         # Timeout occurred
         return TaskResult(task_id=task_id, status="timeout", error="Task timed out")
 
-    async def orchestrate_workflow(self, tasks: List[Dict[str, Any]], parallel: bool = False) -> Dict[str, Any]:
+    async def orchestrate_workflow(
+        self, tasks: List[Dict[str, Any]], parallel: bool = False
+    ) -> Dict[int, Dict[str, Any]]:
         """Orchestrate a workflow of multiple tasks.
 
         Args:
@@ -277,7 +279,7 @@ class BaseOrchestratorAgent(BaseAgent):
         Returns:
             Dictionary mapping task positions or IDs to results
         """
-        results = {}
+        results: Dict[int, Dict[str, Any]] = {}
 
         if parallel:
             # Execute tasks in parallel
@@ -358,7 +360,7 @@ class TaskHandler:
         Returns:
             The decorated method
         """
-        func._task_handler = {"task_type": self.task_type, "description": self.description}
+        setattr(func, "_task_handler", {"task_type": self.task_type, "description": self.description})
         return func
 
 
@@ -369,7 +371,7 @@ class BaseWorkerAgent(BaseAgent):
     process them according to their capabilities, and return results.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize the worker agent."""
         super().__init__(*args, **kwargs)
 
@@ -403,8 +405,9 @@ class BaseWorkerAgent(BaseAgent):
             attr = getattr(self, attr_name)
             if callable(attr) and hasattr(attr, "_task_handler"):
                 task_info = getattr(attr, "_task_handler")
-                self._task_handlers[task_info["task_type"]] = attr
-                self.logger.debug("Registered task handler", task_type=task_info["task_type"], handler=attr_name)
+                if isinstance(task_info, dict) and "task_type" in task_info:
+                    self._task_handlers[task_info["task_type"]] = attr
+                    self.logger.debug("Registered task handler", task_type=task_info["task_type"], handler=attr_name)
 
     async def register_with_orchestrator(self, orchestrator_name: str) -> bool:
         """Register this worker with an orchestrator.
@@ -677,7 +680,7 @@ class DataPipelineOrchestrator(BaseOrchestratorAgent):
             The pipeline results including processed data and analysis
         """
         # Orchestrate a multi-step workflow
-        workflow = [
+        workflow: List[Dict[str, Any]] = [
             {"task_type": "clean_data", "parameters": {"data": raw_data}},
             {
                 "task_type": "transform_data",

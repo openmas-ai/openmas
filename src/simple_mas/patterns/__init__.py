@@ -22,7 +22,7 @@ from simple_mas.patterns.orchestrator import (
     TaskResult,
     WorkerInfo,
 )
-from simple_mas.patterns.routing import (
+from simple_mas.patterns.routing import (  # type: ignore
     Route,
     RouteMatch,
     Router,

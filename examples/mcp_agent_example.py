@@ -10,7 +10,7 @@ from typing import List
 
 from pydantic import BaseModel
 
-from simple_mas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
+from simple_mas import McpAgent, mcp_prompt, mcp_resource, mcp_tool
 from simple_mas.communication.mcp import McpSseCommunicator
 from simple_mas.logging import configure_logging
 

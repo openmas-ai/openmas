@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 # For type checking only
 if TYPE_CHECKING:
+    from fastapi import FastAPI
+
     from simple_mas.communication.base import BaseCommunicator
 
 # First check if MCP is installed
@@ -60,7 +62,7 @@ else:
             server_mode: bool = False,
             http_port: int = 8000,
             server_instructions: Optional[str] = None,
-            app=None,
+            app: Optional["FastAPI"] = None,
         ) -> None:
             """Raise ImportError when initialized.
 

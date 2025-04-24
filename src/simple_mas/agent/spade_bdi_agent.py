@@ -6,36 +6,47 @@ with SimpleMAS using the BdiAgent base class.
 Note: This is an example implementation and requires the spade-bdi library to be installed.
 """
 
-from typing import Any, Dict, Optional, Type
-
-# Note: This is for demonstration purposes only
-# In a real implementation, you would need to install and import the actual spade-bdi library
-try:
-    from spade_bdi.bdi import BDIAgent as SpadeBDIAgent
-except ImportError:
-    # Create a mock class for documentation purposes
-    class SpadeBDIAgent:
-        """Mock class to represent the spade_bdi.bdi.BDIAgent class."""
-
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def set_belief(self, *args, **kwargs):
-            pass
-
-        def get_belief(self, *args, **kwargs):
-            return None
-
-        def remove_belief(self, *args, **kwargs):
-            pass
-
-        def get_beliefs(self, *args, **kwargs):
-            return {}
-
+from typing import Any, Dict, Optional, Type, TypeVar
 
 from simple_mas.agent.bdi import BdiAgent
 from simple_mas.config import AgentConfig
 from simple_mas.logging import get_logger
+
+
+# Define a base class for SpadeBDI to use whether the library is available or not
+class SpadeBDIAgentBase:
+    """Base class to represent the spade_bdi.bdi.BDIAgent class."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def set_belief(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def get_belief(self, *args: Any, **kwargs: Any) -> Optional[Any]:
+        return None
+
+    def remove_belief(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def get_beliefs(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        return {}
+
+
+# Note: This is for demonstration purposes only
+# In a real implementation, you would need to install and import the actual spade-bdi library
+try:
+    # Type ignore tells mypy to ignore this import
+    from spade_bdi.bdi import BDIAgent as ImportedSpadeBDIAgent  # type: ignore
+
+    # Use the imported class as the implementation
+    _SpadeBDIImplementation = ImportedSpadeBDIAgent
+except ImportError:
+    # Use the mock class if import fails
+    _SpadeBDIImplementation = SpadeBDIAgentBase
+
+# Create a type alias for use in type annotations
+SpadeBDIImplementationType = TypeVar("SpadeBDIImplementationType", bound=SpadeBDIAgentBase)
 
 logger = get_logger(__name__)
 
@@ -71,7 +82,7 @@ class SpadeBdiAgent(BdiAgent):
         self.asl_file_path = asl_file_path
 
         # SPADE-BDI integration (would be initialized in setup)
-        self._spade_bdi_agent = None
+        self._spade_bdi_agent: Optional[SpadeBDIAgentBase] = None
 
         self.logger.info(
             "Initialized SPADE-BDI agent",
@@ -87,7 +98,7 @@ class SpadeBdiAgent(BdiAgent):
         await super().setup()
 
         # In a real implementation, you would initialize the SPADE-BDI agent
-        # self._spade_bdi_agent = SpadeBDIAgent(self.name, "password", self.asl_file_path)
+        # self._spade_bdi_agent = SpadeBDIAgentBase(self.name, "password", self.asl_file_path)
         # self._spade_bdi_agent.start()
 
         self.logger.info("SPADE-BDI agent set up", agent_name=self.name)

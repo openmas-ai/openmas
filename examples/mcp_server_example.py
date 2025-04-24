@@ -14,12 +14,12 @@ from typing import Dict, Optional
 
 from pydantic import BaseModel
 
+from simple_mas import McpServerAgent, mcp_prompt, mcp_resource, mcp_tool
 from simple_mas.config import AgentConfig
 from simple_mas.logging import configure_logging
-from simple_mas.mcp_agent import McpServerAgent, mcp_prompt, mcp_resource, mcp_tool
 
 # Configure logging
-configure_logging(level=logging.DEBUG)
+configure_logging(log_level=logging.DEBUG)
 
 
 # Pydantic models for request and response

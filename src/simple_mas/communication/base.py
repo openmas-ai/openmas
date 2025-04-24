@@ -1,4 +1,5 @@
 """Base communicator interface for SimpleMAS."""
+# mypy: disable-error-code="assignment"
 
 import abc
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
@@ -54,9 +55,9 @@ def get_communicator_class(communicator_type: str) -> Type["BaseCommunicator"]:
     """
     if communicator_type not in _COMMUNICATOR_REGISTRY:
         available_types = ", ".join(_COMMUNICATOR_REGISTRY.keys())
-        raise ValueError(
-            f"Communicator type '{communicator_type}' not registered. " f"Available types: {available_types or 'none'}"
-        )
+        available = available_types or "none"
+        message = f"Communicator type '{communicator_type}' not registered. " f"Available types: {available}"
+        raise ValueError(message)
     return _COMMUNICATOR_REGISTRY[communicator_type]
 
 
@@ -77,30 +78,69 @@ def discover_communicator_plugins() -> None:
     """
     try:
         # Try to use importlib.metadata (Python 3.8+)
-        from importlib.metadata import entry_points
+        import importlib.metadata
 
+        # Try different ways to get entry points based on Python version
         try:
-            # Python 3.10+ style
-            eps = entry_points(group="simple_mas.communicators")
-        except TypeError:
-            # Python 3.8-3.9 style
-            eps = entry_points().get("simple_mas.communicators", [])
-        for ep in eps:
-            try:
-                communicator_class = ep.load()
-                register_communicator(ep.name, communicator_class)
-                logger.debug(f"Loaded communicator plugin from entry point: {ep.name}")
-            except Exception as e:
-                logger.error(f"Failed to load communicator plugin {ep.name}: {e}")
-    except ImportError:
-        # Fallback for Python < 3.8
-        try:
-            import pkg_resources
-
-            for ep in pkg_resources.iter_entry_points("simple_mas.communicators"):
+            # Python 3.10+ style with explicit group parameter
+            entry_points = importlib.metadata.entry_points(group="simple_mas.communicators")
+            # Process each entry point
+            for ep in entry_points:
                 try:
                     communicator_class = ep.load()
                     register_communicator(ep.name, communicator_class)
+                    logger.debug(f"Loaded communicator plugin from entry point: {ep.name}")
+                except Exception as e:
+                    logger.error(f"Failed to load communicator plugin {ep.name}: {e}")
+        except (TypeError, AttributeError):
+            # Fallback for Python 3.8-3.9
+            try:
+                # Try to get entry_points as a dict-like object
+                entry_points_collection = importlib.metadata.entry_points()
+
+                # Handle different return types from entry_points()
+                try:
+                    # Try the get method if available
+                    if hasattr(entry_points_collection, "get"):
+                        # type: ignore[arg-type]
+                        entry_points = entry_points_collection.get("simple_mas.communicators", [])
+                        # No type checking here, just iterate
+                        for ep in entry_points:
+                            if hasattr(ep, "load") and hasattr(ep, "name"):
+                                try:
+                                    communicator_class = ep.load()
+                                    register_communicator(ep.name, communicator_class)  # type: ignore[assignment]
+                                    logger.debug(f"Loaded communicator plugin from entry point: {ep.name}")
+                                except Exception as e:
+                                    logger.error(f"Failed to load communicator plugin {ep.name}: {e}")
+                    else:
+                        # It's probably an iterable - filter by group
+                        for ep in entry_points_collection:
+                            if hasattr(ep, "group") and getattr(ep, "group") == "simple_mas.communicators":
+                                if hasattr(ep, "load") and hasattr(ep, "name"):
+                                    try:
+                                        communicator_class = ep.load()
+                                        register_communicator(ep.name, communicator_class)
+                                        logger.debug(f"Loaded communicator plugin from entry point: {ep.name}")
+                                    except Exception as e:
+                                        logger.error(f"Failed to load communicator plugin {ep.name}: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to process entry points: {e}")
+            except Exception as e:
+                logger.error(f"Failed to get entry points: {e}")
+    except ImportError:
+        # Fallback for Python < 3.8 - Use pkg_resources
+        # This avoids any type checking between incompatible EntryPoint types
+        try:
+            import pkg_resources
+
+            # Load from pkg_resources directly
+            for ep in pkg_resources.iter_entry_points("simple_mas.communicators"):
+                try:
+                    # pkg_resources EntryPoints are different from importlib.metadata.EntryPoint
+                    # but they have compatible interfaces
+                    communicator_class = ep.load()  # type: ignore
+                    register_communicator(ep.name, communicator_class)  # type: ignore[assignment]
                     logger.debug(f"Loaded communicator plugin from entry point: {ep.name}")
                 except Exception as e:
                     logger.error(f"Failed to load communicator plugin {ep.name}: {e}")

@@ -11,12 +11,12 @@ import asyncio
 import json
 import logging
 
+from simple_mas import McpAgent
 from simple_mas.config import AgentConfig
 from simple_mas.logging import configure_logging
-from simple_mas.mcp_agent import McpAgent
 
 # Configure logging
-configure_logging(level=logging.DEBUG)
+configure_logging(log_level=logging.DEBUG)
 
 
 class MathClient(McpAgent):

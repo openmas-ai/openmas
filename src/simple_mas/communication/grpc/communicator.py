@@ -4,20 +4,19 @@ import asyncio
 import json
 import time
 import uuid
-from concurrent import futures
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
 # Import gRPC and protobuf libraries
-import grpc
-from grpc.aio import server as aio_server
+import grpc  # type: ignore[import]
+from grpc.aio import server as aio_server  # type: ignore[import]
 from pydantic import BaseModel, ValidationError
 
 # Import the generated protobuf modules
 # Note: These will be generated from the proto file using protoc
 # For production, you'd run protoc to generate these files
 try:
-    from simple_mas.communication.grpc import simple_mas_pb2 as pb2
-    from simple_mas.communication.grpc import simple_mas_pb2_grpc as pb2_grpc
+    from simple_mas.communication.grpc import simple_mas_pb2 as pb2  # type: ignore[attr-defined]
+    from simple_mas.communication.grpc import simple_mas_pb2_grpc as pb2_grpc  # type: ignore[attr-defined]
 except ImportError:
     # This is just to provide linting support while developing
     # In a real installation, these modules will be properly generated
@@ -364,22 +363,23 @@ class GrpcCommunicator(BaseCommunicator):
         logger.debug("Registered handler", method=method)
 
     async def start(self) -> None:
-        """Start the gRPC communicator.
+        """Start the communicator.
 
-        This method starts the gRPC server if server_mode is True,
-        and initializes client connections.
+        In server mode, this starts the gRPC server.
+        In client mode, this is a no-op.
         """
-        # Start server if in server mode
         if self.server_mode:
-            self.servicer = SimpleMasServicer(self)
-            self.server = aio_server(futures.ThreadPoolExecutor(max_workers=self.max_workers))
+            logger.info(f"Starting gRPC server on {self.server_address}")
+            self.server = aio_server(options=[(key, val) for key, val in self.channel_options.items()])
+            # Create the servicer if it doesn't exist
+            self.servicer = SimpleMasServicer(self)  # type: ignore[assignment]
+            # Add the servicer to the server
             pb2_grpc.add_SimpleMasServiceServicer_to_server(self.servicer, self.server)
-            self.server.add_insecure_port(self.server_address)
-            await self.server.start()
-            logger.info(
-                "Started gRPC server",
-                address=self.server_address,
-            )
+            # Add the port
+            self.server.add_insecure_port(self.server_address)  # type: ignore[attr-defined]
+            # Start the server
+            await self.server.start()  # type: ignore[attr-defined]
+            logger.info(f"gRPC server started on {self.server_address}")
 
         logger.info("Started gRPC communicator")
 

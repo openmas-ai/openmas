@@ -54,7 +54,11 @@ class McpServerAgent(McpAgent):
         Args:
             instructions: Optional instructions for the MCP server
         """
+        from simple_mas.communication import BaseCommunicator
         from simple_mas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
+
+        # Variable to store the created communicator
+        comm: BaseCommunicator
 
         if self.server_type.lower() == "sse":
             from fastapi import FastAPI
@@ -63,7 +67,7 @@ class McpServerAgent(McpAgent):
             app = FastAPI(title=f"{self.name} MCP Server")
 
             # Create SSE communicator in server mode
-            communicator = McpSseCommunicator(
+            comm = McpSseCommunicator(
                 agent_name=self.name,
                 service_urls={},  # Empty as we're a server
                 server_mode=True,
@@ -74,7 +78,7 @@ class McpServerAgent(McpAgent):
 
         elif self.server_type.lower() == "stdio":
             # Create stdio communicator in server mode
-            communicator = McpStdioCommunicator(
+            comm = McpStdioCommunicator(
                 agent_name=self.name,
                 service_urls={},  # Empty as we're a server
                 server_mode=True,
@@ -85,7 +89,7 @@ class McpServerAgent(McpAgent):
             raise ValueError(f"Unsupported server type: {self.server_type}")
 
         # Set the communicator for this agent
-        self.set_communicator(communicator)
+        self.set_communicator(comm)
 
     async def start_server(self, instructions: Optional[str] = None) -> None:
         """Start the MCP server.

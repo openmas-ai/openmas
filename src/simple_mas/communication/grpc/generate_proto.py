@@ -78,7 +78,7 @@ if __name__ == "__main__":
     proto_file = os.path.join(current_dir, "simple_mas.proto")
 
     # Output directory (same as current directory)
-    output_dir = current_dir
+    output_dir = str(current_dir)
 
     if not os.path.exists(proto_file):
         print(f"Proto file not found: {proto_file}", file=sys.stderr)

@@ -14,7 +14,7 @@ register_communicator("http", HttpCommunicator)
 
 # Try to import MCP components, but don't fail if the MCP package isn't installed
 try:
-    from simple_mas.communication.mcp import McpServerWrapper, McpSseCommunicator, McpStdioCommunicator
+    from simple_mas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
 
     # Register MCP communicator types if available
     register_communicator("mcp_sse", McpSseCommunicator)
@@ -46,7 +46,7 @@ all_list = [
 ]
 
 if mcp_available:
-    all_list.extend(["McpServerWrapper", "McpStdioCommunicator", "McpSseCommunicator"])
+    all_list.extend(["McpStdioCommunicator", "McpSseCommunicator"])
 
 if grpc_available:
     all_list.append("GrpcCommunicator")

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from simple_mas.agent.spade_bdi_agent import SpadeBdiAgent, SpadeBDIAgent
+from simple_mas.agent.spade_bdi_agent import SpadeBdiAgent, SpadeBDIAgentBase
 from simple_mas.config import AgentConfig
 
 
@@ -26,11 +26,11 @@ class TestSpadeBdiAgent:
         assert spade_bdi_agent._spade_bdi_agent is None
 
     @pytest.mark.asyncio
-    @patch.object(SpadeBDIAgent, "__init__", return_value=None)
+    @patch.object(SpadeBDIAgentBase, "__init__", return_value=None)
     async def test_setup_initializes_spade_bdi(self, mock_init, spade_bdi_agent):
         """Test that setup initializes the SPADE-BDI agent."""
-        # Patch the SpadeBDIAgent class to avoid actual initialization
-        with patch("simple_mas.agent.spade_bdi_agent.SpadeBDIAgent", autospec=True) as mock_spade_bdi_class:
+        # Patch the SpadeBDIAgentBase class to avoid actual initialization
+        with patch("simple_mas.agent.spade_bdi_agent.SpadeBDIAgentBase", autospec=True) as mock_spade_bdi_class:
             # Configure the mock to return a mock instance
             mock_spade_instance = MagicMock()
             mock_spade_bdi_class.return_value = mock_spade_instance

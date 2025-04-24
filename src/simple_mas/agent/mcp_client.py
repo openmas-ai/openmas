@@ -78,7 +78,15 @@ class McpClientAgent(McpAgent):
         if not self.communicator or not hasattr(self.communicator, "list_tools"):
             raise AttributeError("Communicator does not support list_tools method")
 
-        return await self.communicator.list_tools(service_name)
+        # Call the communicator's list_tools method
+        tools = await self.communicator.list_tools(service_name)
+
+        # Ensure the return type is consistent
+        return [
+            {"name": str(t.get("name", "")), "description": str(t.get("description", ""))}
+            for t in tools
+            if isinstance(t, dict)
+        ]
 
     async def list_prompts(self, service_name: str) -> List[Dict[str, Any]]:
         """List all available prompts from a service.
@@ -96,7 +104,13 @@ class McpClientAgent(McpAgent):
             target_service=service_name,
             method="prompt/list",
         )
-        return response.get("prompts", [])
+        # Handle the response, ensuring we return the expected type
+        prompts = response.get("prompts", [])
+        return [
+            {"name": str(p.get("name", "")), "description": str(p.get("description", ""))}
+            for p in prompts
+            if isinstance(p, dict)
+        ]
 
     async def list_resources(self, service_name: str) -> List[Dict[str, Any]]:
         """List all available resources from a service.
@@ -114,7 +128,13 @@ class McpClientAgent(McpAgent):
             target_service=service_name,
             method="resource/list",
         )
-        return response.get("resources", [])
+        # Handle the response, ensuring we return the expected type
+        resources = response.get("resources", [])
+        return [
+            {"name": str(r.get("name", "")), "description": str(r.get("description", ""))}
+            for r in resources
+            if isinstance(r, dict)
+        ]
 
     async def call_tool(self, service_name: str, tool_name: str, arguments: Optional[Dict[str, Any]] = None) -> Any:
         """Call a tool on a service.
@@ -182,7 +202,7 @@ class McpClientAgent(McpAgent):
             uri: The URI of the resource to get
 
         Returns:
-            The content of the resource
+            The content of the resource as bytes
 
         Raises:
             CommunicationError: If there is a problem with the communication
@@ -192,8 +212,13 @@ class McpClientAgent(McpAgent):
             method="resource/read",
             params={"uri": uri},
         )
-        return (
-            response.get("content", b"").encode("utf-8")
-            if isinstance(response.get("content"), str)
-            else response.get("content", b"")
-        )
+
+        # Ensure we always return bytes
+        content = response.get("content", b"")
+        if isinstance(content, str):
+            return content.encode("utf-8")
+        elif isinstance(content, bytes):
+            return content
+        else:
+            # If content is neither str nor bytes, convert to string and then to bytes
+            return str(content).encode("utf-8")

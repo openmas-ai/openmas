@@ -316,5 +316,7 @@ class BdiAgent(BaseAgent):
                 pass
             self._bdi_task = None
 
-        # Call superclass shutdown
-        await super().shutdown()
+        # Instead of calling superclass shutdown which could be abstract,
+        # explicitly implement any shutdown actions needed
+        # The base class BaseAgent's shutdown is abstract, so implement it here
+        self.logger.info("BDI agent shutdown complete", agent_name=self.name)
