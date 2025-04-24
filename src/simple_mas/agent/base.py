@@ -6,7 +6,12 @@ from typing import Any, Dict, Optional, Type, Union
 
 from pydantic import ValidationError
 
-from simple_mas.communication import BaseCommunicator, HttpCommunicator
+from simple_mas.communication import (
+    BaseCommunicator,
+    discover_communicator_plugins,
+    discover_local_communicators,
+    get_communicator_class,
+)
 from simple_mas.config import AgentConfig, load_config
 from simple_mas.exceptions import ConfigurationError, LifecycleError
 from simple_mas.logging import configure_logging, get_logger
@@ -26,7 +31,7 @@ class BaseAgent(abc.ABC):
         name: Optional[str] = None,
         config: Optional[Union[Dict[str, Any], AgentConfig]] = None,
         config_model: Type[AgentConfig] = AgentConfig,
-        communicator_class: Type[BaseCommunicator] = HttpCommunicator,
+        communicator_class: Optional[Type[BaseCommunicator]] = None,
         env_prefix: str = "",
     ):
         """Initialize the agent.
@@ -35,7 +40,7 @@ class BaseAgent(abc.ABC):
             name: The name of the agent (overrides config)
             config: The agent configuration (if not provided, will be loaded from environment)
             config_model: The configuration model class to use
-            communicator_class: The communicator class to use
+            communicator_class: The communicator class to use (overrides config.communicator_type)
             env_prefix: Optional prefix for environment variables
         """
         # Load configuration
@@ -65,7 +70,12 @@ class BaseAgent(abc.ABC):
         configure_logging(log_level=self.config.log_level)
         self.logger = get_logger(self.__class__.__name__)
 
-        # Create communicator
+        # Discover and create communicator
+        # If communicator_class is provided, use it directly
+        # Otherwise, look it up based on config.communicator_type
+        if communicator_class is None:
+            communicator_class = self._get_communicator_class(self.config.communicator_type)
+
         self.communicator = communicator_class(self.config.name, self.config.service_urls)
 
         # Internal state
@@ -73,6 +83,46 @@ class BaseAgent(abc.ABC):
         self._task: Optional[asyncio.Task] = None
 
         self.logger.info("Initialized agent", agent_name=self.config.name, agent_type=self.__class__.__name__)
+
+    def _get_communicator_class(self, communicator_type: str) -> Type[BaseCommunicator]:
+        """Get the communicator class for the specified type.
+
+        This method tries to find the communicator class in the following order:
+        1. Check in the registry (which includes built-ins and entry points)
+        2. Search extension_paths for local implementations
+
+        Args:
+            communicator_type: The type identifier for the communicator
+
+        Returns:
+            The communicator class
+
+        Raises:
+            ValueError: If the communicator type cannot be found
+        """
+        try:
+            # First try to get from registry (includes built-ins and entry points)
+            discover_communicator_plugins()
+            return get_communicator_class(communicator_type)
+        except ValueError:
+            # If not found, check extension paths
+            if self.config.extension_paths:
+                discover_local_communicators(self.config.extension_paths)
+                try:
+                    return get_communicator_class(communicator_type)
+                except ValueError:
+                    pass
+
+            # If we get here, the communicator type is not found
+            available_types = ", ".join(get_communicator_class("http").__module__.split(".")[:-1])
+            available = available_types or "none"
+            message = (
+                f"Communicator type '{communicator_type}' not found. "
+                f"Available types: {available}. "
+                f"Check your configuration or provide a valid communicator_class."
+            )
+            self.logger.error(message)
+            raise ValueError(message)
 
     @property
     def name(self) -> str:

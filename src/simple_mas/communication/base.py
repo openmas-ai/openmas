@@ -70,6 +70,117 @@ def get_available_communicator_types() -> Dict[str, Type["BaseCommunicator"]]:
     return _COMMUNICATOR_REGISTRY.copy()
 
 
+def load_local_communicator(module_path: str, communicator_type: str) -> None:
+    """Load a communicator from a local module path.
+
+    This function attempts to import a module at the given path and
+    register any BaseCommunicator subclasses found in it.
+
+    Args:
+        module_path: The dotted path to the module to import
+        communicator_type: The type to register the communicator as
+
+    Raises:
+        ImportError: If the module cannot be imported
+        ValueError: If no BaseCommunicator subclass is found in the module
+    """
+    try:
+        import importlib
+        import inspect
+
+        # Import the module
+        module = importlib.import_module(module_path)
+
+        # Find all BaseCommunicator subclasses in the module
+        communicator_classes = []
+        for _, obj in inspect.getmembers(module):
+            if inspect.isclass(obj) and issubclass(obj, BaseCommunicator) and obj is not BaseCommunicator:
+                communicator_classes.append(obj)
+
+        if not communicator_classes:
+            raise ValueError(f"No BaseCommunicator subclass found in module: {module_path}")
+
+        # Use the first communicator class found
+        communicator_class = communicator_classes[0]
+        register_communicator(communicator_type, communicator_class)
+        logger.debug(
+            "Loaded local communicator",
+            module_path=module_path,
+            communicator_type=communicator_type,
+            communicator_class=communicator_class.__name__,
+        )
+        return
+    except ImportError as e:
+        logger.error(f"Failed to import module {module_path}: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Error loading communicator from {module_path}: {e}")
+        raise
+
+
+def discover_local_communicators(extension_paths: list[str]) -> None:
+    """Discover and register communicator plugins from local extensions.
+
+    This function searches the provided paths for communicator implementations
+    and registers them.
+
+    Args:
+        extension_paths: List of paths to search for extensions
+    """
+    import importlib.util
+    import os
+    import sys
+
+    for base_path in extension_paths:
+        try:
+            # Convert to absolute path if it's not already
+            abs_path = os.path.abspath(base_path)
+
+            # Add the base directory to sys.path if it's not already there
+            if abs_path not in sys.path:
+                sys.path.insert(0, abs_path)
+
+            # Walk through the directory looking for Python files
+            for root, _, files in os.walk(abs_path):
+                for file in files:
+                    if file.endswith(".py") and not file.startswith("_"):
+                        file_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(file_path, abs_path)
+                        module_name = os.path.splitext(rel_path)[0].replace(os.path.sep, ".")
+
+                        # Try to import the module and look for communicator classes
+                        try:
+                            spec = importlib.util.spec_from_file_location(module_name, file_path)
+                            if spec and spec.loader:
+                                module = importlib.util.module_from_spec(spec)
+                                spec.loader.exec_module(module)
+
+                                # Check if any BaseCommunicator subclasses exist in the module
+                                found_communicator = False
+                                for item_name in dir(module):
+                                    item = getattr(module, item_name)
+                                    if (isinstance(item, type) and
+                                        issubclass(item, BaseCommunicator) and
+                                        item is not BaseCommunicator):
+                                        # Use the module name as the communicator type
+                                        communicator_type = module_name.split(".")[-1]
+                                        register_communicator(communicator_type, item)
+                                        logger.debug(
+                                            "Registered local communicator",
+                                            communicator_type=communicator_type,
+                                            communicator_class=item.__name__,
+                                            file_path=file_path,
+                                        )
+                                        found_communicator = True
+
+                                if found_communicator:
+                                    logger.info(f"Loaded communicator(s) from {file_path}")
+                        except Exception as e:
+                            logger.error(f"Error loading module {module_name} from {file_path}: {e}")
+        except Exception as e:
+            logger.error(f"Error processing extension path {base_path}: {e}")
+
+
 def discover_communicator_plugins() -> None:
     """Discover and register communicator plugins using entry points.
 

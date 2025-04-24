@@ -24,6 +24,9 @@ class AgentConfig(BaseModel):
     communicator_options: Dict[str, Any] = Field(
         default_factory=dict, description="Additional options specific to the selected communicator"
     )
+    extension_paths: list[str] = Field(
+        default_factory=list, description="List of paths to search for project-local extensions"
+    )
 
 
 def load_config(config_model: Type[T], prefix: str = "") -> T:
@@ -98,6 +101,17 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
                 config_data["communicator_options"] = communicator_options
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}COMMUNICATOR_OPTIONS: {e}")
+
+        # Load extension paths
+        extension_paths_str = os.environ.get(f"{env_prefix}EXTENSION_PATHS")
+        if extension_paths_str:
+            try:
+                extension_paths = json.loads(extension_paths_str)
+                if not isinstance(extension_paths, list):
+                    raise ConfigurationError(f"{env_prefix}EXTENSION_PATHS must be a JSON array")
+                config_data["extension_paths"] = extension_paths
+            except json.JSONDecodeError as e:
+                raise ConfigurationError(f"Invalid JSON in {env_prefix}EXTENSION_PATHS: {e}")
 
         # Load individual communicator options
         for key, value in os.environ.items():
