@@ -114,46 +114,50 @@ class SimpleTestAgent(BaseAgent):
             return {"error": str(e), "status": "error"}
 
 
+# Create a test harness specifically for SimpleTestAgent for these tests
+@pytest.fixture
+def test_agent_harness():
+    """Create an AgentTestHarness for testing SimpleTestAgent."""
+    # Create the harness with the config
+    return AgentTestHarness(SimpleTestAgent, default_config={"name": "test-agent", "service_urls": {}})
+
+
 class TestAgentHarness:
     """Tests for the AgentTestHarness."""
 
-    @pytest.fixture
-    def harness(self):
-        """Create an AgentTestHarness for testing SimpleTestAgent."""
-        # Create the harness with the config
-        return AgentTestHarness(SimpleTestAgent, default_config={"name": "test-agent", "service_urls": {}})
-
     @pytest.mark.asyncio
-    async def test_basic_agent_functionality(self, harness):
+    async def test_basic_agent_functionality(self, test_agent_harness):
         """Test basic agent functionality with the harness."""
         # Create an agent with the harness
-        agent = await harness.create_agent()
+        agent = await test_agent_harness.create_agent()
 
         # Use the context manager to start and stop the agent
-        async with harness.running_agent(agent):
+        async with test_agent_harness.running_agent(agent):
             # Test the store_data handler
-            result1 = await harness.trigger_handler(agent, "store_data", {"key": "test_key", "value": "test_value"})
+            result1 = await test_agent_harness.trigger_handler(
+                agent, "store_data", {"key": "test_key", "value": "test_value"}
+            )
             assert result1 == {"status": "success", "key": "test_key"}
 
             # Test the get_data handler
-            result2 = await harness.trigger_handler(agent, "get_data", {"key": "test_key"})
+            result2 = await test_agent_harness.trigger_handler(agent, "get_data", {"key": "test_key"})
             assert result2 == {"key": "test_key", "value": "test_value"}
 
     @pytest.mark.asyncio
-    async def test_agent_with_external_service(self, harness):
+    async def test_agent_with_external_service(self, test_agent_harness):
         """Test agent interaction with an external service."""
         # Create an agent with the harness
-        agent = await harness.create_agent()
+        agent = await test_agent_harness.create_agent()
 
         # Set up the expected external service request/response
-        harness.communicator.expect_request(
+        test_agent_harness.communicator.expect_request(
             "enrichment-service", "enrich_data", {"input": "test_data"}, {"enriched": "ENRICHED_TEST_DATA"}
         )
 
         # Use the context manager to start and stop the agent
-        async with harness.running_agent(agent):
+        async with test_agent_harness.running_agent(agent):
             # Test the process_with_external handler
-            result = await harness.trigger_handler(agent, "process_with_external", {"data": "test_data"})
+            result = await test_agent_harness.trigger_handler(agent, "process_with_external", {"data": "test_data"})
 
             # Verify the result
             assert result == {"result": "ENRICHED_TEST_DATA", "status": "success"}
@@ -162,16 +166,16 @@ class TestAgentHarness:
             assert "ENRICHED_TEST_DATA" in agent.processing_history
 
             # Verify that all expected communications occurred
-            harness.communicator.verify()
+            test_agent_harness.communicator.verify()
 
     @pytest.mark.asyncio
-    async def test_wait_for_condition(self, harness):
+    async def test_wait_for_condition(self, test_agent_harness):
         """Test the wait_for utility in the harness."""
         # Create an agent with the harness
-        agent = await harness.create_agent()
+        agent = await test_agent_harness.create_agent()
 
         # Use the context manager to start and stop the agent
-        async with harness.running_agent(agent):
+        async with test_agent_harness.running_agent(agent):
             # Set up a flag to be changed after a delay
             agent.flag_set = False
 
@@ -183,25 +187,25 @@ class TestAgentHarness:
             asyncio.create_task(delayed_set_flag())
 
             # Wait for the flag to be set
-            result = await harness.wait_for(lambda: agent.flag_set, timeout=0.1)
+            result = await test_agent_harness.wait_for(lambda: agent.flag_set, timeout=0.1)
 
             # Verify that the wait was successful
             assert result is True
             assert agent.flag_set is True
 
     @pytest.mark.asyncio
-    async def test_wait_for_timeout(self, harness):
+    async def test_wait_for_timeout(self, test_agent_harness):
         """Test the wait_for utility timeout."""
         # Create an agent with the harness
-        agent = await harness.create_agent()
+        agent = await test_agent_harness.create_agent()
 
         # Use the context manager to start and stop the agent
-        async with harness.running_agent(agent):
+        async with test_agent_harness.running_agent(agent):
             # Set up a condition that will never be met
             agent.flag_set = False
 
             # Wait for the flag to be set (with a short timeout)
-            result = await harness.wait_for(lambda: agent.flag_set, timeout=0.05)
+            result = await test_agent_harness.wait_for(lambda: agent.flag_set, timeout=0.05)
 
             # Verify that the wait timed out
             assert result is False

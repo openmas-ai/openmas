@@ -1,0 +1,110 @@
+"""Global test fixtures for SimpleMAS tests.
+
+This module contains common fixtures used across multiple test files.
+"""
+
+import asyncio
+from unittest import mock
+
+import pytest
+
+from simple_mas.agent import BaseAgent
+from simple_mas.agent.bdi import BdiAgent
+from simple_mas.config import AgentConfig
+from simple_mas.testing import AgentTestHarness
+from simple_mas.testing.mock_communicator import MockCommunicator
+
+
+class SimpleAgent(BaseAgent):
+    """A simple agent for testing."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setup_called = False
+        self.run_called = False
+        self.shutdown_called = False
+        self.run_duration = 0.1  # seconds
+
+    async def setup(self) -> None:
+        """Set up the agent."""
+        self.setup_called = True
+        await super().setup()
+
+    async def run(self) -> None:
+        """Run the agent."""
+        self.run_called = True
+        await asyncio.sleep(self.run_duration)
+
+    async def shutdown(self) -> None:
+        """Shut down the agent."""
+        self.shutdown_called = True
+        await super().shutdown()
+
+
+@pytest.fixture
+def default_service_urls():
+    """Return default service URLs for testing."""
+    return {"test-service": "http://localhost:8000", "other-service": "http://localhost:8001"}
+
+
+@pytest.fixture
+def agent_name():
+    """Return a default agent name for testing."""
+    return "test-agent"
+
+
+@pytest.fixture
+def config(agent_name):
+    """Create a standard agent configuration for testing."""
+    return AgentConfig(name=agent_name, service_urls={})
+
+
+@pytest.fixture
+def mock_communicator(agent_name):
+    """Create a mock communicator for testing."""
+    return mock.AsyncMock()
+
+
+@pytest.fixture
+def real_mock_communicator(agent_name):
+    """Create a real MockCommunicator instance for testing."""
+    return MockCommunicator(agent_name, {})
+
+
+@pytest.fixture
+def simple_agent(config, mock_communicator):
+    """Create a simple agent instance with the mock communicator."""
+    agent = SimpleAgent(config=config)
+    agent.communicator = mock_communicator
+    return agent
+
+
+@pytest.fixture
+def bdi_agent(config):
+    """Create a BDI agent instance for testing."""
+    return BdiAgent(config=config)
+
+
+@pytest.fixture
+def agent_test_harness():
+    """Create an AgentTestHarness for testing."""
+    return AgentTestHarness(SimpleAgent, default_config={"name": "test-agent", "service_urls": {}})
+
+
+@pytest.fixture
+async def running_simple_agent(simple_agent):
+    """Create and start a simple agent, then clean up after the test."""
+    await simple_agent.start()
+    yield simple_agent
+    await simple_agent.stop()
+
+
+@pytest.fixture
+async def agent_with_mock_communicator(real_mock_communicator):
+    """Create a SimpleAgent with a real MockCommunicator."""
+    agent = SimpleAgent(
+        name="test-agent",
+        config=AgentConfig(name="test-agent", service_urls={}),
+    )
+    agent.communicator = real_mock_communicator
+    return agent

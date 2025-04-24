@@ -8,6 +8,8 @@ import pytest
 from simple_mas.agent.bdi import BdiAgent
 from simple_mas.config import AgentConfig
 
+# Note: bdi_agent fixture is now imported from conftest.py
+
 
 class TestBdiAgent:
     """Tests for the BdiAgent class."""
