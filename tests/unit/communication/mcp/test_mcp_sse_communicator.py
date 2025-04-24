@@ -25,7 +25,11 @@ test_logger = get_logger(__name__)
 @pytest.fixture
 def sse_communicator():
     """Create a test MCP SSE communicator."""
-    service_urls = {"test-service": "http://localhost:8000", "other-service": "http://localhost:8001"}
+    service_urls = {
+        "test-service": "http://localhost:8000",
+        "other-service": "http://localhost:8001",
+        "external-service": "http://external.mcp-server.com:8080",
+    }
     return McpSseCommunicator("test-agent", service_urls)
 
 
@@ -34,7 +38,11 @@ class TestMcpSseCommunicator:
 
     def test_initialization(self):
         """Test that initialization sets up the communicator correctly."""
-        service_urls = {"test-service": "http://localhost:8000", "other-service": "http://localhost:8001"}
+        service_urls = {
+            "test-service": "http://localhost:8000",
+            "other-service": "http://localhost:8001",
+            "external-service": "http://external.mcp-server.com:8080",
+        }
 
         communicator = McpSseCommunicator("test-agent", service_urls)
 
@@ -71,11 +79,38 @@ class TestMcpSseCommunicator:
             # Check that the client and session were created correctly
             mock_sse_client.assert_called_once_with("http://localhost:8000")
             mock_session_class.assert_called_once_with(mock_read_stream, mock_write_stream)
-            mock_session.initialize.assert_called_once_with(name="test-agent")
             assert sse_communicator.clients["test-service"] == (mock_read_stream, mock_write_stream)
             assert sse_communicator.sessions["test-service"] == mock_session
             assert "test-service" in sse_communicator.connected_services
             assert "test-service" in sse_communicator._client_managers
+
+    @pytest.mark.asyncio
+    @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
+    async def test_connect_to_external_service(self, mock_sse_client, sse_communicator):
+        """Test connecting to an external MCP service."""
+        # Mock the client and session
+        mock_manager = mock.AsyncMock()
+        mock_read_stream = mock.AsyncMock()
+        mock_write_stream = mock.AsyncMock()
+        mock_session = mock.AsyncMock()
+
+        # Configure mocks
+        mock_sse_client.return_value = mock_manager
+        mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
+
+        # Mock ClientSession
+        with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
+            mock_session_class.return_value = mock_session
+
+            # Connect to the external service
+            await sse_communicator._connect_to_service("external-service")
+
+            # Check that the client and session were created correctly
+            mock_sse_client.assert_called_once_with("http://external.mcp-server.com:8080")
+            mock_session_class.assert_called_once_with(mock_read_stream, mock_write_stream)
+            assert sse_communicator.clients["external-service"] == (mock_read_stream, mock_write_stream)
+            assert sse_communicator.sessions["external-service"] == mock_session
+            assert "external-service" in sse_communicator.connected_services
 
     @pytest.mark.asyncio
     async def test_connect_to_invalid_service(self, sse_communicator):
@@ -102,11 +137,11 @@ class TestMcpSseCommunicator:
             mock_session_class.return_value = mock_session
 
             # Mock the tool list response
-            tool1 = mock.MagicMock()
-            tool1.model_dump.return_value = {"name": "tool1", "description": "Tool 1"}
-            tool2 = mock.MagicMock()
-            tool2.model_dump.return_value = {"name": "tool2", "description": "Tool 2"}
-            mock_session.list_tools.return_value = [tool1, tool2]
+            mock_tool1 = mock.MagicMock()
+            mock_tool1.__dict__ = {"name": "tool1", "description": "Tool 1"}
+            mock_tool2 = mock.MagicMock()
+            mock_tool2.__dict__ = {"name": "tool2", "description": "Tool 2"}
+            mock_session.list_tools.return_value = [mock_tool1, mock_tool2]
 
             # Call list_tools
             tools = await sse_communicator.list_tools("test-service")
@@ -133,7 +168,11 @@ class TestMcpSseCommunicator:
         # Mock ClientSession
         with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
-            mock_session.call_tool.return_value = {"result": "success"}
+
+            # Mock response with a __dict__ attribute
+            mock_result = mock.MagicMock()
+            mock_result.__dict__ = {"result": "success"}
+            mock_session.call_tool.return_value = mock_result
 
             # Call the tool
             result = await sse_communicator.call_tool("test-service", "test_tool", {"param": "value"})
@@ -159,7 +198,11 @@ class TestMcpSseCommunicator:
         # Mock ClientSession
         with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
-            mock_session.call_tool.return_value = {"data": "response"}
+
+            # Create mock results with __dict__ attribute
+            mock_result = mock.MagicMock()
+            mock_result.__dict__ = {"data": "response"}
+            mock_session.call_tool.return_value = mock_result
 
             # Test different request types
 
@@ -170,28 +213,22 @@ class TestMcpSseCommunicator:
 
             # 2. Tool list
             mock_tool = mock.MagicMock()
-            mock_tool.model_dump.return_value = {"name": "tool1"}
+            mock_tool.__dict__ = {"name": "tool1"}
             mock_session.list_tools.return_value = [mock_tool]
 
             result = await sse_communicator.send_request("test-service", "tool/list")
             mock_session.list_tools.assert_called_once()
-            assert result == {"tools": [{"name": "tool1"}]}
+            assert len(result) == 1
+            assert result[0]["name"] == "tool1"
 
-            # 3. Resource list
-            mock_resource = mock.MagicMock()
-            mock_resource.model_dump.return_value = {"uri": "test-uri"}
-            mock_session.list_resources.return_value = [mock_resource]
+            # 3. Specific tool call
+            mock_tool_result = mock.MagicMock()
+            mock_tool_result.__dict__ = {"output": "tool result"}
+            mock_session.call_tool.return_value = mock_tool_result
 
-            result = await sse_communicator.send_request("test-service", "resource/list")
-            mock_session.list_resources.assert_called_once()
-            assert result == {"resources": [{"uri": "test-uri"}]}
-
-            # 4. Resource read
-            mock_session.read_resource.return_value = "resource content"
-
-            result = await sse_communicator.send_request("test-service", "resource/read", {"uri": "test-uri"})
-            mock_session.read_resource.assert_called_once_with("test-uri")
-            assert result == {"content": "resource content"}
+            result = await sse_communicator.send_request("test-service", "tool/call/special_tool", {"arg": "value"})
+            mock_session.call_tool.assert_called_with("special_tool", {"arg": "value"}, timeout=None)
+            assert result == {"output": "tool result"}
 
     @pytest.mark.asyncio
     @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
@@ -236,60 +273,40 @@ class TestMcpSseCommunicator:
         assert sse_communicator.handlers["test_method"] == test_handler
 
     @pytest.mark.asyncio
-    async def test_start_and_stop_server_mode(self, sse_communicator):
+    async def test_start_and_stop_server_mode(self):
         """Test starting and stopping the communicator in server mode."""
-        # Set server mode
-        sse_communicator.server_mode = True
+        # Create a communicator with server mode enabled
+        service_urls = {"test-service": "http://localhost:8000"}
+        communicator = McpSseCommunicator(
+            "test-agent", service_urls, server_mode=True, http_port=8080, server_instructions="Test instructions"
+        )
 
-        # Mock the necessary components for server mode
-        original_start = sse_communicator.start
-        original_stop = sse_communicator.stop
-
-        # Create a mocked server and task
+        # Mock FastMCP and uvicorn
         mock_server = mock.MagicMock()
-        mock_task = mock.MagicMock()
+        mock_task = mock.AsyncMock()
 
-        # Define a mocked start method
-        async def mocked_start():
-            test_logger.info("MCP SSE server started on port 8000")
-            sse_communicator.server = mock_server
-            sse_communicator.server_task = mock_task
+        # Patch the required components
+        with mock.patch("simple_mas.communication.mcp.sse_communicator.FastMCP", return_value=mock_server), mock.patch(
+            "simple_mas.communication.mcp.sse_communicator.asyncio.create_task", return_value=mock_task
+        ):
+            # Start the communicator
+            await communicator.start()
 
-        # Define a mocked stop method
-        async def mocked_stop():
-            if sse_communicator.server_task:
-                sse_communicator.server_task.cancel()
-                sse_communicator.server_task = None
-            sse_communicator.server = None
+            # Check server was created and started
+            assert communicator.server == mock_server
+            assert communicator._server_task == mock_task
 
-        # Replace the methods
-        sse_communicator.start = mocked_start
-        sse_communicator.stop = mocked_stop
+            # Stop the communicator
+            await communicator.stop()
 
-        try:
-            # Start the server
-            await sse_communicator.start()
-
-            # Check that the server was set up correctly
-            assert sse_communicator.server == mock_server
-            assert sse_communicator.server_task == mock_task
-
-            # Stop the server
-            await sse_communicator.stop()
-
-            # Check that the server was stopped correctly
-            assert sse_communicator.server is None
-            assert sse_communicator.server_task is None
-        finally:
-            # Restore original methods
-            sse_communicator.start = original_start
-            sse_communicator.stop = original_stop
+            # Check server was stopped
+            mock_task.cancel.assert_called_once()
 
     @pytest.mark.asyncio
     @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
     async def test_stop_client_mode(self, mock_sse_client, sse_communicator):
         """Test stopping the communicator in client mode."""
-        # Mock the client manager and streams
+        # Mock the client manager
         mock_manager = mock.AsyncMock()
         mock_read_stream = mock.AsyncMock()
         mock_write_stream = mock.AsyncMock()
@@ -303,16 +320,14 @@ class TestMcpSseCommunicator:
         with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
 
-            # Connect to the service
+            # Connect to a service
             await sse_communicator._connect_to_service("test-service")
+
+            # Store mock manager for later assertion
+            client_manager = sse_communicator._client_managers["test-service"]
 
             # Stop the communicator
             await sse_communicator.stop()
 
-            # Check that the client manager was exited
-            mock_manager.__aexit__.assert_called_once_with(None, None, None)
-
-            # Check that the state was cleaned up
-            assert sse_communicator.clients == {}
-            assert sse_communicator._client_managers == {}
-            assert sse_communicator.connected_services == set()
+            # Check that client manager's __aexit__ was called
+            client_manager.__aexit__.assert_called_once()

@@ -42,14 +42,15 @@ SimpleMas provides specialized MCP communicator implementations:
 
 Specifically designed for MCP communication over standard input/output. Can operate in both client and server roles.
 
-**Client Mode Example:**
+**Client Mode Example - Connecting to an External MCP Server:**
 ```python
 from simple_mas.communication.mcp import McpStdioCommunicator
 
 communicator = McpStdioCommunicator(
     agent_name="agent1",
     service_urls={
-        "mcp_service": "python -m service_script.py"  # Command to run the MCP service
+        "local_service": "python -m service_script.py",  # Command to run a local MCP service
+        "external_service": "stdio:/path/to/external/executable"  # Connection to external executable
     }
 )
 ```
@@ -70,14 +71,15 @@ communicator = McpStdioCommunicator(
 
 Uses HTTP with Server-Sent Events for MCP communication. Can operate in both client and server roles.
 
-**Client Mode Example:**
+**Client Mode Example - Connecting to External MCP Servers:**
 ```python
 from simple_mas.communication.mcp import McpSseCommunicator
 
 communicator = McpSseCommunicator(
     agent_name="agent1",
     service_urls={
-        "mcp_service": "http://localhost:8000/mcp"  # URL of the MCP service
+        "local_service": "http://localhost:8000/mcp",  # Local MCP service
+        "external_service": "http://external-server.example.com:8080"  # External MCP server
     }
 )
 ```
@@ -112,8 +114,36 @@ communicator = McpSseCommunicator(
 
 | Communicator | Client Mode | Server Mode | Best For |
 |--------------|-------------|------------|----------|
-| McpStdioCommunicator | Spawn and connect to subprocess MCP services | Run as MCP server via stdin/stdout | CLI tools, subprocess integration |
-| McpSseCommunicator | Connect to HTTP-based MCP services | Run as HTTP/SSE MCP server | Web services, UI integration, API gateway patterns |
+| McpStdioCommunicator | Spawn and connect to subprocess MCP services or external executables | Run as MCP server via stdin/stdout | CLI tools, subprocess integration, connecting to existing MCP tools like Stockfish |
+| McpSseCommunicator | Connect to HTTP-based MCP services (local or external) | Run as HTTP/SSE MCP server | Web services, UI integration, API gateway patterns, connecting to cloud-based MCP services |
+
+## Connecting to External MCP Servers
+
+SimpleMAS supports connecting to external MCP servers in both stdio and SSE modes:
+
+### Stdio Connection Format
+
+For stdio connections to external executables, use the `stdio:` protocol prefix:
+
+```python
+service_urls = {
+    "stockfish": "stdio:/usr/local/bin/stockfish",  # Path to Stockfish executable
+    "custom_tool": "stdio:/path/to/custom/tool"     # Path to any MCP-compatible executable
+}
+```
+
+When using the stdio protocol prefix, SimpleMAS will execute the specified binary and communicate with it via stdin/stdout.
+
+### SSE Connection Format
+
+For SSE connections to external HTTP-based MCP servers, use standard HTTP URLs:
+
+```python
+service_urls = {
+    "local_service": "http://localhost:8000",              # Local MCP server
+    "cloud_service": "https://api.example.com/mcp-server"  # External cloud MCP server
+}
+```
 
 ## MCP Method Mapping
 
