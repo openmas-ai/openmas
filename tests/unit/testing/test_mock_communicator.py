@@ -12,8 +12,8 @@ from simple_mas.config import AgentConfig
 from simple_mas.exceptions import ServiceNotFoundError
 from simple_mas.testing.mock_communicator import MockCommunicator
 
-# Import SimpleAgent from test_agent
-from tests.test_agent import SimpleAgent
+# Import SimpleAgent from the new location
+from tests.unit.agent.test_agent import SimpleAgent
 
 
 class TestMockCommunicator:
@@ -127,10 +127,11 @@ class TestMockCommunicator:
     async def test_with_agent(self, agent_with_mock, mock_communicator):
         """Test using the mock communicator with an agent."""
         # Arrange
+        agent = await agent_with_mock
         mock_communicator.expect_request("test-service", "test-method", {"param": "value"}, {"result": "success"})
 
         # Act
-        result = await agent_with_mock.communicator.send_request("test-service", "test-method", {"param": "value"})
+        result = await agent.communicator.send_request("test-service", "test-method", {"param": "value"})
 
         # Assert
         assert result == {"result": "success"}
