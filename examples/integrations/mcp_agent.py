@@ -133,7 +133,6 @@ class AssistantAgent(McpAgent):
 
         # Call the parent constructor with the determined parameters
         super().__init__(name=name, config=config_dict, communicator_class=communicator_class or HttpCommunicator)
-        self.logger = cast(logging.Logger, logging.getLogger(self.__class__.__name__))
         # Initialize request tracking attributes
         self.request_count = 0
         self.last_request_time: Optional[datetime.datetime] = None
