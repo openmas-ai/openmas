@@ -251,117 +251,286 @@ class MyOrchestrator(BaseOrchestratorAgent):
 To create a worker agent:
 
 1. Inherit from `BaseWorkerAgent`
-2. Define task handlers using the `@TaskHandler` decorator
+2. Implement task handlers using the `@TaskHandler` decorator
 3. Optionally override `setup()` to add additional initialization logic
 
 ```python
-class MyWorker(BaseWorkerAgent):
+from simple_mas.patterns.orchestrator import BaseWorkerAgent, TaskHandler
+
+class DataProcessingWorker(BaseWorkerAgent):
     async def setup(self) -> None:
         # Call parent setup to register standard handlers
         await super().setup()
 
-        # Initialize resources
-        self.database = await Database.connect()
+        # Additional setup logic if needed
+        self.logger.info("DataProcessingWorker initialized")
 
-    @TaskHandler(task_type="process_data", description="Process data records")
-    async def process_data(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        # Process the data
-        processed_data = []
+    @TaskHandler(task_type="clean_data", description="Clean and validate input data")
+    async def clean_data(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Remove invalid entries and normalize data."""
+        cleaned_data = []
         for item in data:
-            # Apply some transformation
-            processed_item = self._transform_item(item)
-            processed_data.append(processed_item)
+            if self._is_valid(item):
+                cleaned_data.append(self._normalize(item))
+        return cleaned_data
 
-        return processed_data
+    @TaskHandler(task_type="transform_data", description="Transform data structure")
+    async def transform_data(self, data: List[Dict[str, Any]], format: str = "flat") -> List[Dict[str, Any]]:
+        """Transform data into the requested format."""
+        if format == "flat":
+            return self._flatten_data(data)
+        elif format == "nested":
+            return self._nest_data(data)
+        else:
+            raise ValueError(f"Unsupported format: {format}")
 
-    def _transform_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        # Implementation details
-        return item
-```
+    def _is_valid(self, item: Dict[str, Any]) -> bool:
+        # Custom validation logic
+        return "id" in item and "value" in item
 
-#### Key Methods
+    def _normalize(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        # Custom normalization logic
+        return {k: v.strip() if isinstance(v, str) else v for k, v in item.items()}
 
-- `register_with_orchestrator()`: Register this worker with an orchestrator
-- Create methods decorated with `@TaskHandler` to implement task capabilities
+    def _flatten_data(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        # Implementation of data flattening
+        return data
 
-### Advanced Features
+    def _nest_data(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        # Implementation of data nesting
+        return data
 
-#### Parallel Execution
+# Register with orchestrator
+async def start_worker():
+    worker = DataProcessingWorker(name="data_processor")
+    await worker.start()
+    # Register with orchestrator (could be done in setup() too)
+    success = await worker.register_with_orchestrator("data_pipeline_orchestrator")
+    if success:
+        worker.logger.info("Successfully registered with orchestrator")
 
-Tasks can be executed in parallel by setting the `parallel` parameter to `True`:
+#### Key Worker Methods
 
-```python
-results = await orchestrator.orchestrate_workflow(workflow, parallel=True)
-```
+- `register_with_orchestrator()`: Register the worker with an orchestrator
+- `_send_task_result()`: Send task results back to the orchestrator
+- `_handle_execute_task()`: Process incoming task requests
 
-#### Task Callbacks
+### Advanced Usage: Dynamic Worker Discovery
 
-You can register callbacks to be executed when a task completes:
-
-```python
-async def task_completed(result: TaskResult) -> None:
-    print(f"Task {result.task_id} completed with status: {result.status}")
-
-task_id = await orchestrator.delegate_task(
-    worker_name="worker1",
-    task_type="process_data",
-    parameters={"data": input_data},
-    callback=task_completed
-)
-```
-
-#### Workflow Abort Conditions
-
-You can configure a workflow to abort if a task fails:
-
-```python
-workflow = [
-    {
-        "task_type": "validate_input",
-        "parameters": {"data": input_data},
-        "abort_on_failure": True  # Stop if validation fails
-    },
-    {
-        "task_type": "process_data",
-        "include_previous_results": True
-    }
-]
-```
-
-#### Result Dependency
-
-Tasks can access results from previous tasks:
+In larger systems, you may want to dynamically discover workers:
 
 ```python
-workflow = [
-    {
-        "task_type": "fetch_data",
-        "parameters": {"source": "database"}
-    },
-    {
-        "task_type": "transform_data",
-        "include_previous_results": True  # Access previous results
-    }
-]
+from simple_mas.patterns.orchestrator import BaseOrchestratorAgent
+
+class DynamicOrchestrator(BaseOrchestratorAgent):
+    async def setup(self) -> None:
+        await super().setup()
+        # Set a shorter default timeout
+        self.default_timeout = 30.0
+
+    async def run(self) -> None:
+        """Main orchestrator loop."""
+        while True:
+            # Discover workers periodically
+            await self.discover_workers()
+            self.logger.info(f"Known workers: {list(self._workers.keys())}")
+
+            # Process any pending tasks or workflows
+            # ...
+
+            await asyncio.sleep(60)  # Rediscover every minute
+
+    async def process_with_capability(self, task_type: str, data: Any) -> Optional[Any]:
+        """Find a worker with the required capability and delegate a task."""
+        worker_name = self.find_worker_for_task(task_type)
+        if not worker_name:
+            self.logger.warning(f"No worker found with capability: {task_type}")
+            return None
+
+        task_id = await self.delegate_task(
+            worker_name=worker_name,
+            task_type=task_type,
+            parameters={"data": data}
+        )
+
+        # Wait for the result
+        result = await self.get_task_result(task_id)
+        if result and result.status == "success":
+            return result.result
+        else:
+            self.logger.error(f"Task failed: {result.error if result else 'Task timed out'}")
+            return None
 ```
 
-### Best Practices
+### Using the TaskHandler Decorator
 
-1. **Worker Specialization**: Design workers to be specialists in specific domains or tasks
-2. **Stateless Workers**: Keep workers stateless where possible to simplify scaling and fault recovery
-3. **Idempotent Tasks**: Design tasks to be idempotent (can be safely repeated) to support retries
-4. **Timeout Management**: Set appropriate timeouts for tasks based on their expected duration
-5. **Error Handling**: Implement robust error handling in both orchestrators and workers
-6. **Task Granularity**: Balance task granularity - too fine-grained increases communication overhead, too coarse-grained reduces flexibility
+The `@TaskHandler` decorator makes it easy to register methods as task handlers:
 
-### Real-World Examples
+```python
+from simple_mas.patterns.orchestrator import BaseWorkerAgent, TaskHandler
 
-The Orchestrator-Worker pattern is ideal for scenarios such as:
+class AnalyticsWorker(BaseWorkerAgent):
+    @TaskHandler(task_type="summarize", description="Generate summary statistics")
+    async def summarize_data(self,
+                           data: List[Dict[str, Any]],
+                           fields: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Generate summary statistics for the provided data."""
+        if not data:
+            return {"count": 0}
 
-- **Data Processing Pipelines**: Extract, transform, load (ETL) workflows
-- **Content Generation**: Multi-stage content creation with specialist agents
-- **Customer Support**: Routing customer queries to specialized support agents
-- **Decision Systems**: Complex decision processes requiring multiple analyses
+        fields_to_summarize = fields or list(data[0].keys())
+        result = {"count": len(data)}
+
+        for field in fields_to_summarize:
+            if field in data[0] and isinstance(data[0][field], (int, float)):
+                values = [item[field] for item in data if field in item]
+                result[f"{field}_avg"] = sum(values) / len(values) if values else 0
+                result[f"{field}_min"] = min(values) if values else 0
+                result[f"{field}_max"] = max(values) if values else 0
+
+        return result
+```
+
+### Workflow Orchestration with Error Handling
+
+```python
+from simple_mas.patterns.orchestrator import BaseOrchestratorAgent
+
+class RobustOrchestrator(BaseOrchestratorAgent):
+    async def process_data_pipeline(self,
+                                  input_data: List[Dict[str, Any]],
+                                  retry_count: int = 3) -> Dict[str, Any]:
+        """Process a data pipeline with error handling and retries."""
+        # Define workflow steps
+        workflow = [
+            {
+                "task_type": "validate_input",
+                "parameters": {"data": input_data},
+                "abort_on_failure": True  # Stop workflow if validation fails
+            },
+            {
+                "task_type": "clean_data",
+                "include_previous_results": True
+            },
+            {
+                "task_type": "transform_data",
+                "parameters": {"format": "normalized"},
+                "include_previous_results": True
+            },
+            {
+                "task_type": "generate_report",
+                "include_previous_results": True
+            }
+        ]
+
+        # Execute workflow with retry logic
+        attempt = 0
+        while attempt < retry_count:
+            try:
+                results = await self.orchestrate_workflow(workflow)
+                # If we get here, workflow completed successfully
+                return results[3].get("result", {})  # Return result of final step
+            except Exception as e:
+                attempt += 1
+                self.logger.warning(
+                    f"Workflow attempt {attempt} failed: {str(e)}. "
+                    f"{'Retrying...' if attempt < retry_count else 'Giving up.'}"
+                )
+                if attempt < retry_count:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+
+        # If we get here, all attempts failed
+        return {"status": "failed", "error": "Maximum retry attempts exceeded"}
+```
+
+### Parallel Task Execution
+
+The orchestrator can execute tasks in parallel for improved performance:
+
+```python
+async def analyze_multiple_datasets(self, datasets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Analyze multiple datasets in parallel."""
+    # Find workers with analytics capability
+    analytics_workers = []
+    for name, info in self._workers.items():
+        if "analyze_data" in info.capabilities:
+            analytics_workers.append(name)
+
+    if not analytics_workers:
+        raise ValueError("No workers with 'analyze_data' capability found")
+
+    # Distribute tasks among workers
+    tasks = []
+    for i, dataset in enumerate(datasets):
+        # Distribute tasks round-robin among available workers
+        worker_name = analytics_workers[i % len(analytics_workers)]
+
+        task_id = await self.delegate_task(
+            worker_name=worker_name,
+            task_type="analyze_data",
+            parameters={"dataset": dataset}
+        )
+        tasks.append(task_id)
+
+    # Collect results in parallel
+    results = []
+    for task_id in tasks:
+        result = await self.get_task_result(task_id)
+        if result and result.status == "success":
+            results.append(result.result)
+
+    return results
+```
+
+## Integration with Model Context Protocol (MCP)
+
+For agents using MCP for capabilities like LLM integration, you can combine the Orchestrator-Worker pattern with MCP:
+
+```python
+from mcp.client.session import ClientSession
+from mcp.types import TextContent
+
+from simple_mas.patterns.orchestrator import BaseWorkerAgent, TaskHandler
+
+class LLMWorker(BaseWorkerAgent):
+    async def setup(self) -> None:
+        await super().setup()
+        # Initialize MCP client
+        self.mcp_client = ClientSession(api_key="YOUR_API_KEY")
+
+    @TaskHandler(task_type="text_summarization", description="Summarize text with LLM")
+    async def summarize_text(self, text: str, max_length: int = 200) -> str:
+        """Summarize text using LLM through MCP."""
+        async with self.mcp_client as session:
+            messages = [
+                TextContent(
+                    role="user",
+                    text=f"Summarize the following text in {max_length} characters or less:\n\n{text}"
+                )
+            ]
+
+            response = await session.generate_response(messages)
+            return response.content[0].text
+
+    @TaskHandler(task_type="sentiment_analysis", description="Analyze sentiment of text")
+    async def analyze_sentiment(self, text: str) -> Dict[str, Any]:
+        """Analyze sentiment of text using LLM through MCP."""
+        async with self.mcp_client as session:
+            messages = [
+                TextContent(
+                    role="user",
+                    text=f"Analyze the sentiment of the following text. Respond with a JSON object containing 'sentiment' (positive, negative, or neutral) and 'confidence' (0-1):\n\n{text}"
+                )
+            ]
+
+            response = await session.generate_response(messages)
+            # Parse JSON from response
+            import json
+            try:
+                return json.loads(response.content[0].text)
+            except json.JSONDecodeError:
+                return {"sentiment": "unknown", "confidence": 0}
+```
 
 ## Chaining Pattern
 
