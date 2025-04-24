@@ -245,6 +245,150 @@ class TestMcpAgent:
         with pytest.raises(AttributeError):
             await agent.sample_prompt(target_service="test_service", messages=messages)
 
+    @pytest.mark.asyncio
+    async def test_call_tool(self):
+        """Test the call_tool method."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
+
+        # Create a mock communicator with call_tool method
+        communicator = mock.MagicMock()
+        call_tool_result = {"result": "Tool executed successfully"}
+        communicator.call_tool = AsyncMock(return_value=call_tool_result)
+        agent.set_communicator(communicator)
+
+        # Call call_tool
+        arguments = {"param1": "value1", "param2": 42}
+        result = await agent.call_tool(
+            target_service="test_service", tool_name="test_tool", arguments=arguments, timeout=10.0
+        )
+
+        # Check that the communicator's call_tool was called with correct args
+        communicator.call_tool.assert_called_once_with(
+            target_service="test_service", tool_name="test_tool", arguments=arguments, timeout=10.0
+        )
+        assert result == call_tool_result
+
+    @pytest.mark.asyncio
+    async def test_call_tool_no_support(self):
+        """Test call_tool with a communicator that doesn't support it."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
+
+        # Create a mock communicator without call_tool method
+        communicator = mock.MagicMock(spec=[])
+        agent.set_communicator(communicator)
+
+        # Call call_tool should raise an AttributeError
+        with pytest.raises(AttributeError):
+            await agent.call_tool(target_service="test_service", tool_name="test_tool")
+
+    @pytest.mark.asyncio
+    async def test_get_prompt(self):
+        """Test the get_prompt method."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
+
+        # Create a mock communicator with get_prompt method
+        communicator = mock.MagicMock()
+        get_prompt_result = "This is a rendered prompt template"
+        communicator.get_prompt = AsyncMock(return_value=get_prompt_result)
+        agent.set_communicator(communicator)
+
+        # Call get_prompt
+        arguments = {"variable": "test"}
+        result = await agent.get_prompt(
+            target_service="test_service", prompt_name="test_prompt", arguments=arguments, timeout=5.0
+        )
+
+        # Check that the communicator's get_prompt was called with correct args
+        communicator.get_prompt.assert_called_once_with(
+            target_service="test_service", prompt_name="test_prompt", arguments=arguments, timeout=5.0
+        )
+        assert result == get_prompt_result
+
+    @pytest.mark.asyncio
+    async def test_get_prompt_no_support(self):
+        """Test get_prompt with a communicator that doesn't support it."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
+
+        # Create a mock communicator without get_prompt method
+        communicator = mock.MagicMock(spec=[])
+        agent.set_communicator(communicator)
+
+        # Call get_prompt should raise an AttributeError
+        with pytest.raises(AttributeError):
+            await agent.get_prompt(target_service="test_service", prompt_name="test_prompt")
+
+    @pytest.mark.asyncio
+    async def test_read_resource(self):
+        """Test the read_resource method."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
+
+        # Create a mock communicator with read_resource method
+        communicator = mock.MagicMock()
+        resource_content = b"Test resource content"
+        communicator.read_resource = AsyncMock(return_value=resource_content)
+        agent.set_communicator(communicator)
+
+        # Call read_resource
+        result = await agent.read_resource(target_service="test_service", resource_uri="/test/resource", timeout=3.0)
+
+        # Check that the communicator's read_resource was called with correct args
+        communicator.read_resource.assert_called_once_with(
+            target_service="test_service", resource_uri="/test/resource", timeout=3.0
+        )
+        assert result == resource_content
+
+    @pytest.mark.asyncio
+    async def test_read_resource_no_support(self):
+        """Test read_resource with a communicator that doesn't support it."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
+
+        # Create a mock communicator without read_resource method
+        communicator = mock.MagicMock(spec=[])
+        agent.set_communicator(communicator)
+
+        # Call read_resource should raise an AttributeError
+        with pytest.raises(AttributeError):
+            await agent.read_resource(target_service="test_service", resource_uri="/test/resource")
+
+    @pytest.mark.asyncio
+    async def test_list_tools(self):
+        """Test the list_tools method."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
+
+        # Create a mock communicator with list_tools method
+        communicator = mock.MagicMock()
+        tools_list = [{"name": "tool1", "description": "First tool"}, {"name": "tool2", "description": "Second tool"}]
+        communicator.list_tools = AsyncMock(return_value=tools_list)
+        agent.set_communicator(communicator)
+
+        # Call list_tools
+        result = await agent.list_tools(target_service="test_service")
+
+        # Check that the communicator's list_tools was called with correct args
+        communicator.list_tools.assert_called_once_with(target_service="test_service")
+        assert result == tools_list
+
+    @pytest.mark.asyncio
+    async def test_list_tools_no_support(self):
+        """Test list_tools with a communicator that doesn't support it."""
+        config = AgentConfig(name="test_agent", log_level="INFO", service_urls={})
+        agent = McpAgent(config=config)
+
+        # Create a mock communicator without list_tools method
+        communicator = mock.MagicMock(spec=[])
+        agent.set_communicator(communicator)
+
+        # Call list_tools should raise an AttributeError
+        with pytest.raises(AttributeError):
+            await agent.list_tools(target_service="test_service")
+
 
 class TestMcpDecorators:
     """Tests for the MCP decorators."""

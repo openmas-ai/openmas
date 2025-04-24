@@ -63,11 +63,11 @@ class McpClientAgent(McpAgent):
                 self.communicator.connected_services.remove(service_name)
                 self.logger.info(f"Disconnected from service: {service_name}")
 
-    async def list_tools(self, service_name: str) -> List[Dict[str, Any]]:
+    async def list_tools(self, target_service: str) -> List[Dict[str, Any]]:
         """List all available tools from a service.
 
         Args:
-            service_name: The service to get tools from
+            target_service: The service to get tools from
 
         Returns:
             A list of tool definitions
@@ -79,7 +79,7 @@ class McpClientAgent(McpAgent):
             raise AttributeError("Communicator does not support list_tools method")
 
         # Call the communicator's list_tools method
-        tools = await self.communicator.list_tools(service_name)
+        tools = await self.communicator.list_tools(target_service)
 
         # Ensure the return type is consistent
         return [
@@ -88,11 +88,11 @@ class McpClientAgent(McpAgent):
             if isinstance(t, dict)
         ]
 
-    async def list_prompts(self, service_name: str) -> List[Dict[str, Any]]:
+    async def list_prompts(self, target_service: str) -> List[Dict[str, Any]]:
         """List all available prompts from a service.
 
         Args:
-            service_name: The service to get prompts from
+            target_service: The service to get prompts from
 
         Returns:
             A list of prompt definitions
@@ -101,7 +101,7 @@ class McpClientAgent(McpAgent):
             CommunicationError: If there is a problem with the communication
         """
         response = await self.communicator.send_request(
-            target_service=service_name,
+            target_service=target_service,
             method="prompt/list",
         )
         # Handle the response, ensuring we return the expected type
@@ -112,11 +112,11 @@ class McpClientAgent(McpAgent):
             if isinstance(p, dict)
         ]
 
-    async def list_resources(self, service_name: str) -> List[Dict[str, Any]]:
+    async def list_resources(self, target_service: str) -> List[Dict[str, Any]]:
         """List all available resources from a service.
 
         Args:
-            service_name: The service to get resources from
+            target_service: The service to get resources from
 
         Returns:
             A list of resource definitions
@@ -125,7 +125,7 @@ class McpClientAgent(McpAgent):
             CommunicationError: If there is a problem with the communication
         """
         response = await self.communicator.send_request(
-            target_service=service_name,
+            target_service=target_service,
             method="resource/list",
         )
         # Handle the response, ensuring we return the expected type
@@ -136,13 +136,20 @@ class McpClientAgent(McpAgent):
             if isinstance(r, dict)
         ]
 
-    async def call_tool(self, service_name: str, tool_name: str, arguments: Optional[Dict[str, Any]] = None) -> Any:
+    async def call_tool(
+        self,
+        target_service: str,
+        tool_name: str,
+        arguments: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> Any:
         """Call a tool on a service.
 
         Args:
-            service_name: The service to call the tool on
+            target_service: The service to call the tool on
             tool_name: The name of the tool to call
             arguments: The arguments to pass to the tool
+            timeout: Optional timeout in seconds
 
         Returns:
             The result of the tool call
@@ -152,26 +159,35 @@ class McpClientAgent(McpAgent):
         """
         if hasattr(self.communicator, "call_tool"):
             return await self.communicator.call_tool(
-                target_service=service_name,
+                target_service=target_service,
                 tool_name=tool_name,
                 arguments=arguments or {},
+                timeout=timeout,
             )
         else:
             # Fall back to send_request with the tool/call method
             response = await self.communicator.send_request(
-                target_service=service_name,
+                target_service=target_service,
                 method="tool/call",
                 params={"name": tool_name, "arguments": arguments or {}},
+                timeout=timeout,
             )
             return response.get("result")
 
-    async def get_prompt(self, service_name: str, prompt_name: str, arguments: Optional[Dict[str, Any]] = None) -> Any:
+    async def get_prompt(
+        self,
+        target_service: str,
+        prompt_name: str,
+        arguments: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> Any:
         """Get a prompt from a service.
 
         Args:
-            service_name: The service to get the prompt from
+            target_service: The service to get the prompt from
             prompt_name: The name of the prompt to get
             arguments: The arguments to pass to the prompt
+            timeout: Optional timeout in seconds
 
         Returns:
             The result of the prompt
@@ -181,24 +197,26 @@ class McpClientAgent(McpAgent):
         """
         if hasattr(self.communicator, "get_prompt"):
             return await self.communicator.get_prompt(
-                target_service=service_name,
+                target_service=target_service,
                 prompt_name=prompt_name,
                 arguments=arguments or {},
+                timeout=timeout,
             )
         else:
             # Fall back to send_request with the prompt/get method
             response = await self.communicator.send_request(
-                target_service=service_name,
+                target_service=target_service,
                 method="prompt/get",
                 params={"name": prompt_name, "arguments": arguments or {}},
+                timeout=timeout,
             )
             return response
 
-    async def get_resource(self, service_name: str, uri: str) -> bytes:
+    async def get_resource(self, target_service: str, uri: str) -> bytes:
         """Get a resource from a service.
 
         Args:
-            service_name: The service to get the resource from
+            target_service: The service to get the resource from
             uri: The URI of the resource to get
 
         Returns:
@@ -208,7 +226,7 @@ class McpClientAgent(McpAgent):
             CommunicationError: If there is a problem with the communication
         """
         response = await self.communicator.send_request(
-            target_service=service_name,
+            target_service=target_service,
             method="resource/read",
             params={"uri": uri},
         )
