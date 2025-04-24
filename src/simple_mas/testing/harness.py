@@ -5,7 +5,8 @@ to initialize, run, and interact with agents during tests.
 """
 
 import asyncio
-from typing import Any, Callable, Dict, Generic, Optional, Type, TypeVar
+import contextlib
+from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypedDict, TypeVar
 
 from simple_mas.agent.base import BaseAgent
 from simple_mas.config import AgentConfig
@@ -17,6 +18,14 @@ logger = get_logger(__name__)
 T = TypeVar("T", bound=BaseAgent)
 
 
+class AgentTestContext(TypedDict, total=False):
+    """Context object for agent test scenarios."""
+
+    agent: BaseAgent
+    communicator: MockCommunicator
+    test_data: Dict[str, Any]
+
+
 class AgentTestHarness(Generic[T]):
     """Test harness for SimpleMAS agents.
 
@@ -24,6 +33,7 @@ class AgentTestHarness(Generic[T]):
     1. Simplifying agent initialization with test configuration
     2. Managing agent lifecycle (start/stop) within test contexts
     3. Facilitating simulated communication and state assertions
+    4. Providing utilities for multi-agent testing
 
     The harness automatically configures a MockCommunicator to intercept and
     verify all agent communications.
@@ -74,6 +84,10 @@ class AgentTestHarness(Generic[T]):
         self.config_model = config_model
         self.communicator = MockCommunicator(agent_name="test-agent")
 
+        # For multi-agent testing
+        self.agents: List[T] = []
+        self.communicators: Dict[str, MockCommunicator] = {}
+
         self.logger = logger.bind(agent_class=agent_class.__name__, harness_id=id(self))
 
         self.logger.debug("Initialized agent test harness")
@@ -83,6 +97,7 @@ class AgentTestHarness(Generic[T]):
         name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         env_prefix: str = "",
+        track: bool = True,
     ) -> T:
         """Create an agent instance with a MockCommunicator.
 
@@ -90,6 +105,7 @@ class AgentTestHarness(Generic[T]):
             name: The name of the agent (overrides config)
             config: The agent configuration (overrides default_config)
             env_prefix: Optional prefix for environment variables
+            track: Whether to track this agent for multi-agent testing (default: True)
 
         Returns:
             An initialized agent instance
@@ -128,6 +144,11 @@ class AgentTestHarness(Generic[T]):
         # Replace the agent's communicator with our mock
         self.communicator = MockCommunicator(agent_name=agent.name)
         agent.communicator = self.communicator
+
+        # Store references for multi-agent testing
+        if track:
+            self.agents.append(agent)
+            self.communicators[agent.name] = self.communicator
 
         self.logger.debug("Created test agent", agent_name=agent.name)
         return agent
@@ -196,6 +217,60 @@ class AgentTestHarness(Generic[T]):
         """
         return self.RunningAgent(self, agent)
 
+    @contextlib.asynccontextmanager
+    async def running_agents(self, *agents: T) -> Any:
+        """Run multiple agents simultaneously within a single context.
+
+        Args:
+            *agents: The agents to run
+
+        Yields:
+            The list of running agents
+        """
+        try:
+            for agent in agents:
+                await self.start_agent(agent)
+            yield list(agents)
+        finally:
+            for agent in reversed(agents):  # Stop in reverse order
+                try:
+                    await self.stop_agent(agent)
+                except Exception as e:
+                    self.logger.warning(f"Error stopping agent {agent.name}: {e}")
+
+    async def link_agents(self, *agents: T) -> None:
+        """Link multiple agents together for direct communication.
+
+        This method:
+        1. Updates each agent's service_urls to know about the others
+        2. Links their mock communicators for direct message passing
+
+        Args:
+            *agents: The agents to link
+        """
+        if len(agents) < 2:
+            raise ValueError("At least two agents are required for linking")
+
+        # Update service URLs
+        for agent in agents:
+            for other in agents:
+                if agent != other:
+                    agent.config.service_urls[other.name] = f"mock://{other.name}"
+
+        # Link communicators
+        for i, agent in enumerate(agents):
+            for j in range(i + 1, len(agents)):
+                other = agents[j]
+                # Type check to ensure we're working with MockCommunicator
+                if not isinstance(agent.communicator, MockCommunicator) or not isinstance(
+                    other.communicator, MockCommunicator
+                ):
+                    raise TypeError("Both agents must use MockCommunicator for linking")
+                # Safe to call link_communicator after type check
+                agent.communicator.link_communicator(other.communicator)
+
+        self.logger.debug(f"Linked {len(agents)} agents for direct communication")
+
     async def trigger_handler(self, agent: T, method: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """Trigger a handler method on the agent.
 
@@ -213,7 +288,12 @@ class AgentTestHarness(Generic[T]):
         Raises:
             AssertionError: If no handler has been registered for the method
         """
-        result = await self.communicator.trigger_handler(method, params)
+        # Get the agent's communicator
+        communicator = agent.communicator
+        if not isinstance(communicator, MockCommunicator):
+            raise TypeError(f"Agent {agent.name} does not have a MockCommunicator")
+
+        result = await communicator.trigger_handler(method, params)
         self.logger.debug(
             "Triggered handler on test agent",
             agent_name=agent.name,
@@ -244,3 +324,36 @@ class AgentTestHarness(Generic[T]):
                 return True
             await asyncio.sleep(check_interval)
         return False
+
+    def verify_all_communicators(self) -> None:
+        """Verify all expectations for all tracked communicators.
+
+        Useful for multi-agent test scenarios to ensure all expected
+        communications across all agents were met.
+
+        Raises:
+            AssertionError: If any communicator has unmet expectations
+        """
+        errors = []
+        for name, comm in self.communicators.items():
+            try:
+                comm.verify_all_expectations_met()
+            except AssertionError as e:
+                errors.append(f"Agent '{name}': {str(e)}")
+
+        if errors:
+            raise AssertionError("Unmet expectations:\n" + "\n".join(errors))
+
+    def reset(self) -> None:
+        """Reset the harness state.
+
+        This clears tracked agents and resets all communicators.
+        Useful between tests when reusing the same harness.
+        """
+        for comm in self.communicators.values():
+            comm.reset()
+
+        self.agents = []
+        self.communicators = {}
+        self.communicator = MockCommunicator(agent_name="test-agent")
+        self.logger.debug("Reset test harness state")

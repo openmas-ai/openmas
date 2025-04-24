@@ -1,449 +1,508 @@
 # Testing Multi-Agent Systems with SimpleMas
 
-This document provides guidance on testing multi-agent systems built with SimpleMas.
+This document provides comprehensive guidance on testing multi-agent systems built with SimpleMas, focusing on robust testing practices using the provided test utilities.
 
-## Testing Strategies
+## Testing Utilities
 
-### Unit Testing Agents
+SimpleMAS provides two primary testing utilities:
 
-Test individual agent handlers:
+1. **MockCommunicator**: A mock implementation of the BaseCommunicator for testing agents without real network dependencies.
+2. **AgentTestHarness**: A comprehensive test harness for creating, managing, and testing agent instances with MockCommunicator integration.
+
+## Using the MockCommunicator
+
+The `MockCommunicator` allows you to precisely control and verify agent communications during tests.
+
+### Basic Setup
 
 ```python
 import pytest
-from simple_mas import Agent
-from simple_mas.communication.mcp import MCPCommunicator
+from simple_mas.testing import MockCommunicator
 
 @pytest.fixture
-async def test_agent():
-    agent = Agent(
-        name="test_agent",
-        communicator=MCPCommunicator(
-            agent_name="test_agent",
-            service_urls={}
-        )
+def mock_communicator():
+    """Create a mock communicator for testing."""
+    comm = MockCommunicator(agent_name="test-agent")
+    yield comm
+    # Verify all expectations were met
+    comm.verify()
+```
+
+### Setting Expectations and Verifying Requests
+
+```python
+@pytest.mark.asyncio
+async def test_agent_requests(mock_communicator):
+    # Set up expectations
+    mock_communicator.expect_request(
+        target_service="data-service",
+        method="get_user",
+        params={"user_id": "123"},
+        response={"name": "Test User", "email": "test@example.com"}
     )
 
-    @agent.handler("echo")
-    async def handle_echo(params):
-        return {"echo": params.get("message", "")}
+    # Make the request
+    result = await mock_communicator.send_request(
+        target_service="data-service",
+        method="get_user",
+        params={"user_id": "123"}
+    )
 
-    await agent.start()
-    yield agent
-    await agent.stop()
+    # Assert the response
+    assert result["name"] == "Test User"
+    assert result["email"] == "test@example.com"
 
-async def test_echo_handler(test_agent):
-    # Test the echo handler directly
-    handler = test_agent._handlers["echo"]
-    result = await handler({"message": "hello"})
-    assert result == {"echo": "hello"}
+    # Verify all expectations were met
+    mock_communicator.verify_all_expectations_met()
+```
+
+### Advanced Parameter Matching
+
+The enhanced MockCommunicator supports various parameter matching strategies:
+
+```python
+import re
+from simple_mas.testing import MockCommunicator
+
+@pytest.mark.asyncio
+async def test_advanced_parameter_matching():
+    comm = MockCommunicator(agent_name="test-agent")
+
+    # 1. Match any parameters
+    comm.expect_request(
+        target_service="service",
+        method="any_params",
+        params=None,  # Match any parameters
+        response={"status": "ok"}
+    )
+
+    # 2. Regex pattern matching for string values
+    comm.expect_request(
+        target_service="service",
+        method="pattern_match",
+        params={"query": re.compile(r"^user_\d+$")},
+        response={"matches": True}
+    )
+
+    # 3. Custom matcher function
+    def validate_positive(value):
+        return isinstance(value, int) and value > 0
+
+    comm.expect_request(
+        target_service="service",
+        method="custom_match",
+        params={"value": validate_positive},
+        response={"valid": True}
+    )
+
+    # 4. Nested dictionary matching
+    comm.expect_request(
+        target_service="service",
+        method="nested_match",
+        params={
+            "user": {
+                "profile": {"age": 30}
+            }
+        },
+        response={"matched": True}
+    )
+
+    # Execute the requests and verify
+    await comm.send_request("service", "any_params", {"can": "be anything"})
+    await comm.send_request("service", "pattern_match", {"query": "user_123"})
+    await comm.send_request("service", "custom_match", {"value": 42})
+    await comm.send_request("service", "nested_match", {
+        "user": {
+            "profile": {"age": 30, "name": "John"}  # Extra fields are fine
+        }
+    })
+
+    comm.verify()
+```
+
+### Testing Notifications
+
+```python
+@pytest.mark.asyncio
+async def test_notifications(mock_communicator):
+    # Set up expected notification
+    mock_communicator.expect_notification(
+        target_service="logging-service",
+        method="log_event",
+        params={"level": "info", "message": "Test event"}
+    )
+
+    # Send the notification
+    await mock_communicator.send_notification(
+        target_service="logging-service",
+        method="log_event",
+        params={"level": "info", "message": "Test event"}
+    )
+
+    # Verify the expectation was met
+    mock_communicator.verify()
+```
+
+### Testing Handler Registration and Triggering
+
+```python
+@pytest.mark.asyncio
+async def test_handler_registration(mock_communicator):
+    # Define a test handler
+    async def test_handler(message):
+        content = message["content"]
+        return {"processed": content["value"] * 2}
+
+    # Register the handler
+    await mock_communicator.register_handler("process", test_handler)
+
+    # Trigger the handler with test parameters
+    result = await mock_communicator.trigger_handler(
+        method="process",
+        params={"value": 42}
+    )
+
+    # Assert the handler processed the message correctly
+    assert result == {"processed": 84}
+```
+
+### Testing Error Conditions
+
+```python
+from simple_mas.exceptions import ServiceNotFoundError
+
+@pytest.mark.asyncio
+async def test_error_conditions(mock_communicator):
+    # Set up an exception to be raised
+    exception = ServiceNotFoundError("service-x not found")
+    mock_communicator.expect_request_exception(
+        target_service="service-x",
+        method="get_data",
+        params={"id": "123"},
+        exception=exception
+    )
+
+    # Expect the exception to be raised
+    with pytest.raises(ServiceNotFoundError) as excinfo:
+        await mock_communicator.send_request(
+            target_service="service-x",
+            method="get_data",
+            params={"id": "123"}
+        )
+
+    # Assert the exception message
+    assert str(excinfo.value) == "service-x not found"
+    mock_communicator.verify()
+```
+
+### Examining Call History
+
+```python
+@pytest.mark.asyncio
+async def test_call_history(mock_communicator):
+    # Set up expected request
+    mock_communicator.expect_request(
+        "service1", "method1", {"param": "value"}, {"result": "success"}
+    )
+
+    # Make the request
+    await mock_communicator.send_request(
+        "service1", "method1", {"param": "value"}
+    )
+
+    # Check the call history
+    assert len(mock_communicator.calls) == 1
+    assert mock_communicator.calls[0].method_name == "send_request"
+    assert mock_communicator.calls[0].args[0] == "service1"  # target_service
+    assert mock_communicator.calls[0].args[1] == "method1"   # method
+    assert mock_communicator.calls[0].args[2] == {"param": "value"}  # params
 ```
 
 ## Using the AgentTestHarness
 
-SimpleMAS provides a comprehensive test harness specifically designed to make testing agents easier. The `AgentTestHarness` takes care of:
+The `AgentTestHarness` simplifies testing agent behavior by providing a structured way to create, start, stop, and interact with agent instances during tests.
 
-1. Creating agent instances with test configuration
-2. Setting up agents with MockCommunicator for intercepting communications
-3. Managing agent lifecycle (start/stop) within test contexts
-4. Facilitating simulated request handling and assertions
-
-### Basic Usage
+### Basic Agent Testing
 
 ```python
 import pytest
 from simple_mas.agent import Agent
 from simple_mas.testing import AgentTestHarness
 
+class TestAgentClass(Agent):
+    async def setup(self):
+        await super().setup()
+        await self.communicator.register_handler("process", self.handle_process)
+
+    async def handle_process(self, message):
+        data = message.get("data", 0)
+        # Call an external service
+        result = await self.communicator.send_request(
+            "math-service", "calculate", {"operation": "double", "value": data}
+        )
+        return {"result": result["value"]}
+
 @pytest.fixture
 def agent_harness():
-    # Create a harness for the specific agent type
     return AgentTestHarness(
-        Agent,  # Agent class to test
+        TestAgentClass,
         default_config={"name": "test-agent", "service_urls": {}}
     )
 
 @pytest.mark.asyncio
-async def test_agent_behavior(agent_harness):
+async def test_agent_processing(agent_harness):
     # Create an agent with the harness
     agent = await agent_harness.create_agent()
 
+    # Set up expectations for the external service call
+    agent_harness.communicator.expect_request(
+        "math-service", "calculate",
+        {"operation": "double", "value": 5},
+        {"value": 10}
+    )
+
     # Start the agent using a context manager
     async with agent_harness.running_agent(agent):
-        # Set up an expected external service request
-        agent_harness.communicator.expect_request(
-            "external-service", "get_data", {"id": "123"}, {"result": "test_data"}
-        )
-
-        # Trigger a handler on the agent (simulating an incoming request)
+        # Trigger the handler to test
         result = await agent_harness.trigger_handler(
-            agent, "process_request", {"params": "value"}
+            agent, "process", {"data": 5}
         )
 
         # Verify the result
-        assert result == expected_value
+        assert result == {"result": 10}
 
-        # Verify that all expected communications occurred
+        # Verify all expected communications occurred
         agent_harness.communicator.verify()
 ```
 
-### Advanced Features
+### Multi-Agent Testing
 
-#### Waiting for Asynchronous Conditions
-
-The harness provides a utility to wait for asynchronous conditions:
+The enhanced AgentTestHarness includes utilities for testing interactions between multiple agents:
 
 ```python
 @pytest.mark.asyncio
-async def test_async_behavior(agent_harness):
-    agent = await agent_harness.create_agent()
+async def test_multi_agent_interaction(agent_harness):
+    # Create two agents
+    agent1 = await agent_harness.create_agent(name="agent1")
+    agent2 = await agent_harness.create_agent(name="agent2")
 
-    async with agent_harness.running_agent(agent):
-        # Start some asynchronous operation
-        asyncio.create_task(agent.some_async_operation())
+    # Set up handler on agent2
+    async def handle_query(message):
+        return {"data": f"Processed {message['content'].get('query', '')}"}
 
-        # Wait for a condition to be met with a timeout
-        condition_met = await agent_harness.wait_for(
-            lambda: getattr(agent, 'operation_complete', False),
-            timeout=1.0
+    await agent2.communicator.register_handler("query", handle_query)
+
+    # Link the agents for direct communication
+    await agent_harness.link_agents(agent1, agent2)
+
+    # Start both agents using the running_agents context manager
+    async with agent_harness.running_agents(agent1, agent2):
+        # Set up the expected request from agent1 to agent2
+        agent_harness.communicators["agent1"].expect_request(
+            "agent2", "query", {"query": "test_data"}, None
         )
 
-        # Verify the condition was met
-        assert condition_met is True
+        # Agent1 sends a request to agent2
+        response = await agent1.communicator.send_request(
+            "agent2", "query", {"query": "test_data"}
+        )
+
+        # Verify the response
+        assert response == {"data": "Processed test_data"}
+
+        # Verify all expectations were met across all communicators
+        agent_harness.verify_all_communicators()
+```
+
+### Testing Asynchronous Operations
+
+The harness provides a utility for waiting for asynchronous conditions:
+
+```python
+@pytest.mark.asyncio
+async def test_async_operations(agent_harness):
+    agent = await agent_harness.create_agent()
+
+    # Add a flag to track async operations
+    agent.operation_complete = False
+
+    async def delayed_operation():
+        await asyncio.sleep(0.1)
+        agent.operation_complete = True
+
+    async with agent_harness.running_agent(agent):
+        # Start the async operation
+        asyncio.create_task(delayed_operation())
+
+        # Wait for the operation to complete
+        result = await agent_harness.wait_for(
+            lambda: agent.operation_complete,
+            timeout=0.5,
+            check_interval=0.01
+        )
+
+        # Verify the operation completed
+        assert result is True
         assert agent.operation_complete is True
 ```
 
-#### Testing Agent Interactions
+## Testing Patterns and Best Practices
 
-When testing interactions between multiple agents:
+### Test Structure
+
+Follow this structure for agent tests:
+
+1. **Arrange**: Create and configure the agent and its expectations
+2. **Act**: Trigger the behavior to test
+3. **Assert**: Verify the results and expectations
 
 ```python
 @pytest.mark.asyncio
-async def test_agent_interaction():
-    # Create harnesses for two different agents
-    agent1_harness = AgentTestHarness(Agent1)
-    agent2_harness = AgentTestHarness(Agent2)
+async def test_agent_behavior(agent_harness):
+    # ARRANGE
+    agent = await agent_harness.create_agent()
+    agent_harness.communicator.expect_request(
+        "service", "method", {"param": "value"}, {"result": "success"}
+    )
 
-    # Create agent instances
+    # ACT
+    async with agent_harness.running_agent(agent):
+        result = await agent_harness.trigger_handler(
+            agent, "process", {"data": "input"}
+        )
+
+    # ASSERT
+    assert result == expected_value
+    agent_harness.communicator.verify()
+```
+
+### Testing Error Handling
+
+Always test how your agents handle errors:
+
+```python
+@pytest.mark.asyncio
+async def test_agent_error_handling(agent_harness):
+    agent = await agent_harness.create_agent()
+
+    # Set up a service to return an error
+    agent_harness.communicator.expect_request_exception(
+        "service", "method", {"param": "value"},
+        Exception("Service error")
+    )
+
+    # Test that the agent handles the error gracefully
+    async with agent_harness.running_agent(agent):
+        result = await agent_harness.trigger_handler(
+            agent, "process_with_error_handling", {"data": "input"}
+        )
+
+        # Agent should return a proper error response rather than crashing
+        assert result["status"] == "error"
+        assert "Service error" in result["message"]
+```
+
+### Testing Timeouts
+
+Test how your agent behaves when services are slow:
+
+```python
+@pytest.mark.asyncio
+async def test_agent_timeout_handling(agent_harness):
+    agent = await agent_harness.create_agent()
+
+    # In a real test, you would mock the timeout behavior
+    # For demonstration, we'll just set up an expectation
+    agent_harness.communicator.expect_request_exception(
+        "slow-service", "get_data", {"id": "123"},
+        TimeoutError("Request timed out")
+    )
+
+    async with agent_harness.running_agent(agent):
+        result = await agent_harness.trigger_handler(
+            agent, "process_with_timeout", {"id": "123"}
+        )
+
+        assert result["status"] == "timeout"
+        assert result["fallback_data"] is not None
+```
+
+## Integration Testing
+
+For testing complete agent systems with real communication:
+
+```python
+@pytest.mark.asyncio
+async def test_full_agent_system():
+    # Create harnesses for different agent types
+    agent1_harness = AgentTestHarness(AgentType1)
+    agent2_harness = AgentTestHarness(AgentType2)
+    agent3_harness = AgentTestHarness(AgentType3)
+
+    # Create the agents
     agent1 = await agent1_harness.create_agent(name="agent1")
     agent2 = await agent2_harness.create_agent(name="agent2")
+    agent3 = await agent3_harness.create_agent(name="agent3")
 
-    # Configure agent1 to know about agent2
-    agent1.communicator.service_urls["agent2"] = "mcp://agent2"
+    # Set up real in-memory connections between agents
+    await agent1_harness.link_agents(agent1, agent2, agent3)
 
-    # Set up the expected request to agent2
-    agent2_harness.communicator.expect_request(
-        "agent2", "get_info", {"query": "test"}, {"info": "test_result"}
-    )
+    # Start all agents
+    async with agent1_harness.running_agent(agent1):
+        async with agent2_harness.running_agent(agent2):
+            async with agent3_harness.running_agent(agent3):
+                # Trigger the system behavior
+                result = await agent1_harness.trigger_handler(
+                    agent1, "start_workflow", {"data": "test"}
+                )
 
-    # Start both agents
-    async with agent1_harness.running_agent(agent1), agent2_harness.running_agent(agent2):
-        # Trigger a handler on agent1 that will interact with agent2
-        result = await agent1_harness.trigger_handler(
-            agent1, "process_with_agent2", {"query": "test"}
-        )
+                # Wait for the workflow to complete
+                success = await agent1_harness.wait_for(
+                    lambda: getattr(agent1, "workflow_complete", False),
+                    timeout=2.0
+                )
 
-        # Verify the result
-        assert result == {"status": "success", "data": "test_result"}
-
-        # Verify that all expected communications occurred
-        agent2_harness.communicator.verify()
-```
-
-#### Customizing the Test Agent
-
-For more complex testing scenarios, you can subclass `AgentTestHarness`:
-
-```python
-class CustomTestHarness(AgentTestHarness):
-    """Custom test harness with additional utilities."""
-
-    async def setup_test_scenario(self, agent):
-        """Set up a common test scenario."""
-        # Configure the agent for a specific test scenario
-        agent.some_property = "test_value"
-
-        # Set up expected communications
-        self.communicator.expect_request(
-            "service1", "method1", {"param": "value"}, {"result": "response"}
-        )
-
-        return agent
-```
-
-## Using the MockCommunicator
-
-SimpleMAS provides a mock communicator specifically designed for testing. The `MockCommunicator` allows you to:
-
-1. Set up expected requests and predefined responses
-2. Record calls made to it for later assertions
-3. Simulate handler registration and triggering
-4. Verify that all expected interactions occurred
-
-### Basic Usage
-
-```python
-import pytest
-from simple_mas import Agent
-from simple_mas.testing import MockCommunicator
-
-@pytest.fixture
-async def agent_with_mock():
-    # Create a mock communicator
-    mock_comm = MockCommunicator(agent_name="test_agent")
-
-    # Create an agent using the mock communicator
-    agent = Agent(
-        name="test_agent",
-        communicator=mock_comm
-    )
-
-    # Set up a request handler
-    @agent.handler("test_handler")
-    async def handle_test(params):
-        return {"result": params.get("value", "") + "_processed"}
-
-    await agent.start()
-    yield agent, mock_comm
-    await agent.stop()
-
-async def test_agent_with_mock(agent_with_mock):
-    agent, mock_comm = agent_with_mock
-
-    # Set up an expected request and response
-    mock_comm.expect_request(
-        target_service="external_service",
-        method="get_data",
-        params={"id": "123"},
-        response={"data": "test_data"}
-    )
-
-    # Have the agent make a request
-    response = await agent.send_request(
-        target_service="external_service",
-        method="get_data",
-        params={"id": "123"}
-    )
-
-    # Verify the response
-    assert response == {"data": "test_data"}
-
-    # Verify all expectations were met
-    mock_comm.verify_all_expectations_met()
-```
-
-### Advanced Features
-
-#### Setting Up Expected Requests with Specific Responses
-
-```python
-# Set up a response for a specific request
-mock_comm.expect_request(
-    target_service="service1",
-    method="get_user",
-    params={"user_id": "123"},
-    response={"name": "Test User", "email": "test@example.com"}
-)
-
-# Set up an exception to be raised
-from simple_mas.exceptions import ServiceNotFoundError
-mock_comm.expect_request(
-    target_service="service2",
-    method="get_data",
-    params={"id": "456"},
-    exception=ServiceNotFoundError("Service not found")
-)
-```
-
-#### Handling Notifications
-
-```python
-# Set up an expected notification
-mock_comm.expect_notification(
-    target_service="logging_service",
-    method="log_event",
-    params={"level": "info", "message": "Test event"}
-)
-
-# Send a notification
-await agent.send_notification(
-    target_service="logging_service",
-    method="log_event",
-    params={"level": "info", "message": "Test event"}
-)
-
-# Verify all expectations were met
-mock_comm.verify_all_expectations_met()
-```
-
-#### Testing Handler Callbacks
-
-```python
-# Register a handler in the agent
-@agent.handler("process_data")
-async def handle_process_data(params):
-    return {"processed": params.get("data", "") + "_processed"}
-
-# Trigger the handler directly through the mock communicator
-result = await mock_comm.trigger_handler(
-    method="process_data",
-    params={"data": "test_input"}
-)
-
-# Verify the result
-assert result == {"processed": "test_input_processed"}
-```
-
-#### Checking Call History
-
-```python
-# Make some calls through the agent
-await agent.send_request(
-    target_service="service1",
-    method="method1",
-    params={"param1": "value1"}
-)
-
-await agent.send_notification(
-    target_service="service2",
-    method="method2",
-    params={"param2": "value2"}
-)
-
-# Check the call history
-assert len(mock_comm.calls) == 2
-assert mock_comm.calls[0].method_name == "send_request"
-assert mock_comm.calls[0].args[0] == "service1"  # target_service
-assert mock_comm.calls[0].args[1] == "method1"   # method
-assert mock_comm.calls[0].args[2] == {"param1": "value1"}  # params
-
-assert mock_comm.calls[1].method_name == "send_notification"
-assert mock_comm.calls[1].args[0] == "service2"  # target_service
-```
-
-### Integration Testing
-
-Test multiple agents communicating:
-
-```python
-import pytest
-from simple_mas import Agent
-from simple_mas.communication.mcp import MCPCommunicator
-
-@pytest.fixture
-async def setup_agents():
-    # Create agents with MCP for in-memory communication
-    agent1 = Agent(
-        name="agent1",
-        communicator=MCPCommunicator(
-            agent_name="agent1",
-            service_urls={"agent2": "mcp://agent2"}
-        )
-    )
-
-    agent2 = Agent(
-        name="agent2",
-        communicator=MCPCommunicator(
-            agent_name="agent2",
-            service_urls={"agent1": "mcp://agent1"}
-        )
-    )
-
-    @agent2.handler("greeting")
-    async def handle_greeting(params):
-        return {"response": f"Hello, {params.get('name')}!"}
-
-    await agent1.start()
-    await agent2.start()
-
-    yield agent1, agent2
-
-    await agent1.stop()
-    await agent2.stop()
-
-async def test_agent_communication(setup_agents):
-    agent1, agent2 = setup_agents
-
-    # Test communication between agents
-    response = await agent1.send_request(
-        target_service="agent2",
-        method="greeting",
-        params={"name": "Agent1"}
-    )
-
-    assert response == {"response": "Hello, Agent1!"}
-```
-
-## Mocking External Services
-
-```python
-import pytest
-from unittest.mock import patch, AsyncMock
-from simple_mas import Agent
-from simple_mas.communication import HTTPCommunicator
-
-@pytest.fixture
-async def agent_with_mocked_http():
-    with patch("simple_mas.communication.http.aiohttp.ClientSession") as mock_session:
-        # Mock the response
-        mock_response = AsyncMock()
-        mock_response.__aenter__.return_value.status = 200
-        mock_response.__aenter__.return_value.json.return_value = {"result": "success"}
-        mock_session.return_value.post.return_value = mock_response
-
-        agent = Agent(
-            name="test_agent",
-            communicator=HTTPCommunicator(
-                agent_name="test_agent",
-                service_urls={"external": "http://example.com/api"}
-            )
-        )
-
-        await agent.start()
-        yield agent
-        await agent.stop()
-
-async def test_external_service(agent_with_mocked_http):
-    # Test interaction with mocked external service
-    response = await agent_with_mocked_http.send_request(
-        target_service="external",
-        method="do_something",
-        params={"param": "value"}
-    )
-
-    assert response == {"result": "success"}
+                assert success
+                assert result["status"] == "success"
 ```
 
 ## Performance Testing
 
-For performance testing, use the MCP communicator and measure response times:
+For performance testing, measure response times and throughput:
 
 ```python
 import time
 import statistics
 import pytest
-from simple_mas import Agent
-from simple_mas.communication.mcp import MCPCommunicator
 
-async def test_performance():
-    # Create agents for performance testing
-    agent1, agent2 = setup_test_agents()
+@pytest.mark.asyncio
+async def test_agent_performance(agent_harness):
+    agent = await agent_harness.create_agent()
+
+    # Configure expected responses
+    for i in range(100):
+        agent_harness.communicator.expect_request(
+            "data-service", "get_item", {"id": str(i)},
+            {"item": f"Item {i}", "value": i}
+        )
 
     # Measure response times
     response_times = []
-    for _ in range(1000):
-        start_time = time.time()
-        await agent1.send_request(
-            target_service="agent2",
-            method="echo",
-            params={"message": "test"}
-        )
-        end_time = time.time()
-        response_times.append(end_time - start_time)
 
-    # Analyze results
+    async with agent_harness.running_agent(agent):
+        for i in range(100):
+            start_time = time.time()
+            await agent_harness.trigger_handler(
+                agent, "process_item", {"id": str(i)}
+            )
+            end_time = time.time()
+            response_times.append(end_time - start_time)
+
+    # Analyze performance
     avg_time = statistics.mean(response_times)
     p95_time = statistics.quantiles(response_times, n=20)[18]  # 95th percentile
 
-    print(f"Average response time: {avg_time:.6f}s")
-    print(f"95th percentile response time: {p95_time:.6f}s")
+    # Assert performance meets requirements
+    assert avg_time < 0.01  # Average response time under 10ms
+    assert p95_time < 0.02  # 95% of responses under 20ms
 ```
