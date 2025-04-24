@@ -254,45 +254,197 @@ def run(agent_name: str) -> None:
 
     AGENT_NAME is the name of the agent to run.
     """
-    config_path = Path("simplemas_project.yml")
+    import asyncio
+    import importlib
+    import inspect
+    import signal
+    import sys
 
-    if not config_path.exists():
-        click.echo("❌ Project configuration file 'simplemas_project.yml' not found")
+    from simple_mas.agent.base import BaseAgent
+    from simple_mas.config import _find_project_root
+
+    # Verify that agent_name is not empty
+    if not agent_name:
+        click.echo("❌ Agent name cannot be empty")
         sys.exit(1)
+
+    # Find project root
+    project_root = _find_project_root()
+    if not project_root:
+        click.echo("❌ Project configuration file 'simplemas_project.yml' not found in current or parent directories")
+        sys.exit(1)
+
+    # Load project configuration
+    try:
+        with open(project_root / "simplemas_project.yml", "r") as f:
+            project_config = yaml.safe_load(f)
+    except Exception as e:
+        click.echo(f"❌ Error loading project configuration: {e}")
+        sys.exit(1)
+
+    # Find the agent in the project configuration
+    agents = project_config.get("agents", {})
+    if agent_name not in agents:
+        click.echo(f"❌ Agent '{agent_name}' not found in project configuration")
+        all_agents = list(agents.keys())
+        if all_agents:
+            click.echo(f"Available agents: {', '.join(all_agents)}")
+        sys.exit(1)
+
+    # Get agent path and shared/extension paths
+    agent_path = project_root / agents[agent_name]
+    agent_file = agent_path / "agent.py"
+
+    if not agent_file.exists():
+        click.echo(f"❌ Agent file '{agent_file}' does not exist")
+        sys.exit(1)
+
+    # Get shared and extension paths
+    shared_paths = [project_root / path for path in project_config.get("shared_paths", [])]
+    extension_paths = [project_root / path for path in project_config.get("extension_paths", [])]
+
+    # Set up PYTHONPATH for imports
+    original_sys_path = sys.path.copy()
+    sys_path_additions = [str(project_root), str(agent_path.parent)]
+    for path in shared_paths + extension_paths:
+        if path.exists() and str(path) not in sys_path_additions:
+            sys_path_additions.append(str(path))
+
+    # Add to sys.path
+    for path in sys_path_additions:
+        if path not in sys.path:
+            sys.path.insert(0, path)
+
+    # Set environment variables
+    os.environ["AGENT_NAME"] = agent_name
+    os.environ["SIMPLEMAS_ENV"] = os.environ.get("SIMPLEMAS_ENV", "local")
+
+    # Default error message for import failures
+    import_error_msg = (
+        f"❌ Failed to import agent module from '{agent_file}'. "
+        "Check that all dependencies are installed and the agent code is valid."
+    )
 
     try:
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
+        # Convert agent path to a Python module path
+        # First remove the project root from the path
+        rel_path = agent_path.relative_to(project_root)
+        # Convert to module path (replace / with .)
+        module_path = str(rel_path).replace("/", ".").replace("\\", ".")
+        module_name = f"{module_path}.agent"
 
-        agents = config.get("agents", {})
-        if agent_name not in agents:
-            click.echo(f"❌ Agent '{agent_name}' not found in project configuration")
+        # Import the agent module
+        try:
+            agent_module = importlib.import_module(module_name)
+        except ImportError as e:
+            # Try alternative approach if the first fails
+            try:
+                # Try with a simpler direct import when inside the agent directory
+                agent_module = importlib.import_module("agent")
+            except ImportError:
+                click.echo(f"{import_error_msg}\nError: {e}")
+                sys.exit(1)
+
+        # Find the BaseAgent subclass in the module
+        agent_class = None
+        for name, obj in inspect.getmembers(agent_module):
+            if inspect.isclass(obj) and issubclass(obj, BaseAgent) and obj != BaseAgent:  # Skip BaseAgent itself
+                agent_class = obj
+                break
+
+        if agent_class is None:
+            click.echo(f"❌ No BaseAgent subclass found in '{agent_file}'")
             sys.exit(1)
 
-        agent_path = agents[agent_name]
-        agent_file = Path(agent_path) / "agent.py"
+        # Initialize the agent
+        click.echo(f"Starting agent '{agent_name}' ({agent_class.__name__})")
+        agent = agent_class(name=agent_name)
 
-        if not agent_file.exists():
-            click.echo(f"❌ Agent file '{agent_file}' does not exist")
+        # Set up signal handlers for graceful shutdown
+        loop = asyncio.get_event_loop()
+        shutdown_event = asyncio.Event()
+        agent_task = None
+
+        def signal_handler() -> None:
+            click.echo("Shutting down agent gracefully... (press Ctrl+C again to force exit)")
+            shutdown_event.set()
+            if agent_task:
+                agent_task.cancel()
+
+        loop.add_signal_handler(signal.SIGINT, signal_handler)
+        loop.add_signal_handler(signal.SIGTERM, signal_handler)
+
+        # Run the agent lifecycle
+        async def run_agent() -> None:
+            try:
+                # Call the setup method
+                click.echo("Setting up agent...")
+                await agent.setup()
+
+                # Display guidance message for multiple agents
+                all_agent_names = list(agents.keys())
+                if len(all_agent_names) > 1:
+                    other_agents = [a for a in all_agent_names if a != agent_name]
+                    click.echo("\n[SimpleMas CLI] Agent start success.")
+                    click.echo(
+                        "[SimpleMas CLI] To run other agents in this project, open new terminal windows and use:"
+                    )
+                    for other_agent in other_agents:
+                        click.echo(f"[SimpleMas CLI]     simplemas run {other_agent}")
+                    click.echo(f"[SimpleMas CLI] Project agents: {', '.join(all_agent_names)}")
+                    click.echo("")
+
+                # Create a task for the run method
+                nonlocal agent_task
+                agent_task = asyncio.create_task(agent.run())
+
+                # Wait for either the agent to complete or a shutdown signal
+                done, pending = await asyncio.wait(
+                    [agent_task, asyncio.create_task(shutdown_event.wait())], return_when=asyncio.FIRST_COMPLETED
+                )
+
+                # Cancel any pending tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+                # Always shut down the agent
+                click.echo("Shutting down agent...")
+                await agent.shutdown()
+                click.echo("Agent shut down successfully")
+
+            except asyncio.CancelledError:
+                click.echo("Agent execution cancelled")
+                # Ensure shutdown is called
+                await agent.shutdown()
+            except Exception as e:
+                click.echo(f"❌ Error running agent: {e}")
+                # Try to shut down gracefully even if there was an error
+                try:
+                    await agent.shutdown()
+                except Exception as shutdown_error:
+                    click.echo(f"❌ Error during agent shutdown: {shutdown_error}")
+                raise
+
+        # Run the agent
+        try:
+            loop.run_until_complete(run_agent())
+        except KeyboardInterrupt:
+            # Handle the case where the user rapidly presses Ctrl+C multiple times
+            click.echo("\nForced exit.")
+        except Exception as e:
+            click.echo(f"❌ Error: {e}")
             sys.exit(1)
-
-        # Set agent name environment variable
-        os.environ["AGENT_NAME"] = agent_name
-
-        # Apply default config from the project configuration
-        if "default_config" in config:
-            # This environment variable will be picked up by the enhanced load_config
-            os.environ["SIMPLEMAS_PROJECT_CONFIG"] = yaml.dump(config)
-
-        click.echo(f"Running agent '{agent_name}'")
-        # Execute the agent file
-        # In a real implementation, this would use importlib to load and run the agent module
-        # For now, we'll just print a message
-        click.echo(f"Agent would be executed from file: {agent_file}")
 
     except Exception as e:
-        click.echo(f"❌ Error running agent '{agent_name}': {e}")
+        click.echo(f"❌ Error initializing agent: {e}")
         sys.exit(1)
+    finally:
+        # Restore original sys.path
+        sys.path = original_sys_path
 
 
 def main() -> int:

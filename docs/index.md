@@ -11,6 +11,7 @@ Welcome to the SimpleMas documentation! SimpleMas is a Python SDK for building M
 - [Patterns](patterns.md) - Common agent patterns and best practices
 - [Testing](testing.md) - Testing your multi-agent systems
 - [Deployment](deployment.md) - Deploying your multi-agent systems
+- [CLI](cli/index.md) - Command-line interface reference
 - [API Reference](api_reference.md) - Complete API reference
 
 ## Project Overview

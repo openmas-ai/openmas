@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Type, TypeVar, cast
 
 import yaml
+from dotenv import load_dotenv  # type: ignore
 from pydantic import BaseModel, Field, ValidationError
 
 from simple_mas.exceptions import ConfigurationError
@@ -148,6 +149,22 @@ def _load_project_config() -> Dict[str, Any]:
         return {}
 
 
+def _load_env_file() -> None:
+    """Load environment variables from .env file at the project root.
+
+    Uses python-dotenv with override=True to ensure env vars take precedence if also set directly.
+    """
+    project_root = _find_project_root()
+    if not project_root:
+        logger.debug("Project root not found, skipping .env file loading")
+        return
+
+    env_file = project_root / ".env"
+    if env_file.exists():
+        load_dotenv(env_file, override=True)
+        logger.debug(f"Loaded environment variables from {env_file}")
+
+
 def _load_environment_config_files() -> Dict[str, Any]:
     """Load configuration from environment-specific YAML files.
 
@@ -172,13 +189,13 @@ def _load_environment_config_files() -> Dict[str, Any]:
         config_data = default_config
 
     # Load environment-specific config if SIMPLEMAS_ENV is set
-    env_name = os.environ.get("SIMPLEMAS_ENV")
-    if env_name:
-        env_config_path = project_root / "config" / f"{env_name}.yml"
-        env_config = _load_yaml_config(env_config_path)
-        if env_config:
-            logger.debug(f"Loaded environment configuration from {env_config_path}")
-            config_data = _deep_merge_dicts(config_data, env_config)
+    # If SIMPLEMAS_ENV is not set, default to 'local'
+    env_name = os.environ.get("SIMPLEMAS_ENV", "local")
+    env_config_path = project_root / "config" / f"{env_name}.yml"
+    env_config = _load_yaml_config(env_config_path)
+    if env_config:
+        logger.debug(f"Loaded environment configuration from {env_config_path}")
+        config_data = _deep_merge_dicts(config_data, env_config)
 
     return config_data
 
@@ -190,8 +207,9 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
     1. SimpleMas SDK Internal Defaults (in the Pydantic model)
     2. default_config section in simplemas_project.yml
     3. config/default.yml file
-    4. config/<SIMPLEMAS_ENV>.yml file (only if SIMPLEMAS_ENV is set)
-    5. Environment Variables
+    4. config/<SIMPLEMAS_ENV>.yml file (default: local.yml if SIMPLEMAS_ENV not set)
+    5. .env file at project root
+    6. Environment Variables (highest precedence)
 
     Args:
         config_model: The Pydantic model to use for validation
@@ -204,6 +222,9 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
         ConfigurationError: If configuration loading or validation fails
     """
     try:
+        # Load environment variables from .env file (if exists)
+        _load_env_file()
+
         # Build a dictionary from environment variables and project configuration
         config_data: Dict[str, Any] = {}
         env_prefix = f"{prefix}_" if prefix else ""
