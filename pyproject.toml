@@ -7,7 +7,8 @@ readme = "README.md"
 packages = [{include = "simple_mas", from = "src"}]
 
 [tool.poetry.scripts]
-simplemas = "simple_mas.deployment.cli:main"
+simplemas = "simple_mas.cli:main"
+simplemas-deploy = "simple_mas.deployment.cli:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"

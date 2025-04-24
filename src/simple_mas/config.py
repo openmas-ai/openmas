@@ -2,8 +2,10 @@
 
 import json
 import os
-from typing import Any, Dict, Type, TypeVar
+from pathlib import Path
+from typing import Any, Dict, Type, TypeVar, cast
 
+import yaml
 from pydantic import BaseModel, Field, ValidationError
 
 from simple_mas.exceptions import ConfigurationError
@@ -29,8 +31,53 @@ class AgentConfig(BaseModel):
     )
 
 
+def _load_project_config() -> Dict[str, Any]:
+    """Load the project configuration from simplemas_project.yml or environment.
+
+    Returns:
+        A dictionary containing the project configuration
+
+    Raises:
+        ConfigurationError: If loading the project configuration fails
+    """
+    # First check if the project config is provided in environment variable
+    # (set by the CLI when running agents)
+    project_config_env = os.environ.get("SIMPLEMAS_PROJECT_CONFIG")
+    if project_config_env:
+        try:
+            result = yaml.safe_load(project_config_env)
+            if result is None or not isinstance(result, dict):
+                logger.warning("Project config from environment is not a dictionary")
+                return {}
+            return cast(Dict[str, Any], result)
+        except Exception as e:
+            logger.warning(f"Failed to parse project config from environment: {e}")
+            return {}
+
+    # Otherwise, try to load from file
+    project_path = Path("simplemas_project.yml")
+    if not project_path.exists():
+        return {}
+
+    try:
+        with open(project_path, "r") as f:
+            result = yaml.safe_load(f)
+            if result is None or not isinstance(result, dict):
+                logger.warning("Project config file does not contain a dictionary")
+                return {}
+            return cast(Dict[str, Any], result)
+    except Exception as e:
+        logger.warning(f"Failed to load project configuration file: {e}")
+        return {}
+
+
 def load_config(config_model: Type[T], prefix: str = "") -> T:
-    """Load configuration from environment variables.
+    """Load configuration from environment variables and project configuration.
+
+    Configuration is loaded in the following order (lowest to highest precedence):
+    1. SimpleMas SDK Internal Defaults (in the Pydantic model)
+    2. default_config section in simplemas_project.yml
+    3. Environment Variables
 
     Args:
         config_model: The Pydantic model to use for validation
@@ -43,15 +90,25 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
         ConfigurationError: If configuration loading or validation fails
     """
     try:
-        # Build a dictionary from environment variables
+        # Build a dictionary from environment variables and project configuration
         config_data: Dict[str, Any] = {}
         env_prefix = f"{prefix}_" if prefix else ""
+
+        # Load project configuration and extract default_config
+        project_config = _load_project_config()
+        default_config = project_config.get("default_config", {})
+
+        # Apply default config as base layer
+        if default_config:
+            logger.debug("Applying default configuration from project config")
+            config_data.update(default_config)
 
         # First check for a JSON config string
         json_config = os.environ.get(f"{env_prefix}CONFIG")
         if json_config:
             try:
-                config_data = json.loads(json_config)
+                env_config_data = json.loads(json_config)
+                config_data.update(env_config_data)
                 logger.debug("Loaded configuration from JSON", source=f"{env_prefix}CONFIG")
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}CONFIG: {e}")
@@ -112,6 +169,13 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
                 config_data["extension_paths"] = extension_paths
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}EXTENSION_PATHS: {e}")
+
+        # Add extension paths from project config if available
+        if "extension_paths" in project_config:
+            project_extension_paths = project_config["extension_paths"]
+            if "extension_paths" not in config_data:
+                config_data["extension_paths"] = []
+            config_data["extension_paths"].extend(project_extension_paths)
 
         # Load individual communicator options
         for key, value in os.environ.items():
