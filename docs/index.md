@@ -6,6 +6,7 @@ Welcome to the SimpleMas documentation! SimpleMas is a Python SDK for building M
 
 - [Getting Started](getting_started.md) - How to install and set up SimpleMas
 - [Architecture](architecture.md) - Overview of the SimpleMas architecture
+- [Configuration](configuration.md) - How to configure your agents and projects
 - [Communication](communication.md) - Communication protocols and patterns
 - [Patterns](patterns.md) - Common agent patterns and best practices
 - [Testing](testing.md) - Testing your multi-agent systems

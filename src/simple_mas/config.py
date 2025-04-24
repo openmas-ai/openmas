@@ -3,7 +3,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Type, TypeVar, cast
+from typing import Any, Dict, Optional, Type, TypeVar, cast
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
@@ -31,6 +31,78 @@ class AgentConfig(BaseModel):
     )
 
 
+def _find_project_root() -> Optional[Path]:
+    """Find the SimpleMas project root by looking for simplemas_project.yml.
+
+    Returns:
+        Path to the project root directory or None if not found
+    """
+    current_dir = Path.cwd()
+
+    # Try current directory first
+    if (current_dir / "simplemas_project.yml").exists():
+        return current_dir
+
+    # Then check parent directories (limit to a reasonable depth to avoid infinite loops)
+    for _ in range(10):  # Maximum depth of 10 directories
+        current_dir = current_dir.parent
+        if (current_dir / "simplemas_project.yml").exists():
+            return current_dir
+
+    return None
+
+
+def _load_yaml_config(file_path: Path) -> Dict[str, Any]:
+    """Load and parse a YAML configuration file.
+
+    Args:
+        file_path: Path to the YAML configuration file
+
+    Returns:
+        Dictionary containing the parsed YAML or empty dict if file doesn't exist
+
+    Raises:
+        ConfigurationError: If the file exists but parsing fails
+    """
+    if not file_path.exists():
+        logger.debug(f"Config file not found: {file_path}")
+        return {}
+
+    try:
+        with open(file_path, "r") as f:
+            result = yaml.safe_load(f)
+            if result is None or not isinstance(result, dict):
+                logger.warning(f"Config file {file_path} does not contain a dictionary")
+                return {}
+            return cast(Dict[str, Any], result)
+    except Exception as e:
+        message = f"Failed to load config file {file_path}: {e}"
+        logger.error(message)
+        raise ConfigurationError(message)
+
+
+def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively merge two dictionaries.
+
+    The override dictionary values take precedence over base values.
+    If both values are dictionaries, they are merged recursively.
+
+    Args:
+        base: Base dictionary
+        override: Dictionary with override values
+
+    Returns:
+        Merged dictionary
+    """
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge_dicts(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def _load_project_config() -> Dict[str, Any]:
     """Load the project configuration from simplemas_project.yml or environment.
 
@@ -55,7 +127,12 @@ def _load_project_config() -> Dict[str, Any]:
             return {}
 
     # Otherwise, try to load from file
-    project_path = Path("simplemas_project.yml")
+    project_root = _find_project_root()
+    if project_root:
+        project_path = project_root / "simplemas_project.yml"
+    else:
+        project_path = Path("simplemas_project.yml")
+
     if not project_path.exists():
         return {}
 
@@ -71,13 +148,50 @@ def _load_project_config() -> Dict[str, Any]:
         return {}
 
 
+def _load_environment_config_files() -> Dict[str, Any]:
+    """Load configuration from environment-specific YAML files.
+
+    Loads config/default.yml and config/<SIMPLEMAS_ENV>.yml if they exist.
+    The environment-specific config overrides default config.
+
+    Returns:
+        A dictionary containing merged configuration from files
+    """
+    config_data: Dict[str, Any] = {}
+    project_root = _find_project_root()
+
+    if not project_root:
+        logger.debug("Project root not found, skipping config file loading")
+        return {}
+
+    # Load default config file
+    default_config_path = project_root / "config" / "default.yml"
+    default_config = _load_yaml_config(default_config_path)
+    if default_config:
+        logger.debug(f"Loaded default configuration from {default_config_path}")
+        config_data = default_config
+
+    # Load environment-specific config if SIMPLEMAS_ENV is set
+    env_name = os.environ.get("SIMPLEMAS_ENV")
+    if env_name:
+        env_config_path = project_root / "config" / f"{env_name}.yml"
+        env_config = _load_yaml_config(env_config_path)
+        if env_config:
+            logger.debug(f"Loaded environment configuration from {env_config_path}")
+            config_data = _deep_merge_dicts(config_data, env_config)
+
+    return config_data
+
+
 def load_config(config_model: Type[T], prefix: str = "") -> T:
-    """Load configuration from environment variables and project configuration.
+    """Load configuration from files, environment variables and project configuration.
 
     Configuration is loaded in the following order (lowest to highest precedence):
     1. SimpleMas SDK Internal Defaults (in the Pydantic model)
     2. default_config section in simplemas_project.yml
-    3. Environment Variables
+    3. config/default.yml file
+    4. config/<SIMPLEMAS_ENV>.yml file (only if SIMPLEMAS_ENV is set)
+    5. Environment Variables
 
     Args:
         config_model: The Pydantic model to use for validation
@@ -103,6 +217,12 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
             logger.debug("Applying default configuration from project config")
             config_data.update(default_config)
 
+        # Load and apply configuration from YAML files
+        yaml_config = _load_environment_config_files()
+        if yaml_config:
+            logger.debug("Applying configuration from YAML files")
+            config_data = _deep_merge_dicts(config_data, yaml_config)
+
         # First check for a JSON config string
         json_config = os.environ.get(f"{env_prefix}CONFIG")
         if json_config:
@@ -114,10 +234,9 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}CONFIG: {e}")
 
         # Get the agent name
-        if "name" not in config_data:
-            name = os.environ.get(f"{env_prefix}AGENT_NAME")
-            if name:
-                config_data["name"] = name
+        name = os.environ.get(f"{env_prefix}AGENT_NAME")
+        if name:
+            config_data["name"] = name
 
         # Load service URLs from environment
         service_urls_str = os.environ.get(f"{env_prefix}SERVICE_URLS")
@@ -155,7 +274,14 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
                 communicator_options = json.loads(communicator_options_str)
                 if not isinstance(communicator_options, dict):
                     raise ConfigurationError(f"{env_prefix}COMMUNICATOR_OPTIONS must be a JSON dictionary")
-                config_data["communicator_options"] = communicator_options
+
+                # Use deep merge to combine options while preserving nested dictionaries
+                if "communicator_options" in config_data:
+                    config_data["communicator_options"] = _deep_merge_dicts(
+                        config_data["communicator_options"], communicator_options
+                    )
+                else:
+                    config_data["communicator_options"] = communicator_options
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}COMMUNICATOR_OPTIONS: {e}")
 
