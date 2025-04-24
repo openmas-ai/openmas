@@ -1,0 +1,1 @@
+"""SimpleMAS integration examples."""

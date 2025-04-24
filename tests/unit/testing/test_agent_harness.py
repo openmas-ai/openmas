@@ -50,15 +50,16 @@ class SimpleTestAgent(BdiAgent):
         # Call the parent class shutdown
         await super().shutdown()
 
-    async def handle_store_data(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_store_data(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Store data in the agent's data store.
 
         Args:
-            params: Must contain 'key' and 'value' keys
+            message: Must contain content with 'key' and 'value' keys
 
         Returns:
             A success message
         """
+        params = message["content"]
         key = params.get("key")
         value = params.get("value")
 
@@ -68,15 +69,16 @@ class SimpleTestAgent(BdiAgent):
         self.data_store[key] = value
         return {"status": "success", "key": key}
 
-    async def handle_get_data(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_get_data(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Retrieve data from the agent's data store.
 
         Args:
-            params: Must contain a 'key' parameter
+            message: Must contain content with a 'key' parameter
 
         Returns:
             The stored data or an error
         """
+        params = message["content"]
         key = params.get("key")
 
         if not key:
@@ -87,15 +89,16 @@ class SimpleTestAgent(BdiAgent):
 
         return {"key": key, "value": self.data_store[key]}
 
-    async def handle_process_with_external(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_process_with_external(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Process data by calling an external service.
 
         Args:
-            params: Contains 'data' to process
+            message: Contains content with 'data' to process
 
         Returns:
             The processed data
         """
+        params = message["content"]
         data = params.get("data", "")
 
         # Call external service to enrich data

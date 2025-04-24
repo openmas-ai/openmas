@@ -2,11 +2,13 @@
 
 import abc
 import asyncio
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional, Type, Union
+
+from pydantic import ValidationError
 
 from simple_mas.communication import BaseCommunicator, HttpCommunicator
 from simple_mas.config import AgentConfig, load_config
-from simple_mas.exceptions import LifecycleError
+from simple_mas.exceptions import ConfigurationError, LifecycleError
 from simple_mas.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
@@ -22,7 +24,7 @@ class BaseAgent(abc.ABC):
     def __init__(
         self,
         name: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
+        config: Optional[Union[Dict[str, Any], AgentConfig]] = None,
         config_model: Type[AgentConfig] = AgentConfig,
         communicator_class: Type[BaseCommunicator] = HttpCommunicator,
         env_prefix: str = "",
@@ -37,7 +39,23 @@ class BaseAgent(abc.ABC):
             env_prefix: Optional prefix for environment variables
         """
         # Load configuration
-        self.config = config if isinstance(config, AgentConfig) else load_config(config_model, env_prefix)
+        # If config is a dict, convert it to an AgentConfig instance
+        # If config is None, load from environment variables
+        if config is None:
+            self.config = load_config(config_model, env_prefix)
+        elif isinstance(config, dict):
+            # Add name to the config dictionary if provided
+            if name and "name" not in config:
+                config["name"] = name
+            try:
+                self.config = config_model(**config)
+            except ValidationError as e:
+                error_msg = f"Configuration validation failed: {e}"
+                logger.error(error_msg)
+                raise ConfigurationError(error_msg)
+        else:
+            # config is already an AgentConfig instance
+            self.config = config
 
         # Override name if provided
         if name:

@@ -82,6 +82,12 @@ class MockCommunicator(BaseCommunicator):
         # Expected notifications
         self._expected_notifications: Dict[str, List[Dict[str, Any]]] = {}
 
+        # Record of sent messages for testing
+        self._sent_messages: List[Any] = []
+
+        # Linked communicators for direct communication
+        self._linked_communicators: List["MockCommunicator"] = []
+
         logger.debug("Initialized mock communicator", agent_name=agent_name)
 
     def _record_call(self, method_name: str, *args: Any, **kwargs: Any) -> None:
@@ -103,6 +109,8 @@ class MockCommunicator(BaseCommunicator):
         self._handlers = {}
         self._request_responses = {}
         self._expected_notifications = {}
+        self._sent_messages = []
+        self._linked_communicators = []
         logger.debug("Reset mock communicator", agent_name=self.agent_name)
 
     def expect_request(
@@ -264,34 +272,44 @@ class MockCommunicator(BaseCommunicator):
         """
         self._record_call("send_notification", target_service, method, params)
 
+        # Store the message for inspection in tests
+        message = {
+            "sender_id": self.agent_name,
+            "recipient_id": target_service,
+            "content": params or {},
+            "message_type": method,
+        }
+        self._sent_messages.append(message)
+
+        # Check if we should forward this message to linked communicators
+        for linked_comm in self._linked_communicators:
+            if linked_comm.agent_name == target_service:
+                # If the linked communicator is the intended recipient, trigger its handler
+                await linked_comm.trigger_handler(method, params)
+
         key = f"{target_service}:{method}"
 
-        if key not in self._expected_notifications or not self._expected_notifications[key]:
-            available = ", ".join([k for k in self._expected_notifications.keys() if self._expected_notifications[k]])
-            raise AssertionError(
-                f"Unexpected notification: {target_service}:{method} with params: {params}.\n"
-                f"Available notifications: {available or 'none'}"
-            )
+        # Check if we have expectations set up
+        if key in self._expected_notifications and self._expected_notifications[key]:
+            # Get the next expectation for this notification
+            expectation = self._expected_notifications[key][0]
 
-        # Get the next expectation for this notification
-        expectation = self._expected_notifications[key][0]
+            # Check if parameters match (if provided)
+            expected_params = expectation["params"]
+            if expected_params is not None and expected_params != params:
+                # Keep the expectation and raise an error
+                raise AssertionError(
+                    f"Parameter mismatch for {target_service}:{method}\n"
+                    f"Expected: {expected_params}\n"
+                    f"Received: {params}"
+                )
 
-        # Check if parameters match (if provided)
-        expected_params = expectation["params"]
-        if expected_params is not None and expected_params != params:
-            # Keep the expectation and raise an error
-            raise AssertionError(
-                f"Parameter mismatch for {target_service}:{method}\n"
-                f"Expected: {expected_params}\n"
-                f"Received: {params}"
-            )
+            # Remove this expectation since it's been used
+            self._expected_notifications[key].pop(0)
 
-        # Remove this expectation since it's been used
-        self._expected_notifications[key].pop(0)
-
-        # If an exception was set, raise it
-        if expectation["exception"]:
-            raise expectation["exception"]
+            # If an exception was set, raise it
+            if expectation["exception"]:
+                raise expectation["exception"]
 
     async def register_handler(self, method: str, handler: Callable) -> None:
         """Register a handler for a method.
@@ -302,66 +320,69 @@ class MockCommunicator(BaseCommunicator):
         """
         self._record_call("register_handler", method, handler)
         self._handlers[method] = handler
-        logger.debug("Registered handler", agent_name=self.agent_name, method=method)
+        logger.debug(
+            "Registered handler for method",
+            agent_name=self.agent_name,
+            method=method,
+            handler=handler.__qualname__,
+        )
 
     async def trigger_handler(self, method: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """Trigger a registered handler with the given parameters.
 
-        This method is specific to the mock communicator and allows testing
-        how an agent responds to incoming requests.
+        This method is used for testing to simulate incoming messages.
 
         Args:
-            method: The method to trigger
+            method: The method name to trigger
             params: The parameters to pass to the handler
 
         Returns:
-            The result of the handler call
+            The return value from the handler, if any
 
         Raises:
-            AssertionError: If no handler has been registered for the method
+            KeyError: If no handler is registered for the method
         """
         if method not in self._handlers:
-            available = ", ".join(self._handlers.keys())
-            raise AssertionError(
-                f"No handler registered for method: {method}.\n" f"Available handlers: {available or 'none'}"
-            )
+            raise KeyError(f"No handler registered for method '{method}'")
 
         handler = self._handlers[method]
-        result = await handler(params or {})
-        return result
+
+        # Create a message dictionary to pass to the handler
+        message = {
+            "sender_id": "test_sender"
+            if not params or not isinstance(params, dict)
+            else params.get("sender_id", "test_sender"),
+            "recipient_id": self.agent_name,
+            "content": params or {},
+            "message_type": method,
+            "conversation_id": None,
+            "get": lambda key, default=None: (params or {}).get(key, default) if isinstance(params, dict) else default,
+        }
+
+        return await handler(message)
 
     def verify_all_expectations_met(self) -> None:
-        """Verify that all expected requests and notifications have been met.
+        """Verify that all expected requests and notifications were met.
 
         Raises:
-            AssertionError: If any expected requests or notifications haven't been matched
+            AssertionError: If any expectations were not met
         """
-        unmet_requests = {}
-        for key, expectations in self._request_responses.items():
-            if expectations:
-                unmet_requests[key] = len(expectations)
+        # Check for unmet request expectations
+        unmet_requests = {k: v for k, v in self._request_responses.items() if v}
+        if unmet_requests:
+            unmet_str = "\n".join([f"{k}: {len(v)} expectations" for k, v in unmet_requests.items()])
+            raise AssertionError(f"Unmet request expectations:\n{unmet_str}")
 
-        unmet_notifications = {}
-        for key, expectations in self._expected_notifications.items():
-            if expectations:
-                unmet_notifications[key] = len(expectations)
-
-        if unmet_requests or unmet_notifications:
-            msg = []
-            if unmet_requests:
-                req_list = ", ".join([f"{k} ({v})" for k, v in unmet_requests.items()])
-                msg.append(f"Unmet request expectations: {req_list}")
-            if unmet_notifications:
-                notif_list = ", ".join([f"{k} ({v})" for k, v in unmet_notifications.items()])
-                msg.append(f"Unmet notification expectations: {notif_list}")
-
-            raise AssertionError("\n".join(msg))
+        # Check for unmet notification expectations
+        unmet_notifications = {k: v for k, v in self._expected_notifications.items() if v}
+        if unmet_notifications:
+            unmet_str = "\n".join([f"{k}: {len(v)} expectations" for k, v in unmet_notifications.items()])
+            raise AssertionError(f"Unmet notification expectations:\n{unmet_str}")
 
     def verify(self) -> None:
-        """Alias for verify_all_expectations_met() for backwards compatibility.
+        """Verify that all expected requests and notifications were met.
 
-        Raises:
-            AssertionError: If any expected requests or notifications haven't been matched
+        Alias for verify_all_expectations_met() for backward compatibility.
         """
         self.verify_all_expectations_met()
 
@@ -372,28 +393,84 @@ class MockCommunicator(BaseCommunicator):
         params: Optional[Dict[str, Any]] = None,
         exception: Optional[Exception] = None,
     ) -> None:
-        """Alias for expect_request with exception parameter for backwards compatibility.
+        """Set up an expected request with an exception response.
+
+        Alias for expect_request(..., exception=exception) for backward compatibility.
 
         Args:
             target_service: The expected target service
             method: The expected method
             params: The expected parameters (or None to match any parameters)
-            exception: An exception to raise when this request is received
+            exception: The exception to raise, defaults to AssertionError
         """
-        self.expect_request(target_service, method, params, None, exception)
+        self.expect_request(target_service, method, params, None, exception or AssertionError("Expected failure"))
 
     async def start(self) -> None:
-        """Start the mock communicator.
+        """Start the communicator.
 
-        This method records the call but doesn't perform any actions.
+        This method is called when the agent starts and can be used to initialize connections.
+        In the mock implementation, this is a no-op.
         """
         self._record_call("start")
         logger.debug("Started mock communicator", agent_name=self.agent_name)
 
     async def stop(self) -> None:
-        """Stop the mock communicator.
+        """Stop the communicator.
 
-        This method records the call but doesn't perform any actions.
+        This method is called when the agent stops and can be used to clean up connections.
+        In the mock implementation, this is a no-op.
         """
         self._record_call("stop")
         logger.debug("Stopped mock communicator", agent_name=self.agent_name)
+
+    def get_sent_messages(self) -> List[Any]:
+        """Get all the messages that were sent by this communicator.
+
+        Returns:
+            List of message objects that were sent
+        """
+        return self._sent_messages
+
+    def link_communicator(self, other_communicator: "MockCommunicator") -> None:
+        """Link this communicator with another one for direct communication.
+
+        When linked, messages sent from this communicator to the other will
+        automatically trigger handlers in the other communicator.
+
+        Args:
+            other_communicator: The communicator to link with
+        """
+        if not isinstance(other_communicator, MockCommunicator):
+            raise TypeError("Can only link with another MockCommunicator")
+
+        self._linked_communicators.append(other_communicator)
+        # Also link the other way if not already linked
+        if self not in other_communicator._linked_communicators:
+            other_communicator._linked_communicators.append(self)
+
+        logger.debug("Linked communicators", agent1=self.agent_name, agent2=other_communicator.agent_name)
+
+    async def simulate_receive_message(self, message: Any) -> Any:
+        """Simulate receiving a message by triggering the appropriate handler.
+
+        Args:
+            message: The message to simulate receiving (can be a dictionary or an object with attributes)
+
+        Returns:
+            The handler result, if any
+        """
+        # Support both dictionary-style messages and object-style messages
+        if isinstance(message, dict):
+            method = message["message_type"]
+            params = message["content"]
+        else:
+            # Object-style message (for backward compatibility)
+            if not hasattr(message, "message_type") or not hasattr(message, "content"):
+                raise ValueError(
+                    "Message must have message_type and content attributes or be a properly formatted dictionary"
+                )
+            method = message.message_type
+            params = message.content
+
+        # Call the handler
+        return await self.trigger_handler(method, params)

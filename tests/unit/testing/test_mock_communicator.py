@@ -82,12 +82,12 @@ class TestMockCommunicator:
         """Test registering and triggering a handler."""
         # Arrange
         handler_called = False
-        received_params = None
+        received_content = None
 
-        async def test_handler(params: Dict[str, Any]) -> None:
-            nonlocal handler_called, received_params
+        async def test_handler(message: Dict[str, Any]) -> None:
+            nonlocal handler_called, received_content
             handler_called = True
-            received_params = params
+            received_content = message["content"]
 
         await real_mock_communicator.register_handler("test-method", test_handler)
 
@@ -96,7 +96,7 @@ class TestMockCommunicator:
 
         # Assert
         assert handler_called
-        assert received_params == {"param": "value"}
+        assert received_content == {"param": "value"}
 
     @pytest.mark.asyncio
     async def test_reset(self, real_mock_communicator: MockCommunicator) -> None:
