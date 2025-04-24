@@ -8,8 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
-from mcp.server.context import Context
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 # Import the types if available, otherwise use Any
 try:

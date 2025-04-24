@@ -156,14 +156,14 @@ def test_load_config_extension_paths():
     extension_paths = ["/path/to/extensions", "./local/extensions"]
     extension_paths_json = json.dumps(extension_paths)
 
-    with mock.patch.dict(os.environ, {"EXTENSION_PATHS": extension_paths_json}):
+    with mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": extension_paths_json}):
         config = load_config(AgentConfig)
         assert config.extension_paths == extension_paths
 
 
 def test_load_config_extension_paths_invalid_json():
     """Test handling invalid JSON in EXTENSION_PATHS."""
-    with mock.patch.dict(os.environ, {"EXTENSION_PATHS": "not-json"}):
+    with mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": "not-json"}):
         with pytest.raises(ConfigurationError) as exc_info:
             load_config(AgentConfig)
         assert "Invalid JSON in EXTENSION_PATHS" in str(exc_info.value)
@@ -171,7 +171,7 @@ def test_load_config_extension_paths_invalid_json():
 
 def test_load_config_extension_paths_not_list():
     """Test handling non-list value in EXTENSION_PATHS."""
-    with mock.patch.dict(os.environ, {"EXTENSION_PATHS": '{"not": "list"}'}):
+    with mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": '{"not": "list"}'}):
         with pytest.raises(ConfigurationError) as exc_info:
             load_config(AgentConfig)
         assert "EXTENSION_PATHS must be a JSON array" in str(exc_info.value)

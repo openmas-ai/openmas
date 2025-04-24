@@ -159,9 +159,11 @@ def discover_local_communicators(extension_paths: list[str]) -> None:
                                 found_communicator = False
                                 for item_name in dir(module):
                                     item = getattr(module, item_name)
-                                    if (isinstance(item, type) and
-                                        issubclass(item, BaseCommunicator) and
-                                        item is not BaseCommunicator):
+                                    if (
+                                        isinstance(item, type)
+                                        and issubclass(item, BaseCommunicator)
+                                        and item is not BaseCommunicator
+                                    ):
                                         # Use the module name as the communicator type
                                         communicator_type = module_name.split(".")[-1]
                                         register_communicator(communicator_type, item)

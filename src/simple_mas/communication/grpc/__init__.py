@@ -14,9 +14,19 @@ except ImportError:
 # Only try to import the real class if gRPC is available
 if HAS_GRPC:
     try:
-        from simple_mas.communication.grpc.communicator import GrpcCommunicator
+        # First check if the generated modules are available
+        try:
+            from simple_mas.communication.grpc import simple_mas_pb2  # type: ignore[import]
+            from simple_mas.communication.grpc import simple_mas_pb2_grpc  # type: ignore[import]
+            from simple_mas.communication.grpc.communicator import GrpcCommunicator
 
-        __all__ = ["GrpcCommunicator"]
+            __all__ = ["GrpcCommunicator"]
+        except ImportError as e:
+            # This happens when the proto files haven't been compiled
+            import sys
+
+            print(f"Required gRPC modules not found: {e}", file=sys.stderr)
+            raise ImportError(f"gRPC proto modules not found. Run protoc to generate them: {e}") from e
     except ImportError as e:
         # This is an unexpected error since gRPC is available
         # Re-raise with more context

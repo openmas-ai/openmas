@@ -6,8 +6,16 @@ from typing import Any, Dict
 import pytest
 
 from simple_mas.agent.bdi import BdiAgent
+
+# These imports are no longer needed as the registration is handled globally
+# from simple_mas.communication.base import register_communicator
+# from simple_mas.communication.http import HttpCommunicator
 from simple_mas.config import AgentConfig
 from simple_mas.testing.harness import AgentTestHarness
+
+# Registration is now handled by the global conftest.py fixture
+# register_communicator("mock", MockCommunicator)
+# register_communicator("http", HttpCommunicator)
 
 
 class SimpleTestAgent(BdiAgent):

@@ -1,15 +1,22 @@
-"""gRPC communicator implementation for SimpleMAS."""
+"""gRPC communicator module for SimpleMAS."""
 
 import asyncio
 import json
+import sys
 import time
 import uuid
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
-# Import gRPC and protobuf libraries
-import grpc  # type: ignore[import]
-from grpc.aio import server as aio_server  # type: ignore[import]
+import grpc  # type: ignore
+from grpc.aio import server as aio_server  # type: ignore
 from pydantic import BaseModel, ValidationError
+
+from simple_mas.communication.base import BaseCommunicator
+from simple_mas.exceptions import CommunicationError, MethodNotFoundError, RequestTimeoutError, ServiceNotFoundError
+from simple_mas.exceptions import ValidationError as SimpleMasValidationError
+from simple_mas.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Import the generated protobuf modules
 # Note: These will be generated from the proto file using protoc
@@ -21,16 +28,7 @@ except ImportError:
     # This is just to provide linting support while developing
     # In a real installation, these modules will be properly generated
     # by setup.py or a build script
-    import sys
-
     print("Warning: simple_mas_pb2 modules not found - they should be generated from proto files.", file=sys.stderr)
-
-from simple_mas.communication.base import BaseCommunicator
-from simple_mas.exceptions import CommunicationError, MethodNotFoundError, RequestTimeoutError, ServiceNotFoundError
-from simple_mas.exceptions import ValidationError as SimpleMasValidationError
-from simple_mas.logging import get_logger
-
-logger = get_logger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -50,7 +48,7 @@ class SimpleMasServicer(pb2_grpc.SimpleMasServiceServicer):
         """
         self.communicator = communicator
 
-    async def SendRequest(self, request: pb2.RequestMessage, context: grpc.aio.ServicerContext) -> pb2.ResponseMessage:
+    async def SendRequest(self, request: Any, context: grpc.aio.ServicerContext) -> Any:
         """Handle a SendRequest RPC call.
 
         Args:
@@ -97,7 +95,7 @@ class SimpleMasServicer(pb2_grpc.SimpleMasServiceServicer):
 
         return response
 
-    async def SendNotification(self, request: pb2.NotificationMessage, context: grpc.aio.ServicerContext) -> pb2.Empty:
+    async def SendNotification(self, request: Any, context: grpc.aio.ServicerContext) -> Any:
         """Handle a SendNotification RPC call.
 
         Args:
@@ -122,17 +120,22 @@ class SimpleMasServicer(pb2_grpc.SimpleMasServiceServicer):
             except Exception as e:
                 logger.error(
                     "Error handling notification",
-                    method=method,
-                    error=str(e),
-                    error_type=type(e).__name__,
+                    extra={"method": method, "error": str(e), "error_type": type(e).__name__},
                 )
         else:
-            logger.warning(
-                "Notification for unknown method",
-                method=method,
-            )
+            logger.warning("Notification for unknown method", extra={"method": method})
 
         return pb2.Empty()
+
+
+# Load add_SimpleMasServiceServicer_to_server at module level for patching in tests
+try:
+    from simple_mas.communication.grpc.simple_mas_pb2_grpc import add_SimpleMasServiceServicer_to_server  # type: ignore
+except ImportError:
+    # This will be properly defined when the module is generated
+    def add_SimpleMasServiceServicer_to_server(servicer, server):  # type: ignore
+        """Placeholder for missing function."""
+        pass
 
 
 class GrpcCommunicator(BaseCommunicator):
@@ -179,9 +182,11 @@ class GrpcCommunicator(BaseCommunicator):
 
         logger.debug(
             "Initialized gRPC communicator",
-            agent_name=agent_name,
-            server_mode=server_mode,
-            server_address=server_address if server_mode else None,
+            extra={
+                "agent_name": agent_name,
+                "server_mode": server_mode,
+                "server_address": server_address if server_mode else None,
+            },
         )
 
     async def send_request(
@@ -227,10 +232,7 @@ class GrpcCommunicator(BaseCommunicator):
         )
 
         logger.debug(
-            "Sending gRPC request",
-            target=target_service,
-            method=method,
-            request_id=request.id,
+            "Sending gRPC request", extra={"target": target_service, "method": method, "request_id": request.id}
         )
 
         try:
@@ -247,6 +249,12 @@ class GrpcCommunicator(BaseCommunicator):
                 if error_code == 404:  # Method not found
                     raise MethodNotFoundError(
                         f"Method '{method}' not found on service '{target_service}'",
+                        target=target_service,
+                        details={"method": method, "error": error_message},
+                    )
+                elif error_code == 408:  # Request timeout
+                    raise RequestTimeoutError(
+                        f"Request to '{target_service}' timed out",
                         target=target_service,
                         details={"method": method, "error": error_message},
                     )
@@ -279,25 +287,39 @@ class GrpcCommunicator(BaseCommunicator):
 
             return result_data
 
-        except grpc.RpcError as e:
-            if isinstance(e, grpc.Call):
-                if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+        except (ServiceNotFoundError, MethodNotFoundError, RequestTimeoutError):
+            # Re-raise specific SimpleMAS errors without wrapping
+            raise
+        except asyncio.TimeoutError:
+            # Handle asyncio timeout errors
+            raise RequestTimeoutError(
+                f"Request to '{target_service}' timed out (asyncio)",
+                target=target_service,
+                details={"method": method},
+            )
+        except Exception as e:
+            # Handle gRPC status code errors
+            # Check if the exception has a code() method that returns a status code like grpc.RpcError
+            if hasattr(e, "code") and callable(e.code):
+                status_code = e.code()
+                if status_code == grpc.StatusCode.DEADLINE_EXCEEDED:
                     raise RequestTimeoutError(
                         f"Request to '{target_service}' timed out",
                         target=target_service,
                         details={"method": method},
                     )
-                elif e.code() == grpc.StatusCode.UNAVAILABLE:
+                elif status_code == grpc.StatusCode.UNAVAILABLE:
                     raise ServiceNotFoundError(
                         f"Service '{target_service}' is unavailable",
                         target=target_service,
                         details={"method": method},
                     )
 
+            # For all other errors, wrap in CommunicationError
             raise CommunicationError(
-                f"gRPC error from '{target_service}': {str(e)}",
+                f"Error from '{target_service}': {str(e)}",
                 target=target_service,
-                details={"method": method},
+                details={"method": method, "error_type": type(e).__name__},
             )
 
     async def send_notification(
@@ -329,27 +351,38 @@ class GrpcCommunicator(BaseCommunicator):
             timestamp=int(time.time() * 1000),
         )
 
-        logger.debug(
-            "Sending gRPC notification",
-            target=target_service,
-            method=method,
-        )
+        logger.debug("Sending gRPC notification", extra={"target": target_service, "method": method})
 
         try:
             # Call the service (don't wait for response)
             await stub.SendNotification(notification)
-        except grpc.RpcError as e:
-            if isinstance(e, grpc.Call) and e.code() == grpc.StatusCode.UNAVAILABLE:
-                raise ServiceNotFoundError(
-                    f"Service '{target_service}' is unavailable",
-                    target=target_service,
-                    details={"method": method},
-                )
-
-            raise CommunicationError(
-                f"gRPC error from '{target_service}': {str(e)}",
+        except (ServiceNotFoundError, MethodNotFoundError, RequestTimeoutError):
+            # Re-raise specific SimpleMAS errors without wrapping
+            raise
+        except asyncio.TimeoutError:
+            # Handle asyncio timeout errors
+            raise RequestTimeoutError(
+                f"Notification to '{target_service}' timed out (asyncio)",
                 target=target_service,
                 details={"method": method},
+            )
+        except Exception as e:
+            # Handle gRPC status code errors
+            # Check if the exception has a code() method that returns a status code like grpc.RpcError
+            if hasattr(e, "code") and callable(e.code):
+                status_code = e.code()
+                if status_code == grpc.StatusCode.UNAVAILABLE:
+                    raise ServiceNotFoundError(
+                        f"Service '{target_service}' is unavailable",
+                        target=target_service,
+                        details={"method": method},
+                    )
+
+            # For all other errors, wrap in CommunicationError
+            raise CommunicationError(
+                f"Error from '{target_service}': {str(e)}",
+                target=target_service,
+                details={"method": method, "error_type": type(e).__name__},
             )
 
     async def register_handler(self, method: str, handler: Callable) -> None:
@@ -360,7 +393,7 @@ class GrpcCommunicator(BaseCommunicator):
             handler: The handler function
         """
         self.handlers[method] = handler
-        logger.debug("Registered handler", method=method)
+        logger.debug("Registered handler", extra={"method": method})
 
     async def start(self) -> None:
         """Start the communicator.
@@ -368,20 +401,25 @@ class GrpcCommunicator(BaseCommunicator):
         In server mode, this starts the gRPC server.
         In client mode, this is a no-op.
         """
-        if self.server_mode:
-            logger.info(f"Starting gRPC server on {self.server_address}")
-            self.server = aio_server(options=[(key, val) for key, val in self.channel_options.items()])
-            # Create the servicer if it doesn't exist
-            self.servicer = SimpleMasServicer(self)  # type: ignore[assignment]
-            # Add the servicer to the server
-            pb2_grpc.add_SimpleMasServiceServicer_to_server(self.servicer, self.server)
-            # Add the port
-            self.server.add_insecure_port(self.server_address)  # type: ignore[attr-defined]
-            # Start the server
-            await self.server.start()  # type: ignore[attr-defined]
-            logger.info(f"gRPC server started on {self.server_address}")
+        try:
+            logger.debug(f"Starting communicator for agent {self.agent_name}")
+            self._handlers: Dict[str, Callable] = {}
+            self._subscriptions: Dict[str, list[Any]] = {}
+            self._current_requests: Dict[str, Any] = {}
+            if self.server_mode:
+                logger.info(f"Starting gRPC server on {self.server_address}")
+                self.server = aio_server(options=[(key, val) for key, val in self.channel_options.items()])
+                # Create the servicer if it doesn't exist
+                self.servicer = SimpleMasServicer(self)
+                add_SimpleMasServiceServicer_to_server(self.servicer, self.server)
+                self.server.add_insecure_port(self.server_address)
+                await self.server.start()
+                logger.debug(f"gRPC server started on {self.server_address}")
 
-        logger.info("Started gRPC communicator")
+            logger.info("Started gRPC communicator")
+        except Exception as e:
+            logger.error(f"Error starting communicator: {str(e)}")
+            raise
 
     async def stop(self) -> None:
         """Stop the gRPC communicator.

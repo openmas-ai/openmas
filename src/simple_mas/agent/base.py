@@ -114,7 +114,9 @@ class BaseAgent(abc.ABC):
                     pass
 
             # If we get here, the communicator type is not found
-            available_types = ", ".join(get_communicator_class("http").__module__.split(".")[:-1])
+            from simple_mas.communication.base import _COMMUNICATOR_REGISTRY
+
+            available_types = ", ".join(_COMMUNICATOR_REGISTRY.keys())
             available = available_types or "none"
             message = (
                 f"Communicator type '{communicator_type}' not found. "

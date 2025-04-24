@@ -1,5 +1,9 @@
 """Communication module for SimpleMAS."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Type
+
 from simple_mas.communication.base import (
     BaseCommunicator,
     discover_communicator_plugins,
@@ -10,27 +14,56 @@ from simple_mas.communication.base import (
     register_communicator,
 )
 
-# Import communicators conditionally to handle missing dependencies
-try:
-    from simple_mas.communication.grpc import GrpcCommunicator
-except ImportError:
-    GrpcCommunicator = None
-
-try:
-    from simple_mas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
-except ImportError:
-    McpSseCommunicator = None
-    McpStdioCommunicator = None
-
+# Import the guaranteed-available communicator
 from simple_mas.communication.http import HttpCommunicator
 
-# Register built-in communicator types
+# Define available communicator types
+COMMUNICATOR_TYPES: Dict[str, Type[BaseCommunicator]] = {
+    "http": HttpCommunicator,
+}
+
+# Register the HTTP communicator
 register_communicator("http", HttpCommunicator)
 
+# Try to import gRPC communicator
+try:
+    from simple_mas.communication.grpc.communicator import GrpcCommunicator  # noqa: F401
+
+    # Register gRPC communicator
+    register_communicator("grpc", GrpcCommunicator)
+    COMMUNICATOR_TYPES["grpc"] = GrpcCommunicator
+except ImportError:
+    # Define a stub for type checking
+    if TYPE_CHECKING:
+
+        class GrpcCommunicator(BaseCommunicator):  # type: ignore
+            pass
+
+
+# Try to import MCP communicators
+try:
+    from simple_mas.communication.mcp.sse_communicator import McpSseCommunicator  # noqa: F401
+    from simple_mas.communication.mcp.stdio_communicator import McpStdioCommunicator  # noqa: F401
+
+    # Add to available types
+    COMMUNICATOR_TYPES["mcp-sse"] = McpSseCommunicator
+    COMMUNICATOR_TYPES["mcp-stdio"] = McpStdioCommunicator
+except ImportError:
+    # Define stubs for type checking
+    if TYPE_CHECKING:
+
+        class McpSseCommunicator(BaseCommunicator):  # type: ignore
+            pass
+
+        class McpStdioCommunicator(BaseCommunicator):  # type: ignore
+            pass
+
+
+# Export all available communicator types
 __all__ = [
     "BaseCommunicator",
-    "GrpcCommunicator",
     "HttpCommunicator",
+    "GrpcCommunicator",
     "McpSseCommunicator",
     "McpStdioCommunicator",
     "register_communicator",
@@ -39,6 +72,7 @@ __all__ = [
     "discover_communicator_plugins",
     "discover_local_communicators",
     "load_local_communicator",
+    "COMMUNICATOR_TYPES",
 ]
 
 # Discover and register communicator plugins from installed packages

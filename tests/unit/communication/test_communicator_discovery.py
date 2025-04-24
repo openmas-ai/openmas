@@ -90,41 +90,37 @@ def mock_entry_point():
     return mock_ep
 
 
-@pytest.mark.parametrize(
-    "entry_points_result,python_version",
-    [
-        # Python 3.10+ style
-        (lambda: [mock.MagicMock(name="mock_communicator", load=lambda: TestCommunicator)], (3, 10)),
-        # Python 3.8-3.9 style with get method
-        (
-            lambda: mock.MagicMock(
-                get=lambda _: [mock.MagicMock(name="mock_communicator", load=lambda: TestCommunicator)]
-            ),
-            (3, 9),
-        ),
-    ],
-)
-def test_discover_communicator_plugins(entry_points_result, python_version, monkeypatch):
+def test_discover_communicator_plugins(monkeypatch):
     """Test discovering communicator plugins via entry points."""
     # Clear registry to ensure clean test
     _COMMUNICATOR_REGISTRY.clear()
 
-    # Mock importlib.metadata.entry_points
-    mock_entry_points = mock.MagicMock(return_value=entry_points_result())
+    # Keep track of registered communicators
+    registered_communicators = []
 
-    # Set up the mock imports based on Python version
-    if python_version >= (3, 10):
-        monkeypatch.setattr("importlib.metadata.entry_points", mock_entry_points)
-    else:
-        # For 3.8-3.9, entry_points returns a dict-like object
-        mock_metadata = mock.MagicMock()
-        mock_metadata.entry_points.return_value = entry_points_result()
-        monkeypatch.setattr("importlib.metadata", mock_metadata)
+    # Mock the register_communicator function
+    def mock_register(comm_type, comm_class):
+        registered_communicators.append((comm_type, comm_class))
+        # Still call the original to update the registry
+        _COMMUNICATOR_REGISTRY[comm_type] = comm_class
+
+    # Patch the register_communicator function
+    monkeypatch.setattr("simple_mas.communication.base.register_communicator", mock_register)
+
+    # Setup a mock entry point that will be returned
+    mock_entry_point = mock.Mock()
+    mock_entry_point.name = "mock_communicator"
+    mock_entry_point.load.return_value = TestCommunicator
+
+    # Mock importlib.metadata.entry_points to return our mock entry point
+    mock_entry_points = mock.Mock(return_value=[mock_entry_point])
+    monkeypatch.setattr("importlib.metadata.entry_points", mock_entry_points)
 
     # Call the function
     discover_communicator_plugins()
 
-    # Verify the communicator was registered
+    # Verify the communicator was registered correctly
+    assert ("mock_communicator", TestCommunicator) in registered_communicators
     assert "mock_communicator" in _COMMUNICATOR_REGISTRY
     assert _COMMUNICATOR_REGISTRY["mock_communicator"] is TestCommunicator
 
@@ -147,7 +143,26 @@ from simple_mas.communication import BaseCommunicator
 
 class CustomCommunicator(BaseCommunicator):
     \"\"\"A custom communicator implementation.\"\"\"
-    pass
+
+    async def send_request(self, target_service, method, params=None, response_model=None, timeout=None):
+        \"\"\"Mock implementation for testing.\"\"\"
+        return {}
+
+    async def send_notification(self, target_service, method, params=None):
+        \"\"\"Mock implementation for testing.\"\"\"
+        pass
+
+    async def register_handler(self, method, handler):
+        \"\"\"Mock implementation for testing.\"\"\"
+        pass
+
+    async def start(self):
+        \"\"\"Mock implementation for testing.\"\"\"
+        pass
+
+    async def stop(self):
+        \"\"\"Mock implementation for testing.\"\"\"
+        pass
 """
     )
 

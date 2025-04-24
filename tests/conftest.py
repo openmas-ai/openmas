@@ -11,9 +11,47 @@ import pytest
 
 from simple_mas.agent import BaseAgent
 from simple_mas.agent.bdi import BdiAgent
+from simple_mas.communication.base import _COMMUNICATOR_REGISTRY, register_communicator
+from simple_mas.communication.http import HttpCommunicator
 from simple_mas.config import AgentConfig
 from simple_mas.testing import AgentTestHarness
 from simple_mas.testing.mock_communicator import MockCommunicator
+
+# Try to import GrpcCommunicator if available
+try:
+    from simple_mas.communication.grpc import GrpcCommunicator
+
+    HAS_GRPC = True
+except ImportError:
+    HAS_GRPC = False
+
+# These registrations can be removed since they're now handled by the fixture below
+# register_communicator("mock", MockCommunicator)
+# register_communicator("http", HttpCommunicator)
+
+
+@pytest.fixture(autouse=True, scope="function")
+def reset_communicator_registry():
+    """Reset the communicator registry before each test and re-register essential communicators.
+
+    This ensures that all tests start with a clean registry and the required communicators.
+    """
+    # Store original registry to restore after test
+    original_registry = _COMMUNICATOR_REGISTRY.copy()
+
+    try:
+        # Clear registry and register essential communicators
+        _COMMUNICATOR_REGISTRY.clear()
+        register_communicator("mock", MockCommunicator)
+        register_communicator("http", HttpCommunicator)
+        # Register gRPC communicator if available
+        if HAS_GRPC:
+            register_communicator("grpc", GrpcCommunicator)
+        yield
+    finally:
+        # Restore original registry after test
+        _COMMUNICATOR_REGISTRY.clear()
+        _COMMUNICATOR_REGISTRY.update(original_registry)
 
 
 class SimpleAgent(BaseAgent):

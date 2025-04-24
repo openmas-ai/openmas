@@ -14,6 +14,14 @@ from examples.basic.hello_world import HelloAgent, Message, SenderAgent
 from simple_mas.config import AgentConfig
 from simple_mas.testing.mock_communicator import MockCommunicator
 
+# These imports are no longer needed as the registration is handled globally
+# from simple_mas.communication.base import register_communicator
+# from simple_mas.communication.http import HttpCommunicator
+
+# Registration is now handled by the global conftest.py fixture
+# register_communicator("mock", MockCommunicator)
+# register_communicator("http", HttpCommunicator)
+
 
 class TestHelloWorldExample:
     """Test suite for the HelloAgent and SenderAgent classes."""

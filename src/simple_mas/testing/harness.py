@@ -116,6 +116,7 @@ class AgentTestHarness(Generic[T]):
             log_level=merged_config.get("log_level", "info"),
             communicator_type=merged_config.get("communicator_type", "mock"),
             communicator_options=merged_config.get("communicator_options", {}),
+            extension_paths=merged_config.get("extension_paths", []),
         )
 
         # Create the agent with the config - cast to silence mypy

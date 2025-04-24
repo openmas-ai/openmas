@@ -109,6 +109,33 @@ await agent.communicator.send_notification(
 )
 ```
 
+## Error Handling and Status Mapping
+
+The GrpcCommunicator maps between gRPC status codes and SimpleMAS exception types:
+
+| gRPC Status Code | Error Type | SimpleMAS Exception |
+|------------------|------------|---------------------|
+| 404 | Method not found | `MethodNotFoundError` |
+| 408 | Request timeout | `RequestTimeoutError` |
+| Other error codes | Various errors | `CommunicationError` |
+
+When a gRPC exception occurs (like `grpc.RpcError`), it's also wrapped in a `CommunicationError` with relevant details preserved.
+
+AsyncIO timeouts (`asyncio.TimeoutError`) are mapped to `RequestTimeoutError`.
+
+### Server-side Error Handling
+
+When implementing handlers on the server side, exceptions are automatically caught and converted to appropriate error responses:
+
+```python
+async def my_handler(param1, param2):
+    # If this raises an exception, it will be returned as an error
+    # with code 500 and details including the exception type
+    raise ValueError("Invalid parameter")
+```
+
+The client will receive a `CommunicationError` with the error message and details.
+
 ## Configuration Options
 
 | Option | Default | Description |
@@ -128,6 +155,59 @@ python generate_proto.py
 ```
 
 This will generate `simple_mas_pb2.py` and `simple_mas_pb2_grpc.py` which are used by the communicator.
+
+## Testing the gRPC Communicator
+
+When testing the GrpcCommunicator, you can use Python's unittest mock framework to avoid creating actual gRPC connections:
+
+```python
+import pytest
+from unittest import mock
+from simple_mas.communication.grpc import GrpcCommunicator
+
+@pytest.fixture
+def mock_grpc_channel():
+    with mock.patch("grpc.aio.insecure_channel") as mock_channel_func:
+        mock_channel = mock.AsyncMock()
+        mock_channel_func.return_value = mock_channel
+        yield mock_channel
+
+@pytest.mark.asyncio
+async def test_grpc_communicator(mock_grpc_channel):
+    # Create a communicator
+    communicator = GrpcCommunicator("test-agent", {"service": "localhost:50051"})
+
+    # Mock the stub and its methods
+    mock_stub = mock.AsyncMock()
+    communicator._get_stub = mock.AsyncMock(return_value=mock_stub)
+
+    # Test sending a request
+    await communicator.send_request("service", "method", {"param": "value"})
+
+    # Verify the stub was called correctly
+    mock_stub.SendRequest.assert_called_once()
+```
+
+For server testing, you can mock the gRPC server and verify handler registration:
+
+```python
+@pytest.fixture
+def mock_grpc_server():
+    with mock.patch("grpc.aio.server") as mock_server_func:
+        mock_server = mock.AsyncMock()
+        mock_server_func.return_value = mock_server
+        yield mock_server
+
+@pytest.mark.asyncio
+async def test_server_mode(mock_grpc_server):
+    communicator = GrpcCommunicator(
+        "test-agent", {}, server_mode=True, server_address="localhost:50051"
+    )
+
+    await communicator.start()
+    mock_grpc_server.return_value.add_insecure_port.assert_called_with("localhost:50051")
+    mock_grpc_server.return_value.start.assert_called_once()
+```
 
 ## Advanced Usage
 
