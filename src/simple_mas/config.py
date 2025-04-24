@@ -32,12 +32,26 @@ class AgentConfig(BaseModel):
     )
 
 
-def _find_project_root() -> Optional[Path]:
+def _find_project_root(project_dir: Optional[Path] = None) -> Optional[Path]:
     """Find the SimpleMas project root by looking for simplemas_project.yml.
+
+    Args:
+        project_dir: Optional explicit path to the project directory. If provided,
+                    will check if this directory contains a simplemas_project.yml file.
 
     Returns:
         Path to the project root directory or None if not found
     """
+    # If a project directory is explicitly provided, check if it contains the project file
+    if project_dir is not None:
+        project_dir = Path(project_dir).resolve()
+        if (project_dir / "simplemas_project.yml").exists():
+            return project_dir
+        else:
+            logger.warning(f"No simplemas_project.yml found in specified project directory: {project_dir}")
+            return None
+
+    # Otherwise, search for the project file in current and parent directories
     current_dir = Path.cwd()
 
     # Try current directory first
@@ -104,15 +118,17 @@ def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[st
     return result
 
 
-def _load_project_config() -> Dict[str, Any]:
-    """Load the project configuration from simplemas_project.yml or environment.
+def _load_project_config(project_dir: Optional[Path] = None) -> Dict[str, Any]:
+    """Load the SimpleMas project config from YAML.
+
+    Args:
+        project_dir: Optional explicit path to the project directory.
 
     Returns:
-        A dictionary containing the project configuration
-
-    Raises:
-        ConfigurationError: If loading the project configuration fails
+        Dictionary containing the project configuration
     """
+    config: Dict[str, Any] = {}
+
     # First check if the project config is provided in environment variable
     # (set by the CLI when running agents)
     project_config_env = os.environ.get("SIMPLEMAS_PROJECT_CONFIG")
@@ -128,33 +144,30 @@ def _load_project_config() -> Dict[str, Any]:
             return {}
 
     # Otherwise, try to load from file
-    project_root = _find_project_root()
+    project_root = _find_project_root(project_dir)
     if project_root:
-        project_path = project_root / "simplemas_project.yml"
+        try:
+            config_path = project_root / "simplemas_project.yml"
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f) or {}
+            logger.info(f"Loaded project config from {config_path}")
+        except Exception as e:
+            logger.error(f"Error loading project config: {e}")
     else:
-        project_path = Path("simplemas_project.yml")
+        logger.warning("No simplemas_project.yml found in project directory")
 
-    if not project_path.exists():
-        return {}
-
-    try:
-        with open(project_path, "r") as f:
-            result = yaml.safe_load(f)
-            if result is None or not isinstance(result, dict):
-                logger.warning("Project config file does not contain a dictionary")
-                return {}
-            return cast(Dict[str, Any], result)
-    except Exception as e:
-        logger.warning(f"Failed to load project configuration file: {e}")
-        return {}
+    return config
 
 
-def _load_env_file() -> None:
+def _load_env_file(project_dir: Optional[Path] = None) -> None:
     """Load environment variables from .env file at the project root.
+
+    Args:
+        project_dir: Optional explicit path to the project directory.
 
     Uses python-dotenv with override=True to ensure env vars take precedence if also set directly.
     """
-    project_root = _find_project_root()
+    project_root = _find_project_root(project_dir)
     if not project_root:
         logger.debug("Project root not found, skipping .env file loading")
         return
@@ -165,8 +178,11 @@ def _load_env_file() -> None:
         logger.debug(f"Loaded environment variables from {env_file}")
 
 
-def _load_environment_config_files() -> Dict[str, Any]:
+def _load_environment_config_files(project_dir: Optional[Path] = None) -> Dict[str, Any]:
     """Load configuration from environment-specific YAML files.
+
+    Args:
+        project_dir: Optional explicit path to the project directory.
 
     Loads config/default.yml and config/<SIMPLEMAS_ENV>.yml if they exist.
     The environment-specific config overrides default config.
@@ -175,7 +191,7 @@ def _load_environment_config_files() -> Dict[str, Any]:
         A dictionary containing merged configuration from files
     """
     config_data: Dict[str, Any] = {}
-    project_root = _find_project_root()
+    project_root = _find_project_root(project_dir)
 
     if not project_root:
         logger.debug("Project root not found, skipping config file loading")
@@ -200,7 +216,7 @@ def _load_environment_config_files() -> Dict[str, Any]:
     return config_data
 
 
-def load_config(config_model: Type[T], prefix: str = "") -> T:
+def load_config(config_model: Type[T], prefix: str = "", project_dir: Optional[Path] = None) -> T:
     """Load configuration from files, environment variables and project configuration.
 
     Configuration is loaded in the following order (lowest to highest precedence):
@@ -214,6 +230,7 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
     Args:
         config_model: The Pydantic model to use for validation
         prefix: Optional prefix for environment variables
+        project_dir: Optional explicit path to the project directory
 
     Returns:
         A validated configuration object
@@ -223,14 +240,14 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
     """
     try:
         # Load environment variables from .env file (if exists)
-        _load_env_file()
+        _load_env_file(project_dir)
 
         # Build a dictionary from environment variables and project configuration
         config_data: Dict[str, Any] = {}
         env_prefix = f"{prefix}_" if prefix else ""
 
         # Load project configuration and extract default_config
-        project_config = _load_project_config()
+        project_config = _load_project_config(project_dir)
         default_config = project_config.get("default_config", {})
 
         # Apply default config as base layer
@@ -239,7 +256,7 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
             config_data.update(default_config)
 
         # Load and apply configuration from YAML files
-        yaml_config = _load_environment_config_files()
+        yaml_config = _load_environment_config_files(project_dir)
         if yaml_config:
             logger.debug("Applying configuration from YAML files")
             config_data = _deep_merge_dicts(config_data, yaml_config)
@@ -254,7 +271,7 @@ def load_config(config_model: Type[T], prefix: str = "") -> T:
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}CONFIG: {e}")
 
-        # Get the agent name
+        # Get the agent name - this must be explicitly provided or validation will fail
         name = os.environ.get(f"{env_prefix}AGENT_NAME")
         if name:
             config_data["name"] = name

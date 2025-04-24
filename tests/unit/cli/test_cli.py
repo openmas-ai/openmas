@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -393,3 +394,49 @@ def test_run_command_no_agent_class(mock_find_root, mock_import, cli_runner, tem
 
         assert result.exit_code != 0
         assert "No BaseAgent subclass found" in result.output
+
+
+@patch("importlib.import_module")
+@patch("simple_mas.agent.base.BaseAgent", MockBaseAgent)
+@patch("simple_mas.config._find_project_root")
+def test_run_command_with_project_dir(mock_find_root, mock_import, cli_runner, temp_project_dir):
+    """Test the run command with the --project-dir parameter."""
+    mock_find_root.return_value = temp_project_dir
+
+    # Setup a mock module that contains a BaseAgent subclass
+    mock_agent_class = type("Agent1", (MockBaseAgent,), {})
+    mock_module = MagicMock()
+    mock_module.Agent1 = mock_agent_class
+    mock_import.return_value = mock_module
+
+    with cli_runner.isolated_filesystem():
+        # Run the command with project-dir flag
+        result = cli_runner.invoke(cli, ["run", "agent1", "--project-dir", str(temp_project_dir)])
+
+        # Verify that _find_project_root was called with the project directory
+        mock_find_root.assert_called_once_with(temp_project_dir)
+
+        # Verify that the command succeeded
+        assert result.exit_code == 0
+
+
+@patch("simple_mas.config._find_project_root")
+def test_run_command_with_invalid_project_dir(mock_find_root, cli_runner):
+    """Test the run command with an invalid --project-dir."""
+    # Simulate a case where the project directory doesn't contain simplemas_project.yml
+    mock_find_root.return_value = None
+
+    with cli_runner.isolated_filesystem():
+        # Create a temporary directory that doesn't have a simplemas_project.yml
+        invalid_dir = Path("invalid_dir")
+        invalid_dir.mkdir()
+
+        # Run the command with the invalid project directory
+        result = cli_runner.invoke(cli, ["run", "agent1", "--project-dir", str(invalid_dir)])
+
+        # Verify that _find_project_root was called with the project directory
+        mock_find_root.assert_called_once_with(invalid_dir)
+
+        # Verify that the command failed with the correct error message
+        assert result.exit_code != 0
+        assert "Project configuration file 'simplemas_project.yml' not found in specified directory" in result.output

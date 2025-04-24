@@ -5,10 +5,12 @@ The `simplemas run` command is a cornerstone of the SimpleMAS developer experien
 ## Usage
 
 ```bash
-simplemas run <agent_name>
+simplemas run <agent_name> [--project-dir PATH]
 ```
 
-Where `<agent_name>` is the name of an agent defined in your project's `simplemas_project.yml` file.
+Where:
+- `<agent_name>` is the name of an agent defined in your project's `simplemas_project.yml` file.
+- `--project-dir PATH` (optional) is an explicit path to the project directory containing the `simplemas_project.yml` file.
 
 ## Purpose
 
@@ -67,6 +69,16 @@ $ simplemas run worker1
 # In terminal 3
 $ simplemas run worker2
 ...
+```
+
+### Example with project directory specified
+
+```bash
+# Running from outside the project directory
+$ simplemas run orchestrator --project-dir /path/to/my/project
+
+Starting agent 'orchestrator' (OrchestratorAgent)
+Setting up agent...
 ```
 
 ## Graceful Shutdown

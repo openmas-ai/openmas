@@ -101,6 +101,8 @@ class TestLoadConfig:
             "service_urls": {"chess-engine": "http://localhost:8000"},
         }
         monkeypatch.setenv("CONFIG", json.dumps(json_config))
+        # Ensure there's no AGENT_NAME set to override the json config's name
+        monkeypatch.delenv("AGENT_NAME", raising=False)
 
         config = load_config(AgentConfig)
         assert config.name == "test-agent"
@@ -148,9 +150,14 @@ class TestLoadConfig:
 
     def test_missing_required_fields(self, monkeypatch: MonkeyPatch) -> None:
         """Test that missing required fields raise an error."""
-        # No AGENT_NAME set
-        with pytest.raises(ConfigurationError):
-            load_config(AgentConfig)
+        # Clear environment variables
+        monkeypatch.delenv("AGENT_NAME", raising=False)
+        monkeypatch.delenv("CONFIG", raising=False)
+
+        # Patch _load_project_config to return empty config
+        with patch("simple_mas.config._load_project_config", return_value={}):
+            with pytest.raises(ConfigurationError):
+                load_config(AgentConfig)
 
         class CustomConfig(AgentConfig):
             api_key: str
@@ -281,7 +288,7 @@ def test_load_config_json_overrides_default(mock_project_config):
     }
 
     with patch("simple_mas.config._load_project_config", return_value=mock_project_config), patch.dict(
-        os.environ, {"CONFIG": json.dumps(json_config)}
+        os.environ, {"CONFIG": json.dumps(json_config)}, clear=True
     ):
         config = load_config(AgentConfig)
 
@@ -323,11 +330,16 @@ def test_load_config_no_default_config():
 
 def test_load_config_validation_error():
     """Test load_config with validation error."""
+
+    # Create a class with a required field that isn't being provided
+    class CustomConfigWithRequiredField(AgentConfig):
+        required_field: str  # Required field not provided in config
+
     with patch("simple_mas.config._load_project_config", return_value={}), patch.dict(
-        os.environ, {}
-    ):  # Missing required 'name' field
+        os.environ, {"AGENT_NAME": "test-agent"}, clear=True
+    ):
         with pytest.raises(ConfigurationError, match="Configuration validation failed"):
-            load_config(AgentConfig)
+            load_config(CustomConfigWithRequiredField)
 
 
 def test_load_config_with_individual_service_urls(mock_project_config):

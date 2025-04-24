@@ -249,7 +249,12 @@ def list_resources(resource_type: str) -> None:
 
 @cli.command()
 @click.argument("agent_name", type=str)
-def run(agent_name: str) -> None:
+@click.option(
+    "--project-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    help="Explicit path to the project directory containing simplemas_project.yml",
+)
+def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
     """Run an agent from the SimpleMAS project.
 
     AGENT_NAME is the name of the agent to run.
@@ -269,9 +274,16 @@ def run(agent_name: str) -> None:
         sys.exit(1)
 
     # Find project root
-    project_root = _find_project_root()
+    project_root = _find_project_root(project_dir)
     if not project_root:
-        click.echo("❌ Project configuration file 'simplemas_project.yml' not found in current or parent directories")
+        if project_dir:
+            click.echo(
+                f"❌ Project configuration file 'simplemas_project.yml' not found in specified directory: {project_dir}"
+            )
+        else:
+            click.echo(
+                "❌ Project configuration file 'simplemas_project.yml' not found in current or parent directories"
+            )
         sys.exit(1)
 
     # Load project configuration

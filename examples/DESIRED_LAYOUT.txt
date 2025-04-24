@@ -1,0 +1,33 @@
+examples/
+├── 00_hello_agent/             # Absolute basic: Minimal BaseAgent, config, run loop
+│   └── README.md
+├── 01_communication_basics/    # Focus on different communicators
+│   ├── http_client_server/     # Simple HTTP request/response between two agents
+│   ├── mcp_stdio_external/     # Agent connecting to an external MCP process (like Stockfish)
+│   ├── mcp_sse_internal/       # Two SimpleMas agents communicating via MCP over SSE
+│   ├── grpc_request_reply/     # Basic gRPC communication
+│   ├── mq_publish_subscribe/   # Basic MQ pub/sub example
+│   └── README.md               # Explains communicator setup/config
+├── 02_configuration/           # Focus on config loading
+│   ├── layered_loading/        # Show precedence: env vars > env file > project default > SDK default
+│   └── README.md
+├── 03_core_patterns/           # Demonstrate built-in patterns
+│   ├── orchestrator_worker/    # Basic orchestrator delegating tasks
+│   ├── chaining_sequence/      # Simple multi-step process chain
+│   └── README.md
+├── 04_agent_features/          # Specific agent capabilities
+│   ├── mcp_tool_decorator/     # Showcasing @mcp_tool usage in an McpAgent
+│   ├── bdi_hooks/              # Simple agent using BdiAgent base class
+│   └── README.md
+├── 05_integrations/            # Connecting with external systems/libraries
+│   ├── basic_llm/              # Agent using an LLM via recommended config/SDK pattern
+│   └── README.md
+├── 06_project_structure/       # Demonstrating application architecture features
+│   ├── local_extension/        # Using a custom component from the 'extensions/' dir
+│   ├── shared_code_usage/      # Agents utilizing code from the 'shared/' dir
+│   └── README.md
+├── 07_deployment_preview/      # Illustrating deployment concepts
+│   ├── simple_compose_setup/   # A minimal 2-agent project with simplemas.deploy.yaml files
+│   │                           # -> Include the *expected* generated docker-compose.yml as reference
+│   └── README.md               # Explains metadata and references the generation tool
+└── README.md                   # Top-level README explaining the examples structure
