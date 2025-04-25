@@ -197,7 +197,7 @@ def test_list_agents_command(cli_runner, temp_project_dir):
 
         result = cli_runner.invoke(cli, ["list", "agents"])
 
-        assert "Agents defined in the project:" in result.output
+        assert "Agents in project 'test_project':" in result.output
         assert "agent1: agents/agent1" in result.output
         assert "agent2: agents/agent2" in result.output
 

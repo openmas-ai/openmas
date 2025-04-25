@@ -11,6 +11,7 @@ A lightweight SDK for building Multi-Agent Systems with a focus on the Model Con
 - **Belief-Desire-Intention (BDI) Patterns** - Build agents that reason about beliefs, desires, and intentions
 - **Testing Framework** - Test your agents with the built-in testing framework
 - **Deployment Tools** - Generate and orchestrate deployment configurations for Docker Compose and Kubernetes
+- **Package Management** - Import dependencies from Git repositories with `openmas deps`
 
 ## Installation
 
@@ -62,109 +63,6 @@ from openmas.communication import HTTPCommunicator
 
 class MyAgent(BaseAgent):
     async def setup(self) -> None:
-        # Initialize your agent here
-        self.communicator = HTTPCommunicator(
-            agent_name=self.name,
-            service_urls={"other-agent": "http://other-agent:8000/"}
-        )
-
-    async def run(self) -> None:
-        # Run your agent's main logic
-        response = await self.communicator.send_request(
-            "other-agent",
-            "get_data",
-            {"query": "example"}
-        )
-
-    async def shutdown(self) -> None:
-        # Clean up resources
-        pass
-
-# Run the agent
-async def main():
-    agent = MyAgent(name="my-agent")
-    await agent.start()
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
-```
-
-### MCP Integration
-
-OpenMAS provides first-class support for the Model Context Protocol (MCP). To use MCP features, make sure to install the MCP dependencies:
-
-```bash
-pip install 'openmas[mcp]'
-```
-
-Then, you can use the MCP communicators:
-
-```python
-from openmas.agent import BaseAgent
-from openmas.communication.mcp import McpSseCommunicator
-from mcp.client.session import ClientSession
-from mcp.types import TextContent
-
-class McpAgent(BaseAgent):
-    async def setup(self) -> None:
-        self.communicator = McpSseCommunicator(
-            agent_name=self.name,
-            service_urls={"mcp-service": "http://mcp-service:8000/"}
-        )
-
-    async def run(self) -> None:
-        content = TextContent(text="What's the meaning of life?")
-        response = await self.communicator.send_request(
-            "mcp-service",
-            "process",
-            {"content": content}
-        )
-```
-
-### CLI Tool
-
-OpenMAS includes a command-line tool for managing your multi-agent systems:
-
-```bash
-# Generate deployment configurations
-openmas deploy --directory ./my-project --output ./deployment
-
-# Run quality checks
-openmas check
-
-# Start a local agent
-openmas run --agent my-agent
-```
-
-## Documentation
-
-For more details, see the [documentation](docs/):
-
-- [Getting Started](docs/getting_started.md)
-- [Architecture](docs/architecture.md)
-- [Communication](docs/communication.md)
-- [Deployment](docs/deployment.md)
-- [Testing](docs/testing.md)
-- [MCP Integration](docs/mcp_integration.md)
-- [Patterns](docs/patterns.md)
-
-## Quick Start
-
-For this quick start example, you'll need the MCP dependencies:
-
-```bash
-pip install 'openmas[mcp]'
-```
-
-Now you can create your agent:
-
-```python
-from openmas.agent import BaseAgent
-from openmas.communication.mcp import McpSseCommunicator
-
-class MyAgent(BaseAgent):
-    async def setup(self) -> None:
         # Initialize your agent with MCP communication
         self.communicator = McpSseCommunicator(
             agent_name=self.name,
@@ -193,6 +91,24 @@ if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
 ```
+
+### Package Management
+
+OpenMAS provides Git-based package management inspired by dbt. Define dependencies in your `openmas_project.yml`:
+
+```yaml
+dependencies:
+  - git: https://github.com/example/openmas-repo.git
+    revision: main
+```
+
+Install dependencies:
+
+```bash
+openmas deps
+```
+
+Learn more in the [package management documentation](docs/cli/deps.md).
 
 ## Development
 

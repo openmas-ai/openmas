@@ -56,7 +56,7 @@ def init(project_name: str, template: Optional[str], name: Optional[str]) -> Non
         project_path.mkdir(parents=True)
 
     # Create subdirectories
-    subdirs = ["agents", "shared", "extensions", "config", "tests"]
+    subdirs = ["agents", "shared", "extensions", "config", "tests", "packages"]
     for subdir in subdirs:
         (project_path / subdir).mkdir(exist_ok=project_path == Path("."))
 
@@ -68,6 +68,14 @@ def init(project_name: str, template: Optional[str], name: Optional[str]) -> Non
     with open(project_path / "requirements.txt", "w") as f:
         f.write("openmas>=0.1.0\n")
 
+    # Create .gitignore if it doesn't exist
+    gitignore_path = project_path / ".gitignore"
+    if not gitignore_path.exists():
+        with open(gitignore_path, "w") as f:
+            f.write("__pycache__/\n*.py[cod]\n*$py.class\n.env\n.venv\nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/\n")
+            f.write(".pytest_cache/\n.coverage\nhtmlcov/\n.tox/\n.mypy_cache/\n")
+            f.write("# OpenMAS specific\npackages/\n")
+
     # Create openmas_project.yml
     project_config: Dict[str, Any] = {
         "name": display_name,
@@ -76,6 +84,7 @@ def init(project_name: str, template: Optional[str], name: Optional[str]) -> Non
         "shared_paths": ["shared"],
         "extension_paths": ["extensions"],
         "default_config": {"log_level": "INFO", "communicator_type": "http"},
+        "dependencies": [],
     }
 
     # If template is specified, customize the project structure
@@ -159,9 +168,21 @@ dependencies: []
                 project_config["agents"] = {}
             project_config["agents"]["mcp_server"] = "agents/mcp_server"
 
-    # Write the project configuration file
+    # Add dependencies schema comment
+    dependencies_comment = """# Dependencies configuration (for external packages)
+# Examples:
+# dependencies:
+#   # - package: <org_or_user>/<package_name>  # Example: From official repo (Not implemented yet)
+#   #   version: <version_spec>
+#   # - git: <git_url>                         # Example: From Git repo (Implemented)
+#   #   revision: <branch_tag_or_commit>       # Optional
+#   # - local: <relative_path_to_package>      # Example: From local path (Not implemented yet)
+"""
+
+    # Write the project configuration file with comments
     with open(project_path / "openmas_project.yml", "w") as f:
         yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
+        f.write("\n" + dependencies_comment)
 
     if project_path == Path("."):
         click.echo(f"✅ Created OpenMAS project '{display_name}'")
@@ -224,6 +245,54 @@ def validate() -> None:
                 click.echo(f"❌ Extension directory '{ext_path}' does not exist")
                 sys.exit(1)
 
+        # Validate dependencies
+        dependencies = config.get("dependencies", [])
+        if dependencies:
+            click.echo(f"Validating {len(dependencies)} dependencies...")
+
+            for i, dep in enumerate(dependencies):
+                # Each dependency must be a dictionary
+                if not isinstance(dep, dict):
+                    click.echo(f"❌ Dependency #{i+1} is not a dictionary")
+                    sys.exit(1)
+
+                # Each dependency must have exactly one type key
+                dep_types = [key for key in ["git", "package", "local"] if key in dep]
+                if len(dep_types) != 1:
+                    click.echo(f"❌ Dependency #{i+1} must have exactly one type (git, package, or local)")
+                    sys.exit(1)
+
+                dep_type = dep_types[0]
+
+                # Git dependencies must have a valid URL
+                if dep_type == "git":
+                    git_url = dep["git"]
+                    if not git_url or not isinstance(git_url, str):
+                        click.echo(f"❌ Git dependency #{i+1} has invalid URL: {git_url}")
+                        sys.exit(1)
+
+                # Package dependencies must have a valid version
+                elif dep_type == "package":
+                    package_name = dep["package"]
+                    if not package_name or not isinstance(package_name, str):
+                        click.echo(f"❌ Package dependency #{i+1} has invalid name: {package_name}")
+                        sys.exit(1)
+
+                    if "version" not in dep:
+                        click.echo(f"❌ Package dependency '{package_name}' is missing required 'version' field")
+                        sys.exit(1)
+
+                # Local dependencies must have a valid path
+                elif dep_type == "local":
+                    local_path = dep["local"]
+                    if not local_path or not isinstance(local_path, str):
+                        click.echo(f"❌ Local dependency #{i+1} has invalid path: {local_path}")
+                        sys.exit(1)
+
+            # Show implementation status
+            click.echo("✅ Dependencies schema is valid")
+            click.echo("⚠️ Note: Only 'git' dependencies are fully implemented")
+
         click.echo("✅ Project configuration is valid")
         click.echo(f"Project: {config['name']} v{config['version']}")
         click.echo(f"Agents defined: {len(config.get('agents', {}))}")
@@ -256,13 +325,131 @@ def list_resources(resource_type: str) -> None:
                 click.echo("No agents defined in the project")
                 return
 
-            click.echo("Agents defined in the project:")
+            click.echo(f"Agents in project '{config.get('name', 'undefined')}':")
             for agent_name, agent_path in agents.items():
-                click.echo(f"  - {agent_name}: {agent_path}")
-
+                click.echo(f"  {agent_name}: {agent_path}")
     except Exception as e:
-        click.echo(f"❌ Error listing {resource_type}: {e}")
+        click.echo(f"❌ Error listing resources: {e}")
         sys.exit(1)
+
+
+@cli.command()
+@click.option(
+    "--project-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    help="Explicit path to the project directory containing openmas_project.yml",
+)
+@click.option(
+    "--clean",
+    is_flag=True,
+    help="Clean the packages directory before installing dependencies",
+)
+def deps(project_dir: Optional[Path] = None, clean: bool = False) -> None:
+    """Install external dependencies defined in openmas_project.yml.
+
+    Currently supports Git repositories.
+    """
+    import shutil
+    import subprocess
+
+    from openmas.config import _find_project_root
+
+    # Find project root
+    project_root = _find_project_root(project_dir)
+    if not project_root:
+        if project_dir:
+            click.echo(
+                f"❌ Project configuration file 'openmas_project.yml' not found in specified directory: {project_dir}"
+            )
+        else:
+            click.echo("❌ Project configuration file 'openmas_project.yml' not found in current or parent directories")
+        sys.exit(1)
+
+    # Load project configuration
+    try:
+        with open(project_root / "openmas_project.yml", "r") as f:
+            project_config = yaml.safe_load(f)
+    except Exception as e:
+        click.echo(f"❌ Error loading project configuration: {e}")
+        sys.exit(1)
+
+    # Get dependencies from project configuration
+    dependencies = project_config.get("dependencies", [])
+    if not dependencies:
+        click.echo("No dependencies defined in the project configuration")
+        return
+
+    # Create or clean the packages directory
+    packages_dir = project_root / "packages"
+    if clean and packages_dir.exists():
+        click.echo("Cleaning packages directory...")
+        shutil.rmtree(packages_dir)
+
+    packages_dir.mkdir(exist_ok=True)
+
+    # Process dependencies
+    for dep in dependencies:
+        # Handle git dependencies
+        if "git" in dep:
+            git_url = dep["git"]
+            revision = dep.get("revision")
+
+            # Extract repo name from URL
+            repo_name = git_url.rstrip("/").split("/")[-1]
+            if repo_name.endswith(".git"):
+                repo_name = repo_name[:-4]
+
+            target_dir = packages_dir / repo_name
+
+            click.echo(f"Installing git package '{repo_name}' from {git_url}...")
+
+            # Clone the repository
+            try:
+                if target_dir.exists():
+                    # If the directory exists, update the repository
+                    click.echo("  Repository already exists, pulling latest changes...")
+                    subprocess.run(
+                        ["git", "pull", "origin"],
+                        cwd=str(target_dir),
+                        check=True,
+                        capture_output=True,
+                    )
+                else:
+                    # Otherwise, clone the repository
+                    subprocess.run(
+                        ["git", "clone", git_url, str(target_dir)],
+                        check=True,
+                        capture_output=True,
+                    )
+
+                # Checkout the specific revision if specified
+                if revision:
+                    click.echo(f"  Checking out revision: {revision}")
+                    subprocess.run(
+                        ["git", "checkout", revision],
+                        cwd=str(target_dir),
+                        check=True,
+                        capture_output=True,
+                    )
+
+                click.echo(f"✅ Successfully installed '{repo_name}'")
+            except subprocess.SubprocessError as e:
+                click.echo(f"❌ Error installing git package '{repo_name}': {e}")
+                continue
+
+        # Handle package dependencies (not yet implemented)
+        elif "package" in dep:
+            click.echo(f"⚠️ Package dependencies not implemented yet: {dep['package']}")
+
+        # Handle local dependencies (not yet implemented)
+        elif "local" in dep:
+            click.echo(f"⚠️ Local dependencies not implemented yet: {dep['local']}")
+
+        # Handle unknown dependency types
+        else:
+            click.echo(f"⚠️ Unknown dependency type: {dep}")
+
+    click.echo(f"Installed {len(dependencies)} dependencies")
 
 
 @cli.command()
@@ -337,6 +524,19 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
     for path in shared_paths + extension_paths:
         if path.exists() and str(path) not in sys_path_additions:
             sys_path_additions.append(str(path))
+
+    # Add packages to sys.path
+    packages_dir = project_root / "packages"
+    if packages_dir.exists():
+        for package_dir in packages_dir.iterdir():
+            if package_dir.is_dir():
+                # Add primary paths for import - prioritizing src/ directory if it exists
+                src_dir = package_dir / "src"
+                if src_dir.exists() and src_dir.is_dir():
+                    if str(src_dir) not in sys_path_additions:
+                        sys_path_additions.append(str(src_dir))
+                elif str(package_dir) not in sys_path_additions:
+                    sys_path_additions.append(str(package_dir))
 
     # Add to sys.path
     for path in sys_path_additions:

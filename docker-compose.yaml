@@ -1,0 +1,16 @@
+version: '3'
+services:
+  test-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+    - AGENT_NAME=test-agent
+    - LOG_LEVEL=INFO
+    - API_KEY
+    ports:
+    - 8000:8000
+    volumes:
+    - ./data:/app/data
+    depends_on:
+    - database
