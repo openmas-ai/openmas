@@ -543,6 +543,16 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
         if path not in sys.path:
             sys.path.insert(0, path)
 
+    # Discover local communicators and plugins BEFORE importing agent module
+    # This ensures communicators are properly registered before agent code runs
+    from openmas.communication import discover_communicator_plugins, discover_local_communicators
+
+    click.echo("Discovering local communicators...")
+    discover_local_communicators([str(path) for path in extension_paths if path.exists()])
+
+    # Also discover package entry point communicators
+    discover_communicator_plugins()
+
     # Set environment variables
     os.environ["AGENT_NAME"] = agent_name
     os.environ["OPENMAS_ENV"] = os.environ.get("OPENMAS_ENV", "local")

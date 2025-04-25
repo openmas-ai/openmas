@@ -104,6 +104,12 @@ COMMUNICATOR_LOADERS = {
 def get_communicator_by_type(communicator_type: str) -> Type[BaseCommunicator]:
     """Get a communicator class by type with lazy loading.
 
+    This function follows a specific precedence order when searching for communicators:
+    1. Built-in types (COMMUNICATOR_TYPES)
+    2. Lazy-loaded built-in types (COMMUNICATOR_LOADERS)
+    3. Local extensions (registered in _COMMUNICATOR_REGISTRY)
+    4. Package entry points (discovered via entry points and added to _COMMUNICATOR_REGISTRY)
+
     Args:
         communicator_type: The type of communicator to get
 
@@ -113,35 +119,36 @@ def get_communicator_by_type(communicator_type: str) -> Type[BaseCommunicator]:
     Raises:
         ValueError: If the communicator type is not found
     """
-    # Check if already loaded
+    from openmas.communication.base import _COMMUNICATOR_REGISTRY
+
+    # Step 1: Check built-in types (highest precedence)
     if communicator_type in COMMUNICATOR_TYPES:
         return COMMUNICATOR_TYPES[communicator_type]
 
-    # Check if we have a loader for it
+    # Step 2: Check if we have a lazy loader for built-in types
     if communicator_type in COMMUNICATOR_LOADERS:
         # Lazily load it
         return COMMUNICATOR_LOADERS[communicator_type]()
 
-    # Not found and no loader, try standard registry
-    try:
-        return get_communicator_class(communicator_type)
-    except ValueError:
-        # One last attempt - try to discover communicator plugins
-        discover_communicator_plugins()
-        try:
-            return get_communicator_class(communicator_type)
-        except ValueError:
-            # If we get here, the communicator type is really not found
-            from openmas.communication.base import _COMMUNICATOR_REGISTRY
+    # Step 3: Check the registry (which includes extensions already discovered)
+    if communicator_type in _COMMUNICATOR_REGISTRY:
+        return _COMMUNICATOR_REGISTRY[communicator_type]
 
-            available_types = ", ".join(sorted(list(_COMMUNICATOR_REGISTRY.keys())))
-            available = available_types or "none"
-            message = (
-                f"Communicator type '{communicator_type}' not found. "
-                f"Available types: {available}. "
-                f"Check your configuration or provide a valid communicator_class."
-            )
-            raise ValueError(message)
+    # Step 4: Not found yet, try to discover communicator plugins from packages
+    discover_communicator_plugins()
+    # Check if the communicator is now in the registry after plugin discovery
+    if communicator_type in _COMMUNICATOR_REGISTRY:
+        return _COMMUNICATOR_REGISTRY[communicator_type]
+
+    # If we get here, the communicator type is really not found anywhere
+    available_types = ", ".join(sorted(list(_COMMUNICATOR_REGISTRY.keys())))
+    available = available_types or "none"
+    message = (
+        f"Communicator type '{communicator_type}' not found. "
+        f"Available types: {available}. "
+        f"Check your configuration or provide a valid communicator_class."
+    )
+    raise ValueError(message)
 
 
 # Export all available communicator types

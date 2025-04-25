@@ -122,23 +122,36 @@ def discover_local_communicators(extension_paths: list[str]) -> None:
     """Discover and register communicator plugins from local extensions.
 
     This function searches the provided paths for communicator implementations
-    and registers them.
+    and registers them. It assumes that sys.path has already been set up
+    correctly to include these paths.
+
+    The precedence is handled by the register_communicator function, which
+    logs a warning when overwriting an existing communicator and follows the
+    precedence order: built-ins -> extensions -> packages.
 
     Args:
         extension_paths: List of paths to search for extensions
     """
     import importlib.util
     import os
-    import sys
+
+    logger.debug("Discovering local communicators", extension_paths=extension_paths)
 
     for base_path in extension_paths:
         try:
+            if not base_path:
+                logger.warning("Empty extension path provided, skipping")
+                continue
+
             # Convert to absolute path if it's not already
             abs_path = os.path.abspath(base_path)
 
-            # Add the base directory to sys.path if it's not already there
-            if abs_path not in sys.path:
-                sys.path.insert(0, abs_path)
+            # Check if the path exists
+            if not os.path.exists(abs_path):
+                logger.warning(f"Extension path does not exist: {abs_path}")
+                continue
+
+            logger.debug(f"Searching for communicators in: {abs_path}")
 
             # Walk through the directory looking for Python files
             for root, _, files in os.walk(abs_path):
@@ -150,10 +163,15 @@ def discover_local_communicators(extension_paths: list[str]) -> None:
 
                         # Try to import the module and look for communicator classes
                         try:
+                            logger.debug(f"Examining potential communicator module: {module_name} at {file_path}")
                             spec = importlib.util.spec_from_file_location(module_name, file_path)
                             if spec and spec.loader:
                                 module = importlib.util.module_from_spec(spec)
-                                spec.loader.exec_module(module)
+                                try:
+                                    spec.loader.exec_module(module)
+                                except Exception as e:
+                                    logger.error(f"Error loading module {module_name}: {str(e)}", exc_info=True)
+                                    continue
 
                                 # Check if any BaseCommunicator subclasses exist in the module
                                 found_communicator = False
@@ -177,10 +195,17 @@ def discover_local_communicators(extension_paths: list[str]) -> None:
 
                                 if found_communicator:
                                     logger.info(f"Loaded communicator(s) from {file_path}")
+                        except ImportError as e:
+                            logger.error(
+                                f"Import error loading module {module_name} from {file_path}: {str(e)}", exc_info=True
+                            )
                         except Exception as e:
-                            logger.error(f"Error loading module {module_name} from {file_path}: {e}")
+                            logger.error(
+                                f"Unexpected error loading module {module_name} from {file_path}: {str(e)}",
+                                exc_info=True,
+                            )
         except Exception as e:
-            logger.error(f"Error processing extension path {base_path}: {e}")
+            logger.error(f"Error processing extension path {base_path}: {str(e)}", exc_info=True)
 
 
 def discover_communicator_plugins() -> None:
