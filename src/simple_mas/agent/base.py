@@ -6,12 +6,7 @@ from typing import Any, Dict, Optional, Type, Union
 
 from pydantic import ValidationError
 
-from simple_mas.communication import (
-    BaseCommunicator,
-    discover_communicator_plugins,
-    discover_local_communicators,
-    get_communicator_class,
-)
+from simple_mas.communication import BaseCommunicator, discover_local_communicators
 from simple_mas.config import AgentConfig, load_config
 from simple_mas.exceptions import ConfigurationError, LifecycleError
 from simple_mas.logging import configure_logging, get_logger
@@ -87,9 +82,8 @@ class BaseAgent(abc.ABC):
     def _get_communicator_class(self, communicator_type: str) -> Type[BaseCommunicator]:
         """Get the communicator class for the specified type.
 
-        This method tries to find the communicator class in the following order:
-        1. Check in the registry (which includes built-ins and entry points)
-        2. Search extension_paths for local implementations
+        This method uses the lazy-loading mechanism to find communicator classes without
+        importing unnecessary dependencies.
 
         Args:
             communicator_type: The type identifier for the communicator
@@ -101,22 +95,26 @@ class BaseAgent(abc.ABC):
             ValueError: If the communicator type cannot be found
         """
         try:
-            # First try to get from registry (includes built-ins and entry points)
-            discover_communicator_plugins()
-            return get_communicator_class(communicator_type)
+            # First try to get using our lazy loading mechanism
+            from simple_mas.communication import get_communicator_by_type
+
+            return get_communicator_by_type(communicator_type)
         except ValueError:
             # If not found, check extension paths
             if self.config.extension_paths:
                 discover_local_communicators(self.config.extension_paths)
                 try:
-                    return get_communicator_class(communicator_type)
+                    # Try again after discovering local communicators
+                    from simple_mas.communication import get_communicator_by_type
+
+                    return get_communicator_by_type(communicator_type)
                 except ValueError:
                     pass
 
             # If we get here, the communicator type is not found
             from simple_mas.communication.base import _COMMUNICATOR_REGISTRY
 
-            available_types = ", ".join(_COMMUNICATOR_REGISTRY.keys())
+            available_types = ", ".join(sorted(list(_COMMUNICATOR_REGISTRY.keys())))
             available = available_types or "none"
             message = (
                 f"Communicator type '{communicator_type}' not found. "

@@ -84,12 +84,12 @@ class SimpleMasServicer(pb2_grpc.SimpleMasServiceServicer):
                     response.result = str(result).encode()
             except Exception as e:
                 # Create an error response
-                response.error.code = 500
+                response.error.code = 500  # Internal server error
                 response.error.message = str(e)
                 response.error.details = type(e).__name__
         else:
             # Method not found
-            response.error.code = 404
+            response.error.code = 404  # Not found
             response.error.message = f"Method '{method}' not found"
             response.error.details = "MethodNotFoundError"
 

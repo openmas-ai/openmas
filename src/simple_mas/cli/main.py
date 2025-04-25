@@ -30,28 +30,39 @@ def cli() -> None:
 @cli.command()
 @click.argument("project_name", type=str)
 @click.option("--template", "-t", type=str, default=None, help="Template to use for project initialization")
-def init(project_name: str, template: Optional[str]) -> None:
+@click.option("--name", type=str, default=None, help="Project name when initializing in current directory")
+def init(project_name: str, template: Optional[str], name: Optional[str]) -> None:
     """Initialize a new SimpleMAS project with standard directory structure.
 
-    PROJECT_NAME is the name of the project to create.
+    PROJECT_NAME is the name of the project to create or "." for current directory.
     """
-    project_path = Path(project_name)
+    # Handle special case for current directory
+    if project_name == ".":
+        if not name:
+            click.echo("❌ When initializing in the current directory (.), you must provide a project name with --name")
+            sys.exit(1)
+        project_path = Path(".")
+        display_name = name
+    else:
+        project_path = Path(project_name)
+        display_name = project_name
 
-    if project_path.exists():
+    if project_path.exists() and project_path != Path("."):
         click.echo(f"❌ Project directory '{project_name}' already exists.")
         sys.exit(1)
 
-    # Create main project directory
-    project_path.mkdir(parents=True)
+    # Create main project directory if not using current directory
+    if project_path != Path("."):
+        project_path.mkdir(parents=True)
 
     # Create subdirectories
     subdirs = ["agents", "shared", "extensions", "config", "tests"]
     for subdir in subdirs:
-        (project_path / subdir).mkdir()
+        (project_path / subdir).mkdir(exist_ok=project_path == Path("."))
 
     # Create README.md
     with open(project_path / "README.md", "w") as f:
-        f.write(f"# {project_name}\n\nA SimpleMAS project.\n")
+        f.write(f"# {display_name}\n\nA SimpleMAS project.\n")
 
     # Create requirements.txt
     with open(project_path / "requirements.txt", "w") as f:
@@ -59,7 +70,7 @@ def init(project_name: str, template: Optional[str]) -> None:
 
     # Create simplemas_project.yml
     project_config: Dict[str, Any] = {
-        "name": project_name,
+        "name": display_name,
         "version": "0.1.0",
         "agents": {},
         "shared_paths": ["shared"],
@@ -72,7 +83,7 @@ def init(project_name: str, template: Optional[str]) -> None:
         if template.lower() == "mcp-server":
             # Setup an MCP server template
             agent_dir = project_path / "agents" / "mcp_server"
-            agent_dir.mkdir(parents=True)
+            agent_dir.mkdir(parents=True, exist_ok=project_path == Path("."))
 
             # Create agent.py file
             with open(agent_dir / "agent.py", "w") as f:
@@ -152,12 +163,19 @@ dependencies: []
     with open(project_path / "simplemas_project.yml", "w") as f:
         yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
 
-    click.echo(f"✅ Created SimpleMAS project '{project_name}'")
-    click.echo(f"Project structure initialized in '{project_path}'")
+    if project_path == Path("."):
+        click.echo(f"✅ Created SimpleMAS project '{display_name}'")
+        click.echo("Project structure initialized in current directory")
+    else:
+        click.echo(f"✅ Created SimpleMAS project '{project_path}'")
+        click.echo(f"Project structure initialized in '{project_path}'")
+
     if template:
         click.echo(f"Used template: {template}")
+
     click.echo("\nNext steps:")
-    click.echo(f"  cd {project_name}")
+    if project_path != Path("."):
+        click.echo(f"  cd {project_name}")
     click.echo("  poetry install simple-mas")
     click.echo("  # Start developing your agents!")
 
@@ -457,6 +475,116 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
     finally:
         # Restore original sys.path
         sys.path = original_sys_path
+
+
+@cli.command()
+@click.argument("agent_name", type=str)
+@click.option(
+    "--output-file",
+    type=str,
+    default="Dockerfile",
+    help="Name of the output Dockerfile",
+)
+@click.option(
+    "--project-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    help="Explicit path to the project directory containing simplemas_project.yml",
+)
+@click.option(
+    "--python-version",
+    type=str,
+    default="3.10",
+    help="Python version to use",
+)
+@click.option(
+    "--use-poetry",
+    is_flag=True,
+    help="Use Poetry for dependency management instead of pip requirements.txt",
+)
+def generate_dockerfile(
+    agent_name: str,
+    output_file: str,
+    project_dir: Optional[Path] = None,
+    python_version: str = "3.10",
+    use_poetry: bool = False,
+) -> None:
+    """Generate a Dockerfile for an agent.
+
+    AGENT_NAME is the name of the agent to generate a Dockerfile for.
+    """
+    from simple_mas.config import _find_project_root
+    from simple_mas.deployment.generators import DockerfileGenerator
+
+    # Find project root
+    project_root = _find_project_root(project_dir)
+    if not project_root:
+        if project_dir:
+            click.echo(
+                f"❌ Project configuration file 'simplemas_project.yml' not found in specified directory: {project_dir}"
+            )
+        else:
+            click.echo(
+                "❌ Project configuration file 'simplemas_project.yml' not found in current or parent directories"
+            )
+        sys.exit(1)
+
+    # Load project configuration
+    try:
+        with open(project_root / "simplemas_project.yml", "r") as f:
+            project_config = yaml.safe_load(f)
+    except Exception as e:
+        click.echo(f"❌ Error loading project configuration: {e}")
+        sys.exit(1)
+
+    # Find the agent in the project configuration
+    agents = project_config.get("agents", {})
+    if agent_name not in agents:
+        click.echo(f"❌ Agent '{agent_name}' not found in project configuration")
+        all_agents = list(agents.keys())
+        if all_agents:
+            click.echo(f"Available agents: {', '.join(all_agents)}")
+        sys.exit(1)
+
+    # Get agent path
+    agent_path = agents[agent_name]
+
+    # Ensure agent path exists
+    agent_dir = project_root / agent_path
+    if not agent_dir.exists():
+        click.echo(f"❌ Agent directory for '{agent_name}' not found at '{agent_path}'")
+        sys.exit(1)
+
+    # Use the DockerfileGenerator
+    generator = DockerfileGenerator()
+
+    # Set entrypoint to use the simplemas CLI to run the agent
+    # The DockerfileGenerator will use this command in the CMD directive
+    # It needs to be a shell command, not the argument to python
+    app_entrypoint = f"-m simple_mas.cli run {agent_name}"
+
+    # Determine requirements file path
+    requirements_file = "requirements.txt"
+
+    try:
+        # Generate the Dockerfile
+        output_path = Path(output_file)
+        generator.save(
+            output_path=output_path,
+            python_version=python_version,
+            app_entrypoint=app_entrypoint,
+            requirements_file=requirements_file,
+            use_poetry=use_poetry,
+            port=8000,  # Default port, not crucial for agent
+        )
+
+        click.echo(f"✅ Generated Dockerfile for agent '{agent_name}' at '{output_path}'")
+        click.echo("\nBuild the Docker image with:")
+        click.echo(f"  docker build -t {project_config['name'].lower()}-{agent_name} -f {output_file} .")
+        click.echo("\nRun the Docker container with:")
+        click.echo(f"  docker run --name {agent_name} {project_config['name'].lower()}-{agent_name}")
+    except Exception as e:
+        click.echo(f"❌ Error generating Dockerfile: {e}")
+        sys.exit(1)
 
 
 def main() -> int:

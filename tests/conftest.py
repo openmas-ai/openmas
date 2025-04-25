@@ -17,14 +17,6 @@ from simple_mas.config import AgentConfig
 from simple_mas.testing import AgentTestHarness
 from simple_mas.testing.mock_communicator import MockCommunicator
 
-# Try to import GrpcCommunicator if available
-try:
-    from simple_mas.communication.grpc import GrpcCommunicator
-
-    HAS_GRPC = True
-except ImportError:
-    HAS_GRPC = False
-
 # These registrations can be removed since they're now handled by the fixture below
 # register_communicator("mock", MockCommunicator)
 # register_communicator("http", HttpCommunicator)
@@ -44,9 +36,7 @@ def reset_communicator_registry():
         _COMMUNICATOR_REGISTRY.clear()
         register_communicator("mock", MockCommunicator)
         register_communicator("http", HttpCommunicator)
-        # Register gRPC communicator if available
-        if HAS_GRPC:
-            register_communicator("grpc", GrpcCommunicator)
+        # No need to eagerly register gRPC communicator - it will be loaded lazily if needed
         yield
     finally:
         # Restore original registry after test

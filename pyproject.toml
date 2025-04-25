@@ -17,11 +17,16 @@ structlog = "^23.2.0"
 fastapi = "^0.115.12"
 mcp = "1.6.0"
 pyyaml = "^6.0.1"
-grpcio = "^1.71.0"
-grpcio-tools = "^1.71.0"
-protobuf = "^6.30.2"
 typer = "^0.15.2"
 python-dotenv = "^1.1.0"
+
+[tool.poetry.group.grpc]
+optional = true
+
+[tool.poetry.group.grpc.dependencies]
+grpcio = "^1.71.0"
+grpcio-tools = "^1.71.0"
+protobuf = ">=5.26.1,<6.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
@@ -37,6 +42,7 @@ types-pyyaml = "^6.0.12.20250402"
 types-setuptools = "^79.0.0.20250422"
 uvicorn = "^0.34.2"
 pytest-timeout = "^2.3.1"
+tox = "^4.25.0"
 
 [build-system]
 requires = ["poetry-core"]
