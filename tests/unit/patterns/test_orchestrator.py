@@ -5,13 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from simple_mas.patterns.orchestrator import (
-    BaseOrchestratorAgent,
-    BaseWorkerAgent,
-    TaskHandler,
-    TaskRequest,
-    TaskResult,
-)
+from openmas.patterns.orchestrator import BaseOrchestratorAgent, BaseWorkerAgent, TaskHandler, TaskRequest, TaskResult
 
 
 class TestOrchestratorAgent:

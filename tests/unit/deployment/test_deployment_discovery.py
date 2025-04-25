@@ -6,9 +6,9 @@ from pathlib import Path
 
 import yaml
 
-from simple_mas.deployment.discovery import ComponentDiscovery
-from simple_mas.deployment.metadata import DeploymentMetadata
-from simple_mas.deployment.orchestration import ComposeOrchestrator
+from openmas.deployment.discovery import ComponentDiscovery
+from openmas.deployment.metadata import DeploymentMetadata
+from openmas.deployment.orchestration import ComposeOrchestrator
 
 
 class TestComponentDiscovery(unittest.TestCase):
@@ -32,7 +32,7 @@ class TestComponentDiscovery(unittest.TestCase):
             "dependencies": [{"name": "agent2", "required": True}],
         }
 
-        with open(self.agent1_dir / "simplemas.deploy.yaml", "w") as f:
+        with open(self.agent1_dir / "openmas.deploy.yaml", "w") as f:
             yaml.safe_dump(self.agent1_metadata, f)
 
         # Create agent2 directory and metadata
@@ -46,7 +46,7 @@ class TestComponentDiscovery(unittest.TestCase):
             "ports": [{"port": 8001, "protocol": "http"}],
         }
 
-        with open(self.agent2_dir / "simplemas.deploy.yaml", "w") as f:
+        with open(self.agent2_dir / "openmas.deploy.yaml", "w") as f:
             yaml.safe_dump(self.agent2_metadata, f)
 
         # Create a subdirectory with another agent
@@ -60,7 +60,7 @@ class TestComponentDiscovery(unittest.TestCase):
             "ports": [],
         }
 
-        with open(self.nested_dir / "simplemas.deploy.yaml", "w") as f:
+        with open(self.nested_dir / "openmas.deploy.yaml", "w") as f:
             yaml.safe_dump(self.nested_metadata, f)
 
     def tearDown(self):
@@ -87,13 +87,13 @@ class TestComponentDiscovery(unittest.TestCase):
     def test_discover_with_pattern(self):
         """Test discovering components with a glob pattern."""
         discoverer = ComponentDiscovery()
-        components = discoverer.discover_components(self.root_dir, pattern="**/simplemas.deploy.yaml")
+        components = discoverer.discover_components(self.root_dir, pattern="**/openmas.deploy.yaml")
 
         # Should find all three components
         assert len(components) == 3
 
         # Test with a more specific pattern
-        components = discoverer.discover_components(self.root_dir, pattern="agent*/simplemas.deploy.yaml")
+        components = discoverer.discover_components(self.root_dir, pattern="agent*/openmas.deploy.yaml")
 
         # Should find only agent1 and agent2
         assert len(components) == 2

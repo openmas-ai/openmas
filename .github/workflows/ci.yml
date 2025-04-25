@@ -39,7 +39,7 @@ jobs:
 
     - name: Run tests
       run: |
-        poetry run pytest --cov=simple_mas tests/
+        poetry run pytest --cov=openmas tests/
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

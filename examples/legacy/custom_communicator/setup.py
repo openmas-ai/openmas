@@ -1,21 +1,21 @@
-"""Setup script for simple-mas-mqtt-communicator."""
+"""Setup script for openmas-mqtt-communicator."""
 
 from setuptools import find_packages, setup
 
 setup(
-    name="simple-mas-mqtt-communicator",
+    name="openmas-mqtt-communicator",
     version="0.1.0",
-    description="MQTT Communicator plugin for SimpleMas",
-    author="SimpleMas Contributors",
+    description="MQTT Communicator plugin for OpenMAS",
+    author="OpenMAS Contributors",
     author_email="example@example.com",
-    url="https://github.com/example/simple-mas-mqtt-communicator",
+    url="https://github.com/example/openmas-mqtt-communicator",
     packages=find_packages(),
     install_requires=[
-        "simple-mas>=0.1.0",
+        "openmas>=0.1.0",
         "asyncio-mqtt>=0.12.0",
     ],
     entry_points={
-        "simple_mas.communicators": [
+        "openmas.communicators": [
             "mqtt=mqtt_communicator:MqttCommunicator",
         ],
     },

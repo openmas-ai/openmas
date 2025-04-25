@@ -49,7 +49,7 @@ except ImportError:
     grpc = MockGrpcModule()
 
 # Import exceptions - these don't depend on gRPC being available
-from simple_mas.exceptions import CommunicationError, MethodNotFoundError, RequestTimeoutError, ServiceNotFoundError
+from openmas.exceptions import CommunicationError, MethodNotFoundError, RequestTimeoutError, ServiceNotFoundError
 
 # Don't try to load components at module level - defer to each test
 # We'll mark the tests with pytest.mark.skipif to skip if gRPC not available
@@ -101,13 +101,13 @@ class ResponseModel(BaseModel):
 # Helper function to get gRPC components, used by tests when needed
 def get_grpc_components():
     """Get gRPC communicator and proto components on demand."""
-    from simple_mas.communication import _load_grpc_communicator
+    from openmas.communication import _load_grpc_communicator
 
     GrpcCommunicator = _load_grpc_communicator()
-    from simple_mas.communication.grpc import simple_mas_pb2 as pb2
-    from simple_mas.communication.grpc.communicator import SimpleMasServicer
+    from openmas.communication.grpc import openmas_pb2 as pb2
+    from openmas.communication.grpc.communicator import OpenMasServicer
 
-    return GrpcCommunicator, pb2, SimpleMasServicer
+    return GrpcCommunicator, pb2, OpenMasServicer
 
 
 @pytest.fixture
@@ -166,17 +166,17 @@ def mock_grpc_stub():
 
 @pytest.fixture
 def test_servicer():
-    """Create a SimpleMasServicer for testing."""
+    """Create a OpenMasServicer for testing."""
     # Skip if gRPC not available
     if not HAS_GRPC:
         pytest.skip("gRPC not available")
 
-    GrpcCommunicator, _, SimpleMasServicer = get_grpc_components()
+    GrpcCommunicator, _, OpenMasServicer = get_grpc_components()
 
     communicator = mock.AsyncMock(spec=GrpcCommunicator)
     communicator.agent_name = "test-agent"
     communicator.handlers = {}
-    servicer = SimpleMasServicer(communicator)
+    servicer = OpenMasServicer(communicator)
     return servicer, communicator
 
 
@@ -420,7 +420,7 @@ class TestGrpcCommunicator:
 
     @pytest.mark.asyncio
     async def test_error_mapping(self, mock_grpc_channel):
-        """Test mapping of gRPC status codes to SimpleMasError types."""
+        """Test mapping of gRPC status codes to OpenMasError types."""
         GrpcCommunicator, _, _ = get_grpc_components()
 
         service_urls = {"test-service": "localhost:50051"}
@@ -549,10 +549,10 @@ class TestGrpcCommunicator:
         mock_add_servicer = mock.MagicMock()
 
         # Apply the patches
-        with mock.patch("simple_mas.communication.grpc.communicator.aio_server", mock_server_factory), mock.patch(
-            "simple_mas.communication.grpc.communicator.SimpleMasServicer", mock_servicer_class
+        with mock.patch("openmas.communication.grpc.communicator.aio_server", mock_server_factory), mock.patch(
+            "openmas.communication.grpc.communicator.OpenMasServicer", mock_servicer_class
         ), mock.patch(
-            "simple_mas.communication.grpc.communicator.add_SimpleMasServiceServicer_to_server", mock_add_servicer
+            "openmas.communication.grpc.communicator.add_OpenMasServiceServicer_to_server", mock_add_servicer
         ):
             # Create and start the communicator
             communicator = GrpcCommunicator("test-agent", {}, server_mode=True, server_address="[::]:50053")
@@ -607,8 +607,8 @@ class TestGrpcCommunicator:
         assert communicator.server is None
 
 
-class TestSimpleMasServicer:
-    """Tests for the SimpleMasServicer class."""
+class TestOpenMasServicer:
+    """Tests for the OpenMasServicer class."""
 
     @pytest.mark.asyncio
     async def test_send_request_success(self, test_servicer):

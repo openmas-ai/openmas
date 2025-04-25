@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Example of using the Orchestrator-Worker pattern in SimpleMAS.
+"""Example of using the Orchestrator-Worker pattern in OpenMAS.
 
 This example demonstrates how to implement a data processing pipeline
 using the Orchestrator-Worker pattern with multiple specialized worker agents.
@@ -10,8 +10,8 @@ import json
 import logging
 from typing import Any, Dict, List
 
-from simple_mas.logging import configure_logging
-from simple_mas.patterns.orchestrator import BaseOrchestratorAgent, BaseWorkerAgent, TaskHandler
+from openmas.logging import configure_logging
+from openmas.patterns.orchestrator import BaseOrchestratorAgent, BaseWorkerAgent, TaskHandler
 
 # Configure logging
 configure_logging(log_level=logging.INFO)

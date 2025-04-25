@@ -5,11 +5,11 @@ from typing import Any, Dict, List
 
 import pytest
 
-from simple_mas.agent.bdi import BdiAgent
-from simple_mas.config import AgentConfig
-from simple_mas.exceptions import ServiceNotFoundError
-from simple_mas.testing.harness import AgentTestHarness
-from simple_mas.testing.mock_communicator import MockCommunicator
+from openmas.agent.bdi import BdiAgent
+from openmas.config import AgentConfig
+from openmas.exceptions import ServiceNotFoundError
+from openmas.testing.harness import AgentTestHarness
+from openmas.testing.mock_communicator import MockCommunicator
 
 
 class SimpleTestAgent(BdiAgent):

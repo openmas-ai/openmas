@@ -6,8 +6,8 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
-from simple_mas.communication import HttpCommunicator
-from simple_mas.exceptions import CommunicationError, MethodNotFoundError, ServiceNotFoundError
+from openmas.communication import HttpCommunicator
+from openmas.exceptions import CommunicationError, MethodNotFoundError, ServiceNotFoundError
 
 
 class TestResponse:

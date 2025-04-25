@@ -24,9 +24,9 @@ import sys
 from mcp.client.session import ClientSession
 from mcp.types import TextContent
 
-from simple_mas.agent import Agent
-from simple_mas.communication import Message
-from simple_mas.config import AgentConfig, CommunicatorConfig
+from openmas.agent import Agent
+from openmas.communication import Message
+from openmas.config import AgentConfig, CommunicatorConfig
 
 
 class LLMAgent(Agent):

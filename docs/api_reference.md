@@ -1,6 +1,6 @@
-# SimpleMas API Reference
+# OpenMAS API Reference
 
-This document provides a reference to the core API of SimpleMas.
+This document provides a reference to the core API of OpenMAS.
 
 ## Agent
 
@@ -154,7 +154,7 @@ Get a logger instance for the given name.
 
 **Example:**
 ```python
-from simple_mas.logging import get_logger
+from openmas.logging import get_logger
 
 logger = get_logger(__name__)
 logger.info("Message", key="value")

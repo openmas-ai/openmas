@@ -1,22 +1,22 @@
-# `simplemas run` Command
+# `openmas run` Command
 
-The `simplemas run` command is a cornerstone of the SimpleMAS developer experience, designed for local execution and debugging of a single agent within a multi-agent system. It functions similarly to `dbt run` in its role within the development loop.
+The `openmas run` command is a cornerstone of the OpenMAS developer experience, designed for local execution and debugging of a single agent within a multi-agent system. It functions similarly to `dbt run` in its role within the development loop.
 
 ## Usage
 
 ```bash
-simplemas run <agent_name> [--project-dir PATH]
+openmas run <agent_name> [--project-dir PATH]
 ```
 
 Where:
-- `<agent_name>` is the name of an agent defined in your project's `simplemas_project.yml` file.
-- `--project-dir PATH` (optional) is an explicit path to the project directory containing the `simplemas_project.yml` file.
+- `<agent_name>` is the name of an agent defined in your project's `openmas_project.yml` file.
+- `--project-dir PATH` (optional) is an explicit path to the project directory containing the `openmas_project.yml` file.
 
 ## Purpose
 
 This command provides a standardized, framework-aware way to run and test individual agents locally. It:
 
-1. Finds your project root (location of `simplemas_project.yml`)
+1. Finds your project root (location of `openmas_project.yml`)
 2. Loads the complete, layered configuration stack
 3. Sets up Python paths for imports from `shared/` and `extensions/` directories
 4. Dynamically loads and instantiates the specified agent
@@ -29,10 +29,10 @@ This command provides a standardized, framework-aware way to run and test indivi
 
 When running an agent, configuration is loaded in the following order (lowest to highest precedence):
 
-1. SimpleMas SDK internal defaults (defined in Pydantic models)
-2. `default_config` section in `simplemas_project.yml`
+1. OpenMAS SDK internal defaults (defined in Pydantic models)
+2. `default_config` section in `openmas_project.yml`
 3. `config/default.yml` file
-4. `config/<SIMPLEMAS_ENV>.yml` file (defaults to `local.yml` if `SIMPLEMAS_ENV` is not set)
+4. `config/<OPENMAS_ENV>.yml` file (defaults to `local.yml` if `OPENMAS_ENV` is not set)
 5. `.env` file at project root
 6. Environment variables (highest precedence)
 
@@ -43,7 +43,7 @@ This layered approach allows for flexible configuration management across differ
 To run a full multi-agent system locally, you need to:
 
 1. Open a separate terminal window for each agent
-2. Run each agent with `simplemas run <agent_name>`
+2. Run each agent with `openmas run <agent_name>`
 
 After successfully starting an agent, if your project contains multiple agents, the command will display a helpful guidance message suggesting how to run the other agents in your project.
 
@@ -51,23 +51,23 @@ After successfully starting an agent, if your project contains multiple agents, 
 
 ```bash
 # In terminal 1
-$ simplemas run orchestrator
+$ openmas run orchestrator
 
 Starting agent 'orchestrator' (OrchestratorAgent)
 Setting up agent...
 
-[SimpleMas CLI] Agent start success.
-[SimpleMas CLI] To run other agents in this project, open new terminal windows and use:
-[SimpleMas CLI]     simplemas run worker1
-[SimpleMas CLI]     simplemas run worker2
-[SimpleMas CLI] Project agents: orchestrator, worker1, worker2
+[OpenMAS CLI] Agent start success.
+[OpenMAS CLI] To run other agents in this project, open new terminal windows and use:
+[OpenMAS CLI]     openmas run worker1
+[OpenMAS CLI]     openmas run worker2
+[OpenMAS CLI] Project agents: orchestrator, worker1, worker2
 
 # In terminal 2
-$ simplemas run worker1
+$ openmas run worker1
 ...
 
 # In terminal 3
-$ simplemas run worker2
+$ openmas run worker2
 ...
 ```
 
@@ -75,7 +75,7 @@ $ simplemas run worker2
 
 ```bash
 # Running from outside the project directory
-$ simplemas run orchestrator --project-dir /path/to/my/project
+$ openmas run orchestrator --project-dir /path/to/my/project
 
 Starting agent 'orchestrator' (OrchestratorAgent)
 Setting up agent...
@@ -113,6 +113,6 @@ The command provides specific and informative error messages for common issues:
 
 ## Related Commands
 
-- `simplemas init`: Initialize a new SimpleMAS project
-- `simplemas validate`: Validate project configuration
-- `simplemas list agents`: List agents defined in the project
+- `openmas init`: Initialize a new OpenMAS project
+- `openmas validate`: Validate project configuration
+- `openmas list agents`: List agents defined in the project

@@ -1,10 +1,10 @@
-# MCP Integration in SimpleMAS
+# MCP Integration in OpenMAS
 
-SimpleMAS provides seamless integration with the Model Context Protocol (MCP) through the specialized `McpAgent` class and its subclasses, along with convenient decorators. This allows you to create MCP-compatible agents with minimal effort.
+OpenMAS provides seamless integration with the Model Context Protocol (MCP) through the specialized `McpAgent` class and its subclasses, along with convenient decorators. This allows you to create MCP-compatible agents with minimal effort.
 
 ## Overview
 
-MCP (Model Context Protocol) is a protocol for building model-backed applications. It's particularly useful for integrating LLMs like Claude into your applications. SimpleMAS provides a straightforward way to create MCP-compatible agents by:
+MCP (Model Context Protocol) is a protocol for building model-backed applications. It's particularly useful for integrating LLMs like Claude into your applications. OpenMAS provides a straightforward way to create MCP-compatible agents by:
 
 1. Decorating methods with `@mcp_tool`, `@mcp_prompt`, or `@mcp_resource`
 2. Creating a subclass of `McpAgent`, `McpClientAgent`, or `McpServerAgent`
@@ -12,14 +12,14 @@ MCP (Model Context Protocol) is a protocol for building model-backed application
 
 ## MCP Decorators
 
-SimpleMAS provides three decorators for defining MCP functionality:
+OpenMAS provides three decorators for defining MCP functionality:
 
 ### Tool Decorator
 
 The `@mcp_tool` decorator marks a method as an MCP tool, which can be called by clients:
 
 ```python
-from simple_mas.agent import McpAgent, mcp_tool
+from openmas.agent import McpAgent, mcp_tool
 
 class MyMcpAgent(McpAgent):
     @mcp_tool(name="optional_custom_name", description="Tool description")
@@ -124,14 +124,14 @@ class MyMcpAgent(McpAgent):
 
 ## Creating an MCP Server
 
-SimpleMAS offers two approaches to create an MCP server:
+OpenMAS offers two approaches to create an MCP server:
 
 ### Using McpServerAgent (Recommended)
 
 The simplest way to create an MCP server is to use the specialized `McpServerAgent` class:
 
 ```python
-from simple_mas.agent import McpServerAgent, mcp_tool
+from openmas.agent import McpServerAgent, mcp_tool
 
 class MyServerAgent(McpServerAgent):
     def __init__(self, name="my-server"):
@@ -170,8 +170,8 @@ if __name__ == "__main__":
 For more control, you can use the base `McpAgent` class and manually configure the communicator:
 
 ```python
-from simple_mas.agent import McpAgent, mcp_tool
-from simple_mas.communication.mcp import McpSseCommunicator
+from openmas.agent import McpAgent, mcp_tool
+from openmas.communication.mcp import McpSseCommunicator
 
 class MyServerAgent(McpAgent):
     def __init__(self, name="my-server"):
@@ -213,8 +213,8 @@ if __name__ == "__main__":
 The `McpClientAgent` class provides convenient methods for working with MCP servers:
 
 ```python
-from simple_mas.agent import McpClientAgent
-from simple_mas.communication.mcp import McpSseCommunicator
+from openmas.agent import McpClientAgent
+from openmas.communication.mcp import McpSseCommunicator
 
 async def main():
     # Create a client agent
@@ -277,7 +277,7 @@ This design provides a clean separation of concerns:
 
 ## Communicators
 
-SimpleMAS offers two MCP communicators:
+OpenMAS offers two MCP communicators:
 
 - `McpSseCommunicator`: Uses HTTP/SSE for communication (recommended for production)
 - `McpStdioCommunicator`: Uses stdin/stdout for communication (useful for development)

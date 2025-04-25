@@ -11,9 +11,9 @@ import asyncio
 import json
 import logging
 
-from simple_mas import McpAgent
-from simple_mas.config import AgentConfig
-from simple_mas.logging import configure_logging
+from openmas import McpAgent
+from openmas.config import AgentConfig
+from openmas.logging import configure_logging
 
 # Configure logging
 configure_logging(log_level=logging.DEBUG)

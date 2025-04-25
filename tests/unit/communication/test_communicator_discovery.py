@@ -13,8 +13,8 @@ sys.modules["mcp.server.context"] = mock.MagicMock()
 sys.modules["mcp.client"] = mock.MagicMock()
 sys.modules["mcp.types"] = mock.MagicMock()
 
-from simple_mas.agent import BaseAgent
-from simple_mas.communication import (
+from openmas.agent import BaseAgent
+from openmas.communication import (
     BaseCommunicator,
     discover_communicator_plugins,
     discover_local_communicators,
@@ -22,8 +22,8 @@ from simple_mas.communication import (
     load_local_communicator,
     register_communicator,
 )
-from simple_mas.communication.base import _COMMUNICATOR_REGISTRY
-from simple_mas.testing import MockCommunicator
+from openmas.communication.base import _COMMUNICATOR_REGISTRY
+from openmas.testing import MockCommunicator
 
 
 class TestCommunicator(BaseCommunicator):
@@ -105,7 +105,7 @@ def test_discover_communicator_plugins(monkeypatch):
         _COMMUNICATOR_REGISTRY[comm_type] = comm_class
 
     # Patch the register_communicator function
-    monkeypatch.setattr("simple_mas.communication.base.register_communicator", mock_register)
+    monkeypatch.setattr("openmas.communication.base.register_communicator", mock_register)
 
     # Setup a mock entry point that will be returned
     mock_entry_point = mock.Mock()
@@ -139,7 +139,7 @@ def create_extension_dir(tmp_path):
     comm_file = communicators_dir / "custom_communicator.py"
     comm_file.write_text(
         """
-from simple_mas.communication import BaseCommunicator
+from openmas.communication import BaseCommunicator
 
 class CustomCommunicator(BaseCommunicator):
     \"\"\"A custom communicator implementation.\"\"\"

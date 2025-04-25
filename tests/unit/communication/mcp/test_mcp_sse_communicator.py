@@ -8,15 +8,15 @@ import pytest
 try:
     import mcp  # noqa: F401
 
-    from simple_mas.communication.mcp import McpSseCommunicator
+    from openmas.communication.mcp import McpSseCommunicator
 
     HAS_MCP = True
 except ImportError:
     HAS_MCP = False
     pytest.skip("MCP module is not available", allow_module_level=True)
 
-from simple_mas.exceptions import ServiceNotFoundError
-from simple_mas.logging import get_logger
+from openmas.exceptions import ServiceNotFoundError
+from openmas.logging import get_logger
 
 # Get logger for tests
 test_logger = get_logger(__name__)
@@ -56,7 +56,7 @@ class TestMcpSseCommunicator:
         assert communicator._client_managers == {}
 
     @pytest.mark.asyncio
-    @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
+    @mock.patch("openmas.communication.mcp.sse_communicator.sse_client")
     async def test_connect_to_service(self, mock_sse_client, sse_communicator):
         """Test connecting to a service."""
         # Mock the client and session
@@ -70,7 +70,7 @@ class TestMcpSseCommunicator:
         mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
 
         # Mock ClientSession
-        with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
+        with mock.patch("openmas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
 
             # Connect to the service
@@ -85,7 +85,7 @@ class TestMcpSseCommunicator:
             assert "test-service" in sse_communicator._client_managers
 
     @pytest.mark.asyncio
-    @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
+    @mock.patch("openmas.communication.mcp.sse_communicator.sse_client")
     async def test_connect_to_external_service(self, mock_sse_client, sse_communicator):
         """Test connecting to an external MCP service."""
         # Mock the client and session
@@ -99,7 +99,7 @@ class TestMcpSseCommunicator:
         mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
 
         # Mock ClientSession
-        with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
+        with mock.patch("openmas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
 
             # Connect to the external service
@@ -119,7 +119,7 @@ class TestMcpSseCommunicator:
             await sse_communicator._connect_to_service("invalid-service")
 
     @pytest.mark.asyncio
-    @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
+    @mock.patch("openmas.communication.mcp.sse_communicator.sse_client")
     async def test_list_tools(self, mock_sse_client, sse_communicator):
         """Test listing tools."""
         # Mock the client and streams
@@ -133,7 +133,7 @@ class TestMcpSseCommunicator:
         mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
 
         # Mock ClientSession
-        with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
+        with mock.patch("openmas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
 
             # Mock the tool list response
@@ -152,7 +152,7 @@ class TestMcpSseCommunicator:
             assert tools[1]["name"] == "tool2"
 
     @pytest.mark.asyncio
-    @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
+    @mock.patch("openmas.communication.mcp.sse_communicator.sse_client")
     async def test_call_tool(self, mock_sse_client, sse_communicator):
         """Test calling a tool."""
         # Mock the client and streams
@@ -166,7 +166,7 @@ class TestMcpSseCommunicator:
         mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
 
         # Mock ClientSession
-        with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
+        with mock.patch("openmas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
 
             # Create a mock result with a dictionary representation
@@ -185,7 +185,7 @@ class TestMcpSseCommunicator:
             assert result == {"result": "success"}
 
     @pytest.mark.asyncio
-    @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
+    @mock.patch("openmas.communication.mcp.sse_communicator.sse_client")
     async def test_send_request(self, mock_sse_client, sse_communicator):
         """Test sending a request."""
         # Mock the client manager and streams
@@ -199,7 +199,7 @@ class TestMcpSseCommunicator:
         mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
 
         # Mock ClientSession
-        with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
+        with mock.patch("openmas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
 
             # Create mock results with dictionary representations
@@ -238,7 +238,7 @@ class TestMcpSseCommunicator:
             assert result == {"output": "tool result"}
 
     @pytest.mark.asyncio
-    @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
+    @mock.patch("openmas.communication.mcp.sse_communicator.sse_client")
     async def test_send_notification(self, mock_sse_client, sse_communicator):
         """Test sending a notification."""
         # Mock the client manager and streams
@@ -252,10 +252,8 @@ class TestMcpSseCommunicator:
         mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
 
         # Mock ClientSession and asyncio.create_task
-        with mock.patch(
-            "simple_mas.communication.mcp.sse_communicator.ClientSession"
-        ) as mock_session_class, mock.patch(
-            "simple_mas.communication.mcp.sse_communicator.asyncio.create_task"
+        with mock.patch("openmas.communication.mcp.sse_communicator.ClientSession") as mock_session_class, mock.patch(
+            "openmas.communication.mcp.sse_communicator.asyncio.create_task"
         ) as mock_create_task:
             mock_session_class.return_value = mock_session
 
@@ -301,8 +299,8 @@ class TestMcpSseCommunicator:
             communicator.server = None
 
         # Mock the FastMCP class, asyncio.create_task, and the stop method
-        with mock.patch("simple_mas.communication.mcp.sse_communicator.FastMCP", return_value=mock_server), mock.patch(
-            "simple_mas.communication.mcp.sse_communicator.asyncio.create_task", return_value=mock_task
+        with mock.patch("openmas.communication.mcp.sse_communicator.FastMCP", return_value=mock_server), mock.patch(
+            "openmas.communication.mcp.sse_communicator.asyncio.create_task", return_value=mock_task
         ), mock.patch.object(communicator, "stop", patched_stop):
             # Start the communicator
             await communicator.start()
@@ -317,7 +315,7 @@ class TestMcpSseCommunicator:
             mock_task.cancel.assert_called_once()
 
     @pytest.mark.asyncio
-    @mock.patch("simple_mas.communication.mcp.sse_communicator.sse_client")
+    @mock.patch("openmas.communication.mcp.sse_communicator.sse_client")
     async def test_stop_client_mode(self, mock_sse_client, sse_communicator):
         """Test stopping the communicator in client mode."""
         # Mock the client manager
@@ -331,7 +329,7 @@ class TestMcpSseCommunicator:
         mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
 
         # Mock ClientSession
-        with mock.patch("simple_mas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
+        with mock.patch("openmas.communication.mcp.sse_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
 
             # Connect to a service

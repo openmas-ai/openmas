@@ -1,26 +1,26 @@
-# Getting Started with SimpleMas
+# Getting Started with OpenMAS
 
-This guide will help you get started with SimpleMas, the Python SDK for building Multi-Agent Systems.
+This guide will help you get started with OpenMAS, the Python SDK for building Multi-Agent Systems.
 
 ## Installation
 
-Install SimpleMas using poetry:
+Install OpenMAS using poetry:
 
 ```bash
-poetry add simple-mas
+poetry add openmas
 ```
 
 Or using pip:
 
 ```bash
-pip install simple-mas
+pip install openmas
 ```
 
 ## Quick Start
 
 ```python
-from simple_mas import Agent
-from simple_mas.communication import HTTPCommunicator
+from openmas import Agent
+from openmas.communication import HTTPCommunicator
 
 # Create an agent with HTTP communication
 agent = Agent(
@@ -52,29 +52,29 @@ await agent.stop()
 
 ## Next Steps
 
-- Learn about [SimpleMas Architecture](architecture.md)
+- Learn about [OpenMAS Architecture](architecture.md)
 - Explore [Communication Protocols](communication.md)
 - See [Common Patterns](patterns.md) for multi-agent systems
 
 
 
 
-# Getting Started with SimpleMAS
+# Getting Started with OpenMAS
 
-This guide will help you get started with SimpleMAS, a lightweight SDK for building Multi-Agent Systems.
+This guide will help you get started with OpenMAS, a lightweight SDK for building Multi-Agent Systems.
 
 ## Installation
 
-Install SimpleMAS using pip:
+Install OpenMAS using pip:
 
 ```bash
-pip install simple-mas
+pip install openmas
 ```
 
 Or with Poetry:
 
 ```bash
-poetry add simple-mas
+poetry add openmas
 ```
 
 ## Creating Your First Agent
@@ -83,8 +83,8 @@ Let's create a simple agent that responds to HTTP requests:
 
 ```python
 import asyncio
-from simple_mas.agent import BaseAgent
-from simple_mas.logging import configure_logging, get_logger
+from openmas.agent import BaseAgent
+from openmas.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
 
@@ -146,7 +146,7 @@ python my_first_agent.py
 
 ## Configuration
 
-SimpleMAS uses environment variables for configuration:
+OpenMAS uses environment variables for configuration:
 
 ```bash
 # Set the agent name
@@ -162,7 +162,7 @@ export SERVICE_URL_OTHER_AGENT="http://localhost:8000"
 Or you can pass configuration directly in code:
 
 ```python
-from simple_mas.config import AgentConfig
+from openmas.config import AgentConfig
 
 config = AgentConfig(
     name="my-agent",
@@ -177,12 +177,12 @@ agent = MyAgent(config=config)
 
 ## Using Different Communicators
 
-SimpleMAS supports different communication protocols. Here's how to use them:
+OpenMAS supports different communication protocols. Here's how to use them:
 
 ### HTTP Communicator (Default)
 
 ```python
-from simple_mas.communication import HttpCommunicator
+from openmas.communication import HttpCommunicator
 
 agent = MyAgent(communicator_class=HttpCommunicator)
 ```
@@ -190,7 +190,7 @@ agent = MyAgent(communicator_class=HttpCommunicator)
 ### MCP SSE Communicator
 
 ```python
-from simple_mas.communication import McpSseCommunicator
+from openmas.communication import McpSseCommunicator
 
 agent = MyAgent(communicator_class=McpSseCommunicator)
 ```
@@ -198,7 +198,7 @@ agent = MyAgent(communicator_class=McpSseCommunicator)
 ### MCP Stdio Communicator
 
 ```python
-from simple_mas.communication import McpStdioCommunicator
+from openmas.communication import McpStdioCommunicator
 
 agent = MyAgent(communicator_class=McpStdioCommunicator)
 ```
@@ -231,7 +231,7 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-RUN pip install simple-mas
+RUN pip install openmas
 
 COPY my_first_agent.py .
 

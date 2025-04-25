@@ -4,7 +4,7 @@ import os
 import tempfile
 from unittest.mock import patch
 
-from simple_mas.cli.deploy import _generate_dockerfile_impl, _generate_pip_dockerfile, _generate_poetry_dockerfile
+from openmas.cli.deploy import _generate_dockerfile_impl, _generate_pip_dockerfile, _generate_poetry_dockerfile
 
 
 class TestDockerfileGeneration:

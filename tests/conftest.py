@@ -1,4 +1,4 @@
-"""Global test fixtures for SimpleMAS tests.
+"""Global test fixtures for OpenMAS tests.
 
 This module contains common fixtures used across multiple test files.
 """
@@ -9,13 +9,13 @@ from unittest import mock
 
 import pytest
 
-from simple_mas.agent import BaseAgent
-from simple_mas.agent.bdi import BdiAgent
-from simple_mas.communication.base import _COMMUNICATOR_REGISTRY, register_communicator
-from simple_mas.communication.http import HttpCommunicator
-from simple_mas.config import AgentConfig
-from simple_mas.testing import AgentTestHarness
-from simple_mas.testing.mock_communicator import MockCommunicator
+from openmas.agent import BaseAgent
+from openmas.agent.bdi import BdiAgent
+from openmas.communication.base import _COMMUNICATOR_REGISTRY, register_communicator
+from openmas.communication.http import HttpCommunicator
+from openmas.config import AgentConfig
+from openmas.testing import AgentTestHarness
+from openmas.testing.mock_communicator import MockCommunicator
 
 # These registrations can be removed since they're now handled by the fixture below
 # register_communicator("mock", MockCommunicator)

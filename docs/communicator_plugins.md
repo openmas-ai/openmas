@@ -1,13 +1,13 @@
 # Communicator Plugin System
 
-SimpleMAS provides a robust system for discovering and using communicator plugins. This allows for extending the framework with custom communication methods, both as installable packages (via entry points) and as local project extensions.
+OpenMAS provides a robust system for discovering and using communicator plugins. This allows for extending the framework with custom communication methods, both as installable packages (via entry points) and as local project extensions.
 
 ## Types of Plugins
 
 The communicator plugin system supports three types of plugin sources:
 
-1. **Built-in Communicators**: These are included with the SimpleMAS package (`HttpCommunicator`, etc.)
-2. **Entry Point Plugins**: These are installed packages that register communicators via the `simple_mas.communicators` entry point
+1. **Built-in Communicators**: These are included with the OpenMAS package (`HttpCommunicator`, etc.)
+2. **Entry Point Plugins**: These are installed packages that register communicators via the `openmas.communicators` entry point
 3. **Local Extensions**: These are project-local communicator implementations found in directories specified in `extension_paths`
 
 ## Using Communicator Plugins
@@ -47,7 +47,7 @@ To create a communicator plugin as an installable package:
 1. Create a subclass of `BaseCommunicator`:
 
 ```python
-from simple_mas.communication import BaseCommunicator
+from openmas.communication import BaseCommunicator
 
 class MyCustomCommunicator(BaseCommunicator):
     async def send_request(self, target_service, method, params=None, response_model=None, timeout=None):
@@ -74,7 +74,7 @@ class MyCustomCommunicator(BaseCommunicator):
 2. Register it as an entry point in your package's `pyproject.toml`:
 
 ```toml
-[project.entry-points."simple_mas.communicators"]
+[project.entry-points."openmas.communicators"]
 my_communicator = "my_package.module:MyCustomCommunicator"
 ```
 
@@ -84,7 +84,7 @@ Or in `setup.py`:
 setup(
     # ...
     entry_points={
-        'simple_mas.communicators': [
+        'openmas.communicators': [
             'my_communicator = my_package.module:MyCustomCommunicator',
         ],
     },
@@ -99,7 +99,7 @@ To create a communicator as a local extension:
 1. Create a Python file in your project directory (e.g., `./extensions/my_communicator.py`):
 
 ```python
-from simple_mas.communication import BaseCommunicator
+from openmas.communication import BaseCommunicator
 
 class MyLocalCommunicator(BaseCommunicator):
     # Implementation as above
@@ -119,7 +119,7 @@ agent = MyAgent(config=config)
 
 ## Discovery Order
 
-When resolving a communicator type, SimpleMAS uses the following order:
+When resolving a communicator type, OpenMAS uses the following order:
 
 1. Check if a communicator class is directly provided to the agent constructor
 2. Look for the type in the registry (built-ins and entry points)

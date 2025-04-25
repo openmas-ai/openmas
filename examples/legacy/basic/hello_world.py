@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Hello World Example for SimpleMAS.
+Hello World Example for OpenMAS.
 
 This is a minimal example demonstrating the basic structure of agents
-in the SimpleMAS framework. It shows:
+in the OpenMAS framework. It shows:
 1. How to create and configure agents
 2. How to implement message handling
 3. How to run agents in an asynchronous environment
@@ -17,9 +17,9 @@ import logging
 import sys
 from typing import Any, Dict, Optional, Type
 
-from simple_mas.agent.base import BaseAgent
-from simple_mas.communication import BaseCommunicator, HttpCommunicator, get_communicator_class
-from simple_mas.config import AgentConfig
+from openmas.agent.base import BaseAgent
+from openmas.communication import BaseCommunicator, HttpCommunicator, get_communicator_class
+from openmas.config import AgentConfig
 
 
 # Define a Message class to use for communication
@@ -202,7 +202,7 @@ class SenderAgent(BaseAgent):
                 "Hello there!",
                 "How are you today?",
                 "Nice to meet you!",
-                "Greetings from SimpleMAS!",
+                "Greetings from OpenMAS!",
                 "Hello one last time!",
             ]
 

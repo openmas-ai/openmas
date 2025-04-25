@@ -1,6 +1,6 @@
 # LLM Integration
 
-This document outlines patterns for integrating Large Language Models (LLMs) such as OpenAI, Anthropic, and Google Gemini into SimpleMAS agents.
+This document outlines patterns for integrating Large Language Models (LLMs) such as OpenAI, Anthropic, and Google Gemini into OpenMAS agents.
 
 ## Recommended Pattern
 
@@ -32,8 +32,8 @@ These will be loaded into your agent's configuration through the standard `Agent
 import asyncio
 from typing import Optional
 
-from simple_mas.agent.base import BaseAgent
-from simple_mas.config import AgentConfig
+from openmas.agent.base import BaseAgent
+from openmas.config import AgentConfig
 
 
 class LLMAgent(BaseAgent):
@@ -181,7 +181,7 @@ You can extend the base `AgentConfig` to include LLM-specific configuration:
 
 ```python
 from pydantic import Field
-from simple_mas.config import AgentConfig
+from openmas.config import AgentConfig
 
 class LLMAgentConfig(AgentConfig):
     """Configuration for an LLM-powered agent."""

@@ -14,11 +14,11 @@ from typing import Any, Dict, Optional, Union
 try:
     from anthropic.mcp.types import TextContent
 
-    from simple_mas import McpServerAgent, mcp_prompt, mcp_resource, mcp_tool
-    from simple_mas.config import AgentConfig
-    from simple_mas.logging import get_logger
+    from openmas import McpServerAgent, mcp_prompt, mcp_resource, mcp_tool
+    from openmas.config import AgentConfig
+    from openmas.logging import get_logger
 except ImportError:
-    print("Error: This example requires the simple-mas package and Anthropic Python SDK v1.6.0")
+    print("Error: This example requires the openmas package and Anthropic Python SDK v1.6.0")
     print("Please install with: poetry install")
     sys.exit(1)
 

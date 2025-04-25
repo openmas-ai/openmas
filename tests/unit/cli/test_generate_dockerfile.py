@@ -7,12 +7,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from simple_mas.cli.main import generate_dockerfile
+from openmas.cli.main import generate_dockerfile
 
 
 @pytest.fixture
 def temp_project_dir(tmp_path):
-    """Create a temporary directory with a SimpleMAS project."""
+    """Create a temporary directory with a OpenMAS project."""
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
 
@@ -27,7 +27,7 @@ shared_paths:
 extension_paths:
 - extensions
 """
-    project_config = project_dir / "simplemas_project.yml"
+    project_config = project_dir / "openmas_project.yml"
     project_config.write_text(config_content)
 
     # Create agent directory
@@ -40,7 +40,7 @@ extension_paths:
 
     # Create requirements.txt
     req_file = project_dir / "requirements.txt"
-    req_file.write_text("simple-mas>=0.1.0\n")
+    req_file.write_text("openmas>=0.1.0\n")
 
     yield project_dir
 
@@ -53,7 +53,7 @@ def test_generate_dockerfile(temp_project_dir):
     """Test generating a Dockerfile for an agent."""
     os.chdir(temp_project_dir)
 
-    with patch("simple_mas.deployment.generators.DockerfileGenerator") as mock_generator:
+    with patch("openmas.deployment.generators.DockerfileGenerator") as mock_generator:
         mock_save = MagicMock()
         mock_generator.return_value.save = mock_save
 
@@ -67,7 +67,7 @@ def test_generate_dockerfile(temp_project_dir):
         mock_save.assert_called_once()
         call_args = mock_save.call_args[1]
         assert call_args["python_version"] == "3.10"
-        assert call_args["app_entrypoint"] == "-m simple_mas.cli run test_agent"
+        assert call_args["app_entrypoint"] == "-m openmas.cli run test_agent"
         assert call_args["requirements_file"] == "requirements.txt"
         assert call_args["use_poetry"] is False
         assert call_args["port"] == 8000
@@ -88,7 +88,7 @@ def test_generate_dockerfile_with_options(temp_project_dir):
     """Test generating a Dockerfile with custom options."""
     os.chdir(temp_project_dir)
 
-    with patch("simple_mas.deployment.generators.DockerfileGenerator") as mock_generator:
+    with patch("openmas.deployment.generators.DockerfileGenerator") as mock_generator:
         mock_save = MagicMock()
         mock_generator.return_value.save = mock_save
 

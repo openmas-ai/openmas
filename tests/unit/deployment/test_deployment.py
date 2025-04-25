@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from simple_mas.deployment.generators import DockerComposeGenerator, KubernetesGenerator
-from simple_mas.deployment.metadata import DeploymentMetadata
+from openmas.deployment.generators import DockerComposeGenerator, KubernetesGenerator
+from openmas.deployment.metadata import DeploymentMetadata
 
 
 class TestDeploymentMetadata(unittest.TestCase):
@@ -29,7 +29,7 @@ class TestDeploymentMetadata(unittest.TestCase):
 
         # Create a temporary file with test metadata
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.metadata_path = Path(self.temp_dir.name) / "simplemas.deploy.yaml"
+        self.metadata_path = Path(self.temp_dir.name) / "openmas.deploy.yaml"
 
         with open(self.metadata_path, "w") as f:
             yaml.safe_dump(self.test_metadata, f)
@@ -87,7 +87,7 @@ class TestDockerComposeGenerator(unittest.TestCase):
 
         # Create a temporary file with test metadata
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.metadata_path = Path(self.temp_dir.name) / "simplemas.deploy.yaml"
+        self.metadata_path = Path(self.temp_dir.name) / "openmas.deploy.yaml"
 
         with open(self.metadata_path, "w") as f:
             yaml.safe_dump(self.test_metadata, f)
@@ -151,7 +151,7 @@ class TestKubernetesGenerator(unittest.TestCase):
 
         # Create a temporary file with test metadata
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.metadata_path = Path(self.temp_dir.name) / "simplemas.deploy.yaml"
+        self.metadata_path = Path(self.temp_dir.name) / "openmas.deploy.yaml"
 
         with open(self.metadata_path, "w") as f:
             yaml.safe_dump(self.test_metadata, f)

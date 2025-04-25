@@ -1,4 +1,4 @@
-"""Tests for the SimpleMas config module."""
+"""Tests for the OpenMAS config module."""
 
 import json
 import os
@@ -12,7 +12,7 @@ import yaml
 from pydantic import Field
 from pytest import MonkeyPatch
 
-from simple_mas.config import (
+from openmas.config import (
     AgentConfig,
     _deep_merge_dicts,
     _load_environment_config_files,
@@ -20,7 +20,7 @@ from simple_mas.config import (
     _load_yaml_config,
     load_config,
 )
-from simple_mas.exceptions import ConfigurationError
+from openmas.exceptions import ConfigurationError
 
 
 class TestAgentConfig:
@@ -155,7 +155,7 @@ class TestLoadConfig:
         monkeypatch.delenv("CONFIG", raising=False)
 
         # Patch _load_project_config to return empty config
-        with patch("simple_mas.config._load_project_config", return_value={}):
+        with patch("openmas.config._load_project_config", return_value={}):
             with pytest.raises(ConfigurationError):
                 load_config(AgentConfig)
 
@@ -211,7 +211,7 @@ def test_load_project_config_from_env():
     """Test loading project config from environment variable."""
     mock_config = {"name": "env_project", "default_config": {"log_level": "DEBUG"}}
 
-    with patch.dict(os.environ, {"SIMPLEMAS_PROJECT_CONFIG": yaml.dump(mock_config)}):
+    with patch.dict(os.environ, {"OPENMAS_PROJECT_CONFIG": yaml.dump(mock_config)}):
         config = _load_project_config()
 
         assert config["name"] == "env_project"
@@ -240,7 +240,7 @@ def test_load_project_config_file_not_found():
 
 def test_load_project_config_invalid_yaml():
     """Test loading project config with invalid YAML."""
-    with patch.dict(os.environ, {"SIMPLEMAS_PROJECT_CONFIG": "invalid: yaml: content:"}), patch(
+    with patch.dict(os.environ, {"OPENMAS_PROJECT_CONFIG": "invalid: yaml: content:"}), patch(
         "yaml.safe_load", side_effect=yaml.YAMLError("Invalid YAML")
     ):
         config = _load_project_config()
@@ -250,7 +250,7 @@ def test_load_project_config_invalid_yaml():
 
 def test_load_config_with_default_config(mock_project_config):
     """Test load_config with default config from project config."""
-    with patch("simple_mas.config._load_project_config", return_value=mock_project_config), patch.dict(
+    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
         os.environ, {"AGENT_NAME": "test_agent"}
     ):
         config = load_config(AgentConfig)
@@ -263,7 +263,7 @@ def test_load_config_with_default_config(mock_project_config):
 
 def test_load_config_env_overrides_default(mock_project_config):
     """Test that environment variables override default config."""
-    with patch("simple_mas.config._load_project_config", return_value=mock_project_config), patch.dict(
+    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
         os.environ,
         {
             "AGENT_NAME": "test_agent",
@@ -287,7 +287,7 @@ def test_load_config_json_overrides_default(mock_project_config):
         "communicator_options": {"timeout": 60, "new_option": "value"},
     }
 
-    with patch("simple_mas.config._load_project_config", return_value=mock_project_config), patch.dict(
+    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
         os.environ, {"CONFIG": json.dumps(json_config)}, clear=True
     ):
         config = load_config(AgentConfig)
@@ -303,7 +303,7 @@ def test_load_config_extension_paths_merged(mock_project_config):
     """Test that extension paths from project config are merged with env config."""
     env_extension_paths = ["custom/path1", "custom/path2"]
 
-    with patch("simple_mas.config._load_project_config", return_value=mock_project_config), patch.dict(
+    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
         os.environ, {"AGENT_NAME": "test_agent", "EXTENSION_PATHS": json.dumps(env_extension_paths)}
     ):
         config = load_config(AgentConfig)
@@ -318,7 +318,7 @@ def test_load_config_no_default_config():
     """Test load_config when there's no default config in project config."""
     project_config = {"name": "test_project", "version": "0.1.0", "agents": {}}
 
-    with patch("simple_mas.config._load_project_config", return_value=project_config), patch.dict(
+    with patch("openmas.config._load_project_config", return_value=project_config), patch.dict(
         os.environ, {"AGENT_NAME": "test_agent"}
     ):
         config = load_config(AgentConfig)
@@ -335,7 +335,7 @@ def test_load_config_validation_error():
     class CustomConfigWithRequiredField(AgentConfig):
         required_field: str  # Required field not provided in config
 
-    with patch("simple_mas.config._load_project_config", return_value={}), patch.dict(
+    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
         os.environ, {"AGENT_NAME": "test-agent"}, clear=True
     ):
         with pytest.raises(ConfigurationError, match="Configuration validation failed"):
@@ -344,7 +344,7 @@ def test_load_config_validation_error():
 
 def test_load_config_with_individual_service_urls(mock_project_config):
     """Test load_config with individual service URLs."""
-    with patch("simple_mas.config._load_project_config", return_value=mock_project_config), patch.dict(
+    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
         os.environ,
         {"AGENT_NAME": "test_agent", "SERVICE_URL_API": "http://api:8000", "SERVICE_URL_DATABASE": "http://db:5432"},
     ):
@@ -356,7 +356,7 @@ def test_load_config_with_individual_service_urls(mock_project_config):
 
 def test_load_config_with_individual_communicator_options(mock_project_config):
     """Test load_config with individual communicator options."""
-    with patch("simple_mas.config._load_project_config", return_value=mock_project_config), patch.dict(
+    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
         os.environ,
         {"AGENT_NAME": "test_agent", "COMMUNICATOR_OPTION_RETRY": "true", "COMMUNICATOR_OPTION_MAX_RETRIES": "5"},
     ):
@@ -372,7 +372,7 @@ def test_load_config_with_individual_communicator_options(mock_project_config):
 
 @pytest.mark.skip("Complex patching requirements")
 def test_find_project_root():
-    """Test finding the project root by checking for simplemas_project.yml."""
+    """Test finding the project root by checking for openmas_project.yml."""
     # Tests for this function are skipped due to complexity in mocking Path internals
     pass
 
@@ -428,24 +428,24 @@ def test_load_environment_config_files():
     env_config: Dict[str, Any] = {"log_level": "DEBUG", "service_urls": {"service2": "http://env"}}
 
     # Test loading both default and env configs
-    with patch("simple_mas.config._find_project_root", return_value=Path("/project")), patch(
-        "simple_mas.config._load_yaml_config", side_effect=[default_config, env_config]
-    ), patch.dict(os.environ, {"SIMPLEMAS_ENV": "dev"}):
+    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
+        "openmas.config._load_yaml_config", side_effect=[default_config, env_config]
+    ), patch.dict(os.environ, {"OPENMAS_ENV": "dev"}):
         config = cast(Dict[str, Any], _load_environment_config_files())
         assert config["log_level"] == "DEBUG"  # From env config
         assert config["service_urls"]["service1"] == "http://default"  # From default config
         assert config["service_urls"]["service2"] == "http://env"  # From env config
 
-    # Test loading only default config (no SIMPLEMAS_ENV)
-    with patch("simple_mas.config._find_project_root", return_value=Path("/project")), patch(
-        "simple_mas.config._load_yaml_config", return_value=default_config
+    # Test loading only default config (no OPENMAS_ENV)
+    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
+        "openmas.config._load_yaml_config", return_value=default_config
     ), patch.dict(os.environ, {}, clear=True):
         config = cast(Dict[str, Any], _load_environment_config_files())
         assert config["log_level"] == "INFO"
         assert config["service_urls"]["service1"] == "http://default"
 
     # Test no project root found
-    with patch("simple_mas.config._find_project_root", return_value=None):
+    with patch("openmas.config._find_project_root", return_value=None):
         config = _load_environment_config_files()
         assert config == {}
 
@@ -465,8 +465,8 @@ def test_load_config_env_overrides_yaml():
         # Mock just what we need - YAML config with a name value that should be overridden
         yaml_config = {"name": "from-yaml", "communicator_type": "mcp"}
 
-        with patch("simple_mas.config._load_project_config", return_value={}), patch(
-            "simple_mas.config._load_environment_config_files", return_value=yaml_config
+        with patch("openmas.config._load_project_config", return_value={}), patch(
+            "openmas.config._load_environment_config_files", return_value=yaml_config
         ):
             # Load config and verify env var overrides YAML
             config = load_config(AgentConfig)
@@ -493,16 +493,16 @@ def test_load_config_with_service_urls_in_yaml():
         "service_urls": {"service1": "http://service1.example.com", "service2": "http://service2.example.com"}
     }
 
-    with patch("simple_mas.config._load_project_config", return_value={}), patch(
-        "simple_mas.config._load_environment_config_files", return_value=yaml_config
+    with patch("openmas.config._load_project_config", return_value={}), patch(
+        "openmas.config._load_environment_config_files", return_value=yaml_config
     ), patch.dict(os.environ, {"AGENT_NAME": "test-agent"}):
         config = load_config(AgentConfig)
         assert config.service_urls["service1"] == "http://service1.example.com"
         assert config.service_urls["service2"] == "http://service2.example.com"
 
     # Test env vars override YAML config
-    with patch("simple_mas.config._load_project_config", return_value={}), patch(
-        "simple_mas.config._load_environment_config_files", return_value=yaml_config
+    with patch("openmas.config._load_project_config", return_value={}), patch(
+        "openmas.config._load_environment_config_files", return_value=yaml_config
     ), patch.dict(os.environ, {"AGENT_NAME": "test-agent", "SERVICE_URL_SERVICE1": "http://override.example.com"}):
         config = load_config(AgentConfig)
         assert config.service_urls["service1"] == "http://override.example.com"
@@ -514,8 +514,8 @@ def test_load_config_with_communicator_options_in_yaml():
     yaml_config: Dict[str, Any] = {"communicator_options": {"timeout": 30, "retries": 3}}
 
     # Test with YAML config only
-    with patch("simple_mas.config._load_project_config", return_value={}), patch(
-        "simple_mas.config._load_environment_config_files", return_value=yaml_config
+    with patch("openmas.config._load_project_config", return_value={}), patch(
+        "openmas.config._load_environment_config_files", return_value=yaml_config
     ):
         os.environ["AGENT_NAME"] = "test-agent"
         try:
@@ -527,8 +527,8 @@ def test_load_config_with_communicator_options_in_yaml():
                 del os.environ["AGENT_NAME"]
 
     # Test env vars override YAML config while preserving keys not in env var
-    with patch("simple_mas.config._load_project_config", return_value={}), patch(
-        "simple_mas.config._load_environment_config_files", return_value=yaml_config
+    with patch("openmas.config._load_project_config", return_value={}), patch(
+        "openmas.config._load_environment_config_files", return_value=yaml_config
     ):
         os.environ["AGENT_NAME"] = "test-agent"
         os.environ["COMMUNICATOR_OPTIONS"] = '{"timeout": 60, "max_connections": 10}'
@@ -566,8 +566,8 @@ def test_load_config_full_precedence_chain():
     # 5. Environment variables (highest precedence)
     env_vars = {"AGENT_NAME": "test-agent", "LOG_LEVEL": "TRACE", "SERVICE_URL_SERVICE2": "http://env.example.com"}
 
-    with patch("simple_mas.config._load_project_config", return_value=project_config), patch(
-        "simple_mas.config._load_environment_config_files", return_value=yaml_config
+    with patch("openmas.config._load_project_config", return_value=project_config), patch(
+        "openmas.config._load_environment_config_files", return_value=yaml_config
     ), patch.dict(os.environ, env_vars):
         config = load_config(AgentConfig)
 

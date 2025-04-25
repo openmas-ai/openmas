@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Example of a BDI agent in SimpleMAS.
+"""Example of a BDI agent in OpenMAS.
 
-This example demonstrates how to create and use a BDI agent in SimpleMAS.
+This example demonstrates how to create and use a BDI agent in OpenMAS.
 It creates a simple delivery agent that has beliefs about items and their locations,
 desires to deliver items, and intentions to pick up and deliver items.
 """
@@ -10,8 +10,8 @@ import argparse
 import asyncio
 from typing import Dict
 
-from simple_mas.agent import BdiAgent
-from simple_mas.logging import configure_logging, get_logger
+from openmas.agent import BdiAgent
+from openmas.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
 

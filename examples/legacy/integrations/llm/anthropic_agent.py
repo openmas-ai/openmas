@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Example agent using Anthropic for reasoning.
 
-This example demonstrates how to integrate Anthropic's Claude LLM into a SimpleMAS agent
-for reasoning capabilities, using the helper functions from simple_mas.integrations.llm.
+This example demonstrates how to integrate Anthropic's Claude LLM into a OpenMAS agent
+for reasoning capabilities, using the helper functions from openmas.integrations.llm.
 
 To run:
     export ANTHROPIC_API_KEY=your_anthropic_api_key
@@ -16,9 +16,9 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from simple_mas.agent.base import BaseAgent
-from simple_mas.config import AgentConfig
-from simple_mas.integrations.llm import initialize_anthropic_client
+from openmas.agent.base import BaseAgent
+from openmas.config import AgentConfig
+from openmas.integrations.llm import initialize_anthropic_client
 
 
 class AnthropicAgentConfig(AgentConfig):
@@ -49,7 +49,7 @@ class AnthropicAgent(BaseAgent):
     async def setup(self) -> None:
         """Set up the agent by initializing the Anthropic client."""
         try:
-            # Use the helper function from simple_mas.integrations.llm
+            # Use the helper function from openmas.integrations.llm
             self.anthropic_client = initialize_anthropic_client(model=self.model)
             self.logger.info("Anthropic client initialized", model=self.model)
 

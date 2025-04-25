@@ -2,7 +2,7 @@
 """
 Minimal Agent Example.
 
-This example demonstrates the most basic setup of a SimpleMAS agent.
+This example demonstrates the most basic setup of a OpenMAS agent.
 It shows:
 
 1. Creating a simple agent
@@ -19,9 +19,9 @@ import logging
 import sys
 from typing import Optional
 
-from simple_mas.agent import Agent
-from simple_mas.communication import Message
-from simple_mas.config import AgentConfig
+from openmas.agent import Agent
+from openmas.communication import Message
+from openmas.config import AgentConfig
 
 
 class MinimalAgent(Agent):

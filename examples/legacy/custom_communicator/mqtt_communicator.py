@@ -1,14 +1,14 @@
-"""MQTT Communicator example for SimpleMAS.
+"""MQTT Communicator example for OpenMAS.
 
 This is an example of a third-party communicator implementation using MQTT.
-It demonstrates how to extend BaseCommunicator and integrate with SimpleMAS.
+It demonstrates how to extend BaseCommunicator and integrate with OpenMAS.
 
 Requirements:
     pip install asyncio-mqtt
 
 Usage:
     # Register manually
-    from simple_mas.communication.base import register_communicator
+    from openmas.communication.base import register_communicator
     from mqtt_communicator import MqttCommunicator
 
     register_communicator("mqtt", MqttCommunicator)
@@ -43,9 +43,9 @@ try:
 except ImportError:
     HAS_MQTT = False
 
-from simple_mas.communication.base import BaseCommunicator
-from simple_mas.exceptions import CommunicationError, MethodNotFoundError, ServiceNotFoundError
-from simple_mas.logging import get_logger
+from openmas.communication.base import BaseCommunicator
+from openmas.exceptions import CommunicationError, MethodNotFoundError, ServiceNotFoundError
+from openmas.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -9,8 +9,8 @@ from typing import Any, Dict
 
 import pytest
 
-from simple_mas.exceptions import ServiceNotFoundError
-from simple_mas.testing.mock_communicator import MockCommunicator, ParamsMatcher
+from openmas.exceptions import ServiceNotFoundError
+from openmas.testing.mock_communicator import MockCommunicator, ParamsMatcher
 from tests.conftest import SimpleAgent
 
 # Import fixtures from conftest.py instead of defining them locally

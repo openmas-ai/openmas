@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional, cast
 import pytest
 from pydantic import BaseModel
 
-from simple_mas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
-from simple_mas.testing.harness import AgentTestHarness
+from openmas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
+from openmas.testing.harness import AgentTestHarness
 
 
 class TestInputModel(BaseModel):

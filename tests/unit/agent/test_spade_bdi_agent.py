@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from simple_mas.agent.spade_bdi_agent import SpadeBdiAgent, SpadeBDIAgentBase
-from simple_mas.config import AgentConfig
+from openmas.agent.spade_bdi_agent import SpadeBdiAgent, SpadeBDIAgentBase
+from openmas.config import AgentConfig
 
 
 class TestSpadeBdiAgent:
@@ -30,7 +30,7 @@ class TestSpadeBdiAgent:
     async def test_setup_initializes_spade_bdi(self, mock_init, spade_bdi_agent):
         """Test that setup initializes the SPADE-BDI agent."""
         # Patch the SpadeBDIAgentBase class to avoid actual initialization
-        with patch("simple_mas.agent.spade_bdi_agent.SpadeBDIAgentBase", autospec=True) as mock_spade_bdi_class:
+        with patch("openmas.agent.spade_bdi_agent.SpadeBDIAgentBase", autospec=True) as mock_spade_bdi_class:
             # Configure the mock to return a mock instance
             mock_spade_instance = MagicMock()
             mock_spade_bdi_class.return_value = mock_spade_instance
@@ -73,7 +73,7 @@ class TestSpadeBdiAgent:
         # Add a belief
         spade_bdi_agent.add_belief("test_belief", "test_value")
 
-        # Check that the belief was added to the SimpleMAS agent
+        # Check that the belief was added to the OpenMAS agent
         assert spade_bdi_agent.get_belief("test_belief") == "test_value"
 
         # Note: We can't verify the call since it's commented out in the actual code
@@ -103,7 +103,7 @@ class TestSpadeBdiAgent:
         # Remove the belief
         spade_bdi_agent.remove_belief("test_belief")
 
-        # Check that the belief was removed from the SimpleMAS agent
+        # Check that the belief was removed from the OpenMAS agent
         assert spade_bdi_agent.get_belief("test_belief") is None
 
         # Note: We can't verify the call since it's commented out in the actual code
@@ -124,7 +124,7 @@ class TestSpadeBdiAgent:
         mock_spade_bdi.get_belief = MagicMock(return_value=None)
         spade_bdi_agent._spade_bdi_agent = mock_spade_bdi
 
-        # Add a belief to the SimpleMAS agent
+        # Add a belief to the OpenMAS agent
         spade_bdi_agent._beliefs["test_belief"] = "test_value"
 
         # Get the belief

@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import BaseModel
 
-from simple_mas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
-from simple_mas.agent.mcp import MCP_PROMPT_ATTR, MCP_RESOURCE_ATTR, MCP_TOOL_ATTR
-from simple_mas.config import AgentConfig
+from openmas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
+from openmas.agent.mcp import MCP_PROMPT_ATTR, MCP_RESOURCE_ATTR, MCP_TOOL_ATTR
+from openmas.config import AgentConfig
 
 
 class TodoItem(BaseModel):
@@ -127,7 +127,7 @@ class TestMcpAgent:
     async def test_server_mode_registration(self):
         """Test that the agent registers methods with the server."""
         # Skip if MCP is not installed, mock HAS_MCP for this test
-        with mock.patch("simple_mas.agent.mcp.HAS_MCP", True):
+        with mock.patch("openmas.agent.mcp.HAS_MCP", True):
 
             class TestAgent(McpAgent):
                 """Test agent with decorated methods."""

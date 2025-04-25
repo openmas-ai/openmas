@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "simple-mas"
-version = "0.1.0"
-description = "SimpleMas: A lightweight SDK for building Multi-Agent Systems"
+name = "openmas"
+version = "0.0.1"
+description = "OpenMAS: A lightweight SDK for building Multi-Agent Systems"
 authors = ["Wilson <your-email@example.com>"]
 readme = "README.md"
-packages = [{include = "simple_mas", from = "src"}]
+packages = [{include = "openmas", from = "src"}]
 
 [tool.poetry.scripts]
-simplemas = "simple_mas.cli:main"
+openmas = "openmas.cli:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"

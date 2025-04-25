@@ -2,7 +2,7 @@
 """Example of using MCP decorators with McpAgent.
 
 This example demonstrates how to create an MCP server agent using
-the SimpleMAS framework with the McpAgent class and MCP decorators.
+the OpenMAS framework with the McpAgent class and MCP decorators.
 """
 
 import asyncio
@@ -10,9 +10,9 @@ from typing import List
 
 from pydantic import BaseModel
 
-from simple_mas import McpAgent, mcp_prompt, mcp_resource, mcp_tool
-from simple_mas.communication.mcp import McpSseCommunicator
-from simple_mas.logging import configure_logging
+from openmas import McpAgent, mcp_prompt, mcp_resource, mcp_tool
+from openmas.communication.mcp import McpSseCommunicator
+from openmas.logging import configure_logging
 
 
 # Define Pydantic models for input/output validation (optional)
@@ -48,7 +48,7 @@ class TodoAgent(McpAgent):
 
         # Initialize the to-do list
         self._todos = [
-            TodoItem(id=1, text="Learn SimpleMAS", completed=True),
+            TodoItem(id=1, text="Learn OpenMAS", completed=True),
             TodoItem(id=2, text="Create MCP Agent", completed=False),
             TodoItem(id=3, text="Implement MCP tools", completed=False),
         ]

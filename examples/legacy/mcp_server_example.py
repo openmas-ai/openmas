@@ -14,9 +14,9 @@ from typing import Dict, Optional
 
 from pydantic import BaseModel
 
-from simple_mas import McpServerAgent, mcp_prompt, mcp_resource, mcp_tool
-from simple_mas.config import AgentConfig
-from simple_mas.logging import configure_logging
+from openmas import McpServerAgent, mcp_prompt, mcp_resource, mcp_tool
+from openmas.config import AgentConfig
+from openmas.logging import configure_logging
 
 # Configure logging
 configure_logging(log_level=logging.DEBUG)

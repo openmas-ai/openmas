@@ -4,17 +4,17 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
-from simple_mas.cli.deploy import _generate_compose_from_project_impl
-from simple_mas.deployment.metadata import ComponentSpec as Component
-from simple_mas.deployment.metadata import DependencySpec as Dependency
-from simple_mas.deployment.metadata import DeploymentMetadata
-from simple_mas.deployment.metadata import DockerSpec as DockerComposeConfig
-from simple_mas.deployment.metadata import EnvironmentVar
+from openmas.cli.deploy import _generate_compose_from_project_impl
+from openmas.deployment.metadata import ComponentSpec as Component
+from openmas.deployment.metadata import DependencySpec as Dependency
+from openmas.deployment.metadata import DeploymentMetadata
+from openmas.deployment.metadata import DockerSpec as DockerComposeConfig
+from openmas.deployment.metadata import EnvironmentVar
 
 
 class TestGenerateComposeFromProject:
-    @patch("simple_mas.deployment.orchestration.ComposeOrchestrator.save_compose")
-    @patch("simple_mas.deployment.metadata.DeploymentMetadata.from_file")
+    @patch("openmas.deployment.orchestration.ComposeOrchestrator.save_compose")
+    @patch("openmas.deployment.metadata.DeploymentMetadata.from_file")
     @patch("yaml.safe_load")  # Mock the yaml.safe_load function
     @patch("builtins.open", mock_open())  # Mock file open
     @patch("pathlib.Path.exists")
@@ -90,11 +90,11 @@ class TestGenerateComposeFromProject:
             components[0].environment.append(service_url)
             return components
 
-        with patch("simple_mas.cli.deploy._configure_service_urls", side_effect=configure_services):
+        with patch("openmas.cli.deploy._configure_service_urls", side_effect=configure_services):
             print("Calling _generate_compose_from_project_impl", file=sys.stderr)
             # Call the function
             result = _generate_compose_from_project_impl(
-                project_file="simplemas_project.yml",
+                project_file="openmas_project.yml",
                 output="docker-compose.yml",
                 strict=False,
                 use_project_names=False,
@@ -116,8 +116,8 @@ class TestGenerateComposeFromProject:
         assert any(env.name == "SERVICE_URL_DIFFERENT_NAME" for env in agent1.environment)
         print("Test completed successfully", file=sys.stderr)
 
-    @patch("simple_mas.deployment.orchestration.ComposeOrchestrator.save_compose")
-    @patch("simple_mas.deployment.metadata.DeploymentMetadata.from_file")
+    @patch("openmas.deployment.orchestration.ComposeOrchestrator.save_compose")
+    @patch("openmas.deployment.metadata.DeploymentMetadata.from_file")
     @patch("yaml.safe_load")  # Mock the yaml.safe_load function
     @patch("builtins.open", mock_open())  # Mock file open
     @patch("pathlib.Path.exists")
@@ -147,7 +147,7 @@ class TestGenerateComposeFromProject:
         # Mock existence of files - make project file exist, but have specific logic for other paths
         def exists_side_effect(path):
             path_str = str(path)
-            if path_str.endswith("simplemas_project.yml"):
+            if path_str.endswith("openmas_project.yml"):
                 return True
             return "missing" not in path_str
 
@@ -169,11 +169,11 @@ class TestGenerateComposeFromProject:
         mock_from_file.side_effect = [agent1_metadata, agent2_metadata]
 
         # Patch the _configure_service_urls function to do nothing
-        with patch("simple_mas.cli.deploy._configure_service_urls"):
+        with patch("openmas.cli.deploy._configure_service_urls"):
             print("Calling _generate_compose_from_project_impl", file=sys.stderr)
             # Test with strict mode (should fail)
             result = _generate_compose_from_project_impl(
-                project_file="simplemas_project.yml",
+                project_file="openmas_project.yml",
                 output="docker-compose.yml",
                 strict=True,
                 use_project_names=False,
@@ -185,8 +185,8 @@ class TestGenerateComposeFromProject:
         mock_save_compose.assert_not_called()
         print("Test completed successfully", file=sys.stderr)
 
-    @patch("simple_mas.deployment.orchestration.ComposeOrchestrator.save_compose")
-    @patch("simple_mas.deployment.metadata.DeploymentMetadata.from_file")
+    @patch("openmas.deployment.orchestration.ComposeOrchestrator.save_compose")
+    @patch("openmas.deployment.metadata.DeploymentMetadata.from_file")
     @patch("yaml.safe_load")  # Mock the yaml.safe_load function
     @patch("builtins.open", mock_open())  # Mock file open
     @patch("pathlib.Path.exists")
@@ -246,11 +246,11 @@ class TestGenerateComposeFromProject:
             components[1].environment.append(service_url)
             return components
 
-        with patch("simple_mas.cli.deploy._configure_service_urls", side_effect=configure_services):
+        with patch("openmas.cli.deploy._configure_service_urls", side_effect=configure_services):
             print("Calling _generate_compose_from_project_impl", file=sys.stderr)
             # Call the function with use_project_names
             result = _generate_compose_from_project_impl(
-                project_file="simplemas_project.yml",
+                project_file="openmas_project.yml",
                 output="docker-compose.yml",
                 strict=False,
                 use_project_names=True,

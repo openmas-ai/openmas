@@ -4,7 +4,7 @@ examples/
 ├── 01_communication_basics/    # Focus on different communicators
 │   ├── http_client_server/     # Simple HTTP request/response between two agents
 │   ├── mcp_stdio_external/     # Agent connecting to an external MCP process (like Stockfish)
-│   ├── mcp_sse_internal/       # Two SimpleMas agents communicating via MCP over SSE
+│   ├── mcp_sse_internal/       # Two OpenMAS agents communicating via MCP over SSE
 │   ├── grpc_request_reply/     # Basic gRPC communication
 │   ├── mq_publish_subscribe/   # Basic MQ pub/sub example
 │   └── README.md               # Explains communicator setup/config
@@ -27,7 +27,7 @@ examples/
 │   ├── shared_code_usage/      # Agents utilizing code from the 'shared/' dir
 │   └── README.md
 ├── 07_deployment_preview/      # Illustrating deployment concepts
-│   ├── simple_compose_setup/   # A minimal 2-agent project with simplemas.deploy.yaml files
+│   ├── simple_compose_setup/   # A minimal 2-agent project with openmas.deploy.yaml files
 │   │                           # -> Include the *expected* generated docker-compose.yml as reference
 │   └── README.md               # Explains metadata and references the generation tool
 └── README.md                   # Top-level README explaining the examples structure

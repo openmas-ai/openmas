@@ -1,4 +1,4 @@
-# SimpleMAS
+# OpenMAS
 
 A lightweight SDK for building Multi-Agent Systems with a focus on the Model Context Protocol (MCP).
 
@@ -15,41 +15,41 @@ A lightweight SDK for building Multi-Agent Systems with a focus on the Model Con
 ## Installation
 
 ```bash
-pip install simple-mas
+pip install openmas
 ```
 
 Or with Poetry:
 
 ```bash
-poetry add simple-mas
+poetry add openmas
 ```
 
 ### Optional Dependencies
 
-SimpleMAS has a modular design with optional dependencies for different communication protocols. The core package is lightweight, and you can install only the dependencies you need:
+OpenMAS has a modular design with optional dependencies for different communication protocols. The core package is lightweight, and you can install only the dependencies you need:
 
 ```bash
 # Install MCP support (Anthropic Model Context Protocol)
-pip install 'simple-mas[mcp]'
+pip install 'openmas[mcp]'
 
 # Install gRPC support
-pip install 'simple-mas[grpc]'
+pip install 'openmas[grpc]'
 
 # Install MQTT support
-pip install 'simple-mas[mqtt]'
+pip install 'openmas[mqtt]'
 
 # Install all optional dependencies
-pip install 'simple-mas[all]'
+pip install 'openmas[all]'
 ```
 
 With Poetry:
 
 ```bash
 # Install MCP support
-poetry add 'simple-mas[mcp]'
+poetry add 'openmas[mcp]'
 
 # Install multiple optional dependencies
-poetry add 'simple-mas[mcp,grpc,mqtt]'
+poetry add 'openmas[mcp,grpc,mqtt]'
 ```
 
 ## Usage
@@ -57,8 +57,8 @@ poetry add 'simple-mas[mcp,grpc,mqtt]'
 ### Basic Agent
 
 ```python
-from simple_mas.agent import BaseAgent
-from simple_mas.communication import HTTPCommunicator
+from openmas.agent import BaseAgent
+from openmas.communication import HTTPCommunicator
 
 class MyAgent(BaseAgent):
     async def setup(self) -> None:
@@ -92,17 +92,17 @@ if __name__ == "__main__":
 
 ### MCP Integration
 
-SimpleMAS provides first-class support for the Model Context Protocol (MCP). To use MCP features, make sure to install the MCP dependencies:
+OpenMAS provides first-class support for the Model Context Protocol (MCP). To use MCP features, make sure to install the MCP dependencies:
 
 ```bash
-pip install 'simple-mas[mcp]'
+pip install 'openmas[mcp]'
 ```
 
 Then, you can use the MCP communicators:
 
 ```python
-from simple_mas.agent import BaseAgent
-from simple_mas.communication.mcp import McpSseCommunicator
+from openmas.agent import BaseAgent
+from openmas.communication.mcp import McpSseCommunicator
 from mcp.client.session import ClientSession
 from mcp.types import TextContent
 
@@ -124,17 +124,17 @@ class McpAgent(BaseAgent):
 
 ### CLI Tool
 
-SimpleMAS includes a command-line tool for managing your multi-agent systems:
+OpenMAS includes a command-line tool for managing your multi-agent systems:
 
 ```bash
 # Generate deployment configurations
-simplemas deploy --directory ./my-project --output ./deployment
+openmas deploy --directory ./my-project --output ./deployment
 
 # Run quality checks
-simplemas check
+openmas check
 
 # Start a local agent
-simplemas run --agent my-agent
+openmas run --agent my-agent
 ```
 
 ## Documentation
@@ -154,14 +154,14 @@ For more details, see the [documentation](docs/):
 For this quick start example, you'll need the MCP dependencies:
 
 ```bash
-pip install 'simple-mas[mcp]'
+pip install 'openmas[mcp]'
 ```
 
 Now you can create your agent:
 
 ```python
-from simple_mas.agent import BaseAgent
-from simple_mas.communication.mcp import McpSseCommunicator
+from openmas.agent import BaseAgent
+from openmas.communication.mcp import McpSseCommunicator
 
 class MyAgent(BaseAgent):
     async def setup(self) -> None:
@@ -198,8 +198,8 @@ if __name__ == "__main__":
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/simple-mas.git
-cd simple-mas
+git clone https://github.com/yourusername/openmas.git
+cd openmas
 
 # Install dependencies
 poetry install

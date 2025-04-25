@@ -1,10 +1,10 @@
-# SimpleMas Docstring Policy
+# OpenMAS Docstring Policy
 
-This document defines the standard format for docstrings in the SimpleMas codebase.
+This document defines the standard format for docstrings in the OpenMAS codebase.
 
 ## Docstring Style
 
-SimpleMas uses **Google-style docstrings** throughout the codebase. This style is chosen for its readability, ease of use, and compatibility with tools like Sphinx and mkdocs.
+OpenMAS uses **Google-style docstrings** throughout the codebase. This style is chosen for its readability, ease of use, and compatibility with tools like Sphinx and mkdocs.
 
 ## Required Elements
 
@@ -13,7 +13,7 @@ SimpleMas uses **Google-style docstrings** throughout the codebase. This style i
 Each Python module should have a docstring at the top that describes its purpose:
 
 ```python
-"""SimpleMas communication module.
+"""OpenMAS communication module.
 
 This module provides communication infrastructure for agents to exchange
 messages using various protocols and message formats.
@@ -108,11 +108,11 @@ def get_logger(name: str) -> Logger:
         name: The name for the logger, typically __name__.
 
     Returns:
-        A Logger instance configured with the SimpleMas logging settings.
+        A Logger instance configured with the OpenMAS logging settings.
 
     Example:
         ```python
-        from simple_mas.logging import get_logger
+        from openmas.logging import get_logger
 
         logger = get_logger(__name__)
         logger.info("This is a log message")

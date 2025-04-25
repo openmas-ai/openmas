@@ -1,16 +1,16 @@
-# MCP Integration with SimpleMAS
+# MCP Integration with OpenMAS
 
-This document explains how to use the Anthropic MCP SDK (Model Context Protocol) with SimpleMAS.
+This document explains how to use the Anthropic MCP SDK (Model Context Protocol) with OpenMAS.
 
 ## Overview
 
 The MCP SDK from Anthropic provides a client and server implementation for the Model Context Protocol (MCP), which enables AI models to access various capabilities like tools, resources, and prompts.
 
-SimpleMAS provides adapters to use MCP with SimpleMAS agents:
+OpenMAS provides adapters to use MCP with OpenMAS agents:
 
 - `McpStdioCommunicator`: Communicator for connecting to MCP services over stdin/stdout
 - `McpSseCommunicator`: Communicator for connecting to MCP services over HTTP/SSE
-- `McpServerWrapper`: Wrapper for hosting MCP servers within SimpleMAS agents
+- `McpServerWrapper`: Wrapper for hosting MCP servers within OpenMAS agents
 
 ## Installation
 
@@ -20,17 +20,17 @@ SimpleMAS provides adapters to use MCP with SimpleMAS agents:
 pip install mcp==1.6.0
 ```
 
-2. Install SimpleMAS with the adapters (already included in the SimpleMAS package)
+2. Install OpenMAS with the adapters (already included in the OpenMAS package)
 
 ## Client Usage
 
-To use MCP as a client in a SimpleMAS agent:
+To use MCP as a client in a OpenMAS agent:
 
 ```python
-from simple_mas.agent import Agent
-from simple_mas.config import AgentConfig
-from simple_mas.communication.mcp import McpStdioCommunicator, McpSseCommunicator
-from simple_mas.logging import get_logger
+from openmas.agent import Agent
+from openmas.config import AgentConfig
+from openmas.communication.mcp import McpStdioCommunicator, McpSseCommunicator
+from openmas.logging import get_logger
 
 # Choose the appropriate communicator based on transport
 # For stdin/stdout transport:
@@ -73,12 +73,12 @@ Both `McpStdioCommunicator` and `McpSseCommunicator` provide methods for interac
 
 ## Server Usage
 
-To create a MCP server in a SimpleMAS agent:
+To create a MCP server in a OpenMAS agent:
 
 ```python
-from simple_mas.agent import Agent
-from simple_mas.config import AgentConfig
-from simple_mas.communication.mcp import McpServerWrapper
+from openmas.agent import Agent
+from openmas.config import AgentConfig
+from openmas.communication.mcp import McpServerWrapper
 
 # Create a MCP server wrapper
 server = McpServerWrapper(
@@ -110,8 +110,8 @@ server.run("stdio")  # or "sse" for SSE transport
 
 Check out the example implementations:
 
-- **Client**: `mcp_client_example.py` - SimpleMAS agent using MCP communicators
-- **Server**: `mcp_server_example.py` - SimpleMAS agent hosting a MCP server
+- **Client**: `mcp_client_example.py` - OpenMAS agent using MCP communicators
+- **Server**: `mcp_server_example.py` - OpenMAS agent hosting a MCP server
 - **Service**: `llm_service/main.py` - MCP service that agents can connect to
 
 ## Running the Examples

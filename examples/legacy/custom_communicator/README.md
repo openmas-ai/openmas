@@ -1,6 +1,6 @@
-# SimpleMas MQTT Communicator Example
+# OpenMAS MQTT Communicator Example
 
-This directory contains an example implementation of a custom communicator for SimpleMas using the MQTT protocol. It demonstrates how to create and use a plugin for the SimpleMas communication layer.
+This directory contains an example implementation of a custom communicator for OpenMAS using the MQTT protocol. It demonstrates how to create and use a plugin for the OpenMAS communication layer.
 
 ## Files
 
@@ -22,11 +22,11 @@ pip install -e .
 
 ## Usage
 
-Once installed, you can use the MQTT communicator in your SimpleMas agents:
+Once installed, you can use the MQTT communicator in your OpenMAS agents:
 
 ```python
-from simple_mas.agent import BaseAgent
-from simple_mas.config import AgentConfig
+from openmas.agent import BaseAgent
+from openmas.config import AgentConfig
 
 agent = BaseAgent(
     name="my-agent",
@@ -71,9 +71,9 @@ The MQTT communicator implements these key features:
 
 ## Plugin System Integration
 
-This example demonstrates two ways to integrate with SimpleMas's plugin system:
+This example demonstrates two ways to integrate with OpenMAS's plugin system:
 
 1. **Entry Points**: Using `setup.py` to register the communicator via entry points
 2. **Direct Registration**: Manual registration with `register_communicator()`
 
-The entry point registration is the recommended approach for third-party packages, as it allows SimpleMas to automatically discover and load the communicator when the package is installed.
+The entry point registration is the recommended approach for third-party packages, as it allows OpenMAS to automatically discover and load the communicator when the package is installed.

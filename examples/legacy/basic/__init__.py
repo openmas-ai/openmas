@@ -1,1 +1,1 @@
-"""Basic examples for SimpleMAS."""
+"""Basic examples for OpenMAS."""

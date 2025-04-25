@@ -1,10 +1,10 @@
-# Communication in SimpleMas
+# Communication in OpenMAS
 
-This document provides an overview of the communication protocols in SimpleMas, explaining when and how to use each one.
+This document provides an overview of the communication protocols in OpenMAS, explaining when and how to use each one.
 
 ## Communication Overview
 
-SimpleMas provides a flexible communication layer that abstracts away the complexity of different communication protocols. The core of this system is the `BaseCommunicator` interface, which all protocol implementations extend.
+OpenMAS provides a flexible communication layer that abstracts away the complexity of different communication protocols. The core of this system is the `BaseCommunicator` interface, which all protocol implementations extend.
 
 ## Available Protocols
 
@@ -17,7 +17,7 @@ The HTTP protocol implementation uses standard HTTP requests for communication b
 
 **Configuration Example:**
 ```python
-from simple_mas.communication import HTTPCommunicator
+from openmas.communication import HTTPCommunicator
 
 communicator = HTTPCommunicator(
     agent_name="agent1",
@@ -36,7 +36,7 @@ The Message Channel Protocol is optimized for high-performance, in-memory commun
 - Testing and development
 - Integration with AI models and tools via Anthropic's MCP
 
-SimpleMas provides specialized MCP communicator implementations:
+OpenMAS provides specialized MCP communicator implementations:
 
 #### MCP Stdio Communicator
 
@@ -44,7 +44,7 @@ Specifically designed for MCP communication over standard input/output. Can oper
 
 **Client Mode Example - Connecting to an External MCP Server:**
 ```python
-from simple_mas.communication.mcp import McpStdioCommunicator
+from openmas.communication.mcp import McpStdioCommunicator
 
 communicator = McpStdioCommunicator(
     agent_name="agent1",
@@ -57,7 +57,7 @@ communicator = McpStdioCommunicator(
 
 **Server Mode Example:**
 ```python
-from simple_mas.communication.mcp import McpStdioCommunicator
+from openmas.communication.mcp import McpStdioCommunicator
 
 communicator = McpStdioCommunicator(
     agent_name="agent1",
@@ -73,7 +73,7 @@ Uses HTTP with Server-Sent Events for MCP communication. Can operate in both cli
 
 **Client Mode Example - Connecting to External MCP Servers:**
 ```python
-from simple_mas.communication.mcp import McpSseCommunicator
+from openmas.communication.mcp import McpSseCommunicator
 
 communicator = McpSseCommunicator(
     agent_name="agent1",
@@ -87,7 +87,7 @@ communicator = McpSseCommunicator(
 **Server Mode Example:**
 ```python
 from fastapi import FastAPI
-from simple_mas.communication.mcp import McpSseCommunicator
+from openmas.communication.mcp import McpSseCommunicator
 
 # Optional: Create a FastAPI app (will create one if not provided)
 app = FastAPI(title="MCP Agent")
@@ -119,7 +119,7 @@ communicator = McpSseCommunicator(
 
 ## Connecting to External MCP Servers
 
-SimpleMAS supports connecting to external MCP servers in both stdio and SSE modes:
+OpenMAS supports connecting to external MCP servers in both stdio and SSE modes:
 
 ### Stdio Connection Format
 
@@ -132,7 +132,7 @@ service_urls = {
 }
 ```
 
-When using the stdio protocol prefix, SimpleMAS will execute the specified binary and communicate with it via stdin/stdout.
+When using the stdio protocol prefix, OpenMAS will execute the specified binary and communicate with it via stdin/stdout.
 
 ### SSE Connection Format
 
@@ -147,9 +147,9 @@ service_urls = {
 
 ## MCP Method Mapping
 
-SimpleMas's request/response model maps to MCP's tool/prompt/resource model as follows:
+OpenMAS's request/response model maps to MCP's tool/prompt/resource model as follows:
 
-| SimpleMas Method | MCP Equivalent |
+| OpenMAS Method | MCP Equivalent |
 |------------------|---------------|
 | `send_request("service", "tool/list")` | `list_tools()` |
 | `send_request("service", "tool/call", {"name": "tool_name", "arguments": {...}})` | `call_tool("tool_name", {...})` |
@@ -162,19 +162,19 @@ SimpleMas's request/response model maps to MCP's tool/prompt/resource model as f
 
 ## Extending with Custom Protocols
 
-SimpleMas allows you to create custom protocol implementations by extending the `BaseCommunicator` class. See the developer documentation for details on implementing your own communicator.
+OpenMAS allows you to create custom protocol implementations by extending the `BaseCommunicator` class. See the developer documentation for details on implementing your own communicator.
 
 ## Communicator Plugin System
 
-SimpleMas includes a plugin system that allows developers to create and register their own communicator implementations. This system enables easy extension of SimpleMas with custom communication protocols.
+OpenMAS includes a plugin system that allows developers to create and register their own communicator implementations. This system enables easy extension of OpenMAS with custom communication protocols.
 
 ### Using the Plugin System
 
 The communicator plugin system allows users to specify a communicator type in their agent configuration:
 
 ```python
-from simple_mas.agent import BaseAgent
-from simple_mas.config import AgentConfig
+from openmas.agent import BaseAgent
+from openmas.config import AgentConfig
 
 # Configure through environment variables
 # COMMUNICATOR_TYPE=mcp_stdio
@@ -194,7 +194,7 @@ agent = BaseAgent(
 )
 
 # Or just override the communicator class directly
-from simple_mas.communication import HttpCommunicator
+from openmas.communication import HttpCommunicator
 agent = BaseAgent(
     name="my-agent",
     communicator_class=HttpCommunicator
@@ -244,8 +244,8 @@ The gRPC communicator provides efficient, high-performance communication using G
 
 **Server Mode Example:**
 ```python
-from simple_mas.agent import BaseAgent
-from simple_mas.config import AgentConfig
+from openmas.agent import BaseAgent
+from openmas.config import AgentConfig
 
 agent = BaseAgent(
     name="grpc_server_agent",
@@ -267,8 +267,8 @@ await agent.communicator.register_handler("my_method", handler_function)
 
 **Client Mode Example:**
 ```python
-from simple_mas.agent import BaseAgent
-from simple_mas.config import AgentConfig
+from openmas.agent import BaseAgent
+from openmas.config import AgentConfig
 
 agent = BaseAgent(
     name="grpc_client_agent",
@@ -313,7 +313,7 @@ To create a custom communicator plugin:
 1. Implement the `BaseCommunicator` interface:
 
 ```python
-from simple_mas.communication.base import BaseCommunicator
+from openmas.communication.base import BaseCommunicator
 
 class MyCustomCommunicator(BaseCommunicator):
     """Custom communicator implementation."""
@@ -339,12 +339,12 @@ class MyCustomCommunicator(BaseCommunicator):
         # Implementation...
 ```
 
-2. Register your communicator with SimpleMas. There are several ways to do this:
+2. Register your communicator with OpenMAS. There are several ways to do this:
 
 #### Direct Registration
 
 ```python
-from simple_mas.communication.base import register_communicator
+from openmas.communication.base import register_communicator
 from mypackage.communicator import MyCustomCommunicator
 
 register_communicator("my_custom", MyCustomCommunicator)
@@ -355,7 +355,7 @@ register_communicator("my_custom", MyCustomCommunicator)
 Add this to your package's `pyproject.toml`:
 
 ```toml
-[project.entry-points."simple_mas.communicators"]
+[project.entry-points."openmas.communicators"]
 my_custom = "mypackage.communicator:MyCustomCommunicator"
 ```
 
@@ -365,7 +365,7 @@ Or in `setup.py`:
 setup(
     # ... other setup parameters
     entry_points={
-        "simple_mas.communicators": [
+        "openmas.communicators": [
             "my_custom=mypackage.communicator:MyCustomCommunicator",
         ],
     },
@@ -387,4 +387,4 @@ agent = BaseAgent(
 )
 ```
 
-For more details on implementing custom communicators, see the [Communication Module README](../src/simple_mas/communication/README.md).
+For more details on implementing custom communicators, see the [Communication Module README](../src/openmas/communication/README.md).

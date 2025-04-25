@@ -2,7 +2,7 @@
 """
 Agent Messaging Example.
 
-This example demonstrates how to set up communication between two agents using SimpleMAS.
+This example demonstrates how to set up communication between two agents using OpenMAS.
 It shows:
 
 1. Creating multiple agents
@@ -20,9 +20,9 @@ import random
 import sys
 from typing import Any, Dict, Optional
 
-from simple_mas.agent import Agent
-from simple_mas.communication import Message
-from simple_mas.config import AgentConfig
+from openmas.agent import Agent
+from openmas.communication import Message
+from openmas.config import AgentConfig
 
 
 class SenderAgent(Agent):

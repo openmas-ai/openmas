@@ -1,10 +1,10 @@
-# Testing Multi-Agent Systems with SimpleMas
+# Testing Multi-Agent Systems with OpenMAS
 
-This document provides comprehensive guidance on testing multi-agent systems built with SimpleMas, focusing on robust testing practices using the provided test utilities.
+This document provides comprehensive guidance on testing multi-agent systems built with OpenMAS, focusing on robust testing practices using the provided test utilities.
 
 ## Testing Utilities
 
-SimpleMAS provides two primary testing utilities:
+OpenMAS provides two primary testing utilities:
 
 1. **MockCommunicator**: A mock implementation of the BaseCommunicator for testing agents without real network dependencies.
 2. **AgentTestHarness**: A comprehensive test harness for creating, managing, and testing agent instances with MockCommunicator integration.
@@ -17,7 +17,7 @@ The `MockCommunicator` allows you to precisely control and verify agent communic
 
 ```python
 import pytest
-from simple_mas.testing import MockCommunicator
+from openmas.testing import MockCommunicator
 
 @pytest.fixture
 def mock_communicator():
@@ -62,7 +62,7 @@ The enhanced MockCommunicator supports various parameter matching strategies:
 
 ```python
 import re
-from simple_mas.testing import MockCommunicator
+from openmas.testing import MockCommunicator
 
 @pytest.mark.asyncio
 async def test_advanced_parameter_matching():
@@ -169,7 +169,7 @@ async def test_handler_registration(mock_communicator):
 ### Testing Error Conditions
 
 ```python
-from simple_mas.exceptions import ServiceNotFoundError
+from openmas.exceptions import ServiceNotFoundError
 
 @pytest.mark.asyncio
 async def test_error_conditions(mock_communicator):
@@ -226,8 +226,8 @@ The `AgentTestHarness` simplifies testing agent behavior by providing a structur
 
 ```python
 import pytest
-from simple_mas.agent import Agent
-from simple_mas.testing import AgentTestHarness
+from openmas.agent import Agent
+from openmas.testing import AgentTestHarness
 
 class TestAgentClass(Agent):
     async def setup(self):

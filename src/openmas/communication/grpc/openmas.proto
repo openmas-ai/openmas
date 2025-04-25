@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package openmas;
+
+// Generic message structure for OpenMAS communications
+service OpenMasService {
+  // Send a request and receive a response
+  rpc SendRequest (RequestMessage) returns (ResponseMessage) {}
+
+  // Send a notification without expecting a response
+  rpc SendNotification (NotificationMessage) returns (Empty) {}
+}
+
+// Message representing a request to a service
+message RequestMessage {
+  string id = 1;                  // Unique identifier for the request
+  string source = 2;              // Name of the source agent
+  string target = 3;              // Name of the target service
+  string method = 4;              // Method to call on the service
+  string params = 5;              // JSON-encoded parameters
+  uint64 timestamp = 6;           // Timestamp of the request (Unix time in milliseconds)
+  uint32 timeout_ms = 7;          // Optional timeout in milliseconds
+}
+
+// Message representing a response to a request
+message ResponseMessage {
+  string id = 1;                  // ID of the original request
+  string source = 2;              // Name of the source service
+  string target = 3;              // Name of the target agent
+  bytes result = 4;               // Binary response data (can be JSON or other format)
+  Error error = 5;                // Optional error information (null if no error)
+  uint64 timestamp = 6;           // Timestamp of the response (Unix time in milliseconds)
+}
+
+// Message representing a notification
+message NotificationMessage {
+  string source = 1;              // Name of the source agent
+  string target = 2;              // Name of the target service
+  string method = 3;              // Method to call on the service
+  string params = 4;              // JSON-encoded parameters
+  uint64 timestamp = 5;           // Timestamp of the notification (Unix time in milliseconds)
+}
+
+// Error information
+message Error {
+  int32 code = 1;                 // Error code
+  string message = 2;             // Error message
+  string details = 3;             // Optional additional error details
+}
+
+// Empty message for when no response is needed
+message Empty {}

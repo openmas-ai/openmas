@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to extract critical files from the SimpleMAS project for code review.
+Script to extract critical files from the OpenMAS project for code review.
 
 This script creates a temporary directory with a copy of the important project files,
 excluding binary files, cache directories, and other non-essential files.
@@ -186,7 +186,7 @@ def main() -> None:
     if args.target:
         target_dir = args.target
     else:
-        temp_dir = tempfile.mkdtemp(prefix="simple-mas-review-")
+        temp_dir = tempfile.mkdtemp(prefix="openmas-review-")
         target_dir = temp_dir
 
     print(f"Extracting critical files from {args.source} to {target_dir}")
@@ -199,7 +199,7 @@ def main() -> None:
 
     # Create archive if requested
     if args.compress:
-        archive_name = "simple-mas-review"
+        archive_name = "openmas-review"
         archive_path = shutil.make_archive(archive_name, "zip", target_dir)
         print(f"\nCreated archive: {os.path.abspath(archive_path)}")
 

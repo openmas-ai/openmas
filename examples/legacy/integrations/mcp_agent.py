@@ -102,9 +102,9 @@ except ImportError:
             yield None
 
 
-from simple_mas.agent.mcp import McpAgent  # noqa: E402
-from simple_mas.communication import BaseCommunicator, HttpCommunicator  # noqa: E402
-from simple_mas.config import AgentConfig  # noqa: E402
+from openmas.agent.mcp import McpAgent  # noqa: E402
+from openmas.communication import BaseCommunicator, HttpCommunicator  # noqa: E402
+from openmas.config import AgentConfig  # noqa: E402
 
 
 class AssistantAgent(McpAgent):

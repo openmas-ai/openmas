@@ -1,6 +1,6 @@
-# Basic SimpleMAS Examples
+# Basic OpenMAS Examples
 
-This directory contains basic examples that demonstrate the core functionality of the SimpleMAS framework. These examples are a good starting point for understanding the framework's architecture and capabilities.
+This directory contains basic examples that demonstrate the core functionality of the OpenMAS framework. These examples are a good starting point for understanding the framework's architecture and capabilities.
 
 ## Examples
 
@@ -45,7 +45,7 @@ poetry run python examples/basic/minimal_agent.py
 
 ## Testing the Examples
 
-Each example has corresponding tests in the `tests/unit/examples/` directory that demonstrate how to test agent behavior using the SimpleMAS testing utilities.
+Each example has corresponding tests in the `tests/unit/examples/` directory that demonstrate how to test agent behavior using the OpenMAS testing utilities.
 
 To run the tests:
 ```bash

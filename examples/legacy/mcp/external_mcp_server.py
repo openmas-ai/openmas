@@ -15,9 +15,9 @@ import os
 from mcp.client.sse import sse_client
 from mcp.types import TextContent
 
-from simple_mas.agent.base import BaseAgent
-from simple_mas.communication.mcp import MCPCommunicator
-from simple_mas.config import AgentConfig
+from openmas.agent.base import BaseAgent
+from openmas.communication.mcp import MCPCommunicator
+from openmas.config import AgentConfig
 
 # Default MCP server URL for local testing
 DEFAULT_MCP_URL = "http://localhost:8000"

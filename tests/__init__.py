@@ -1,6 +1,6 @@
-"""Tests for SimpleMAS package.
+"""Tests for OpenMAS package.
 
-This directory contains unit and integration tests for the SimpleMAS package.
+This directory contains unit and integration tests for the OpenMAS package.
 
 The tests directory is organized as follows:
 - unit/ - Unit tests for individual components

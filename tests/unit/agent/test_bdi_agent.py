@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from simple_mas.agent.bdi import BdiAgent
-from simple_mas.config import AgentConfig
+from openmas.agent.bdi import BdiAgent
+from openmas.config import AgentConfig
 
 # Note: bdi_agent fixture is now imported from conftest.py
 
@@ -181,7 +181,7 @@ class TestBdiAgent:
         bdi_agent._bdi_task = dummy_future
 
         # Patch the BaseAgent.shutdown method
-        with patch("simple_mas.agent.base.BaseAgent.shutdown", new_callable=AsyncMock):
+        with patch("openmas.agent.base.BaseAgent.shutdown", new_callable=AsyncMock):
             # Call shutdown
             await bdi_agent.shutdown()
 

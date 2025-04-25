@@ -1,4 +1,4 @@
-"""Tests for the SimpleMas CLI."""
+"""Tests for the OpenMAS CLI."""
 
 import asyncio
 import os
@@ -9,7 +9,7 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from simple_mas.cli.main import cli
+from openmas.cli.main import cli
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def temp_project_dir(tmp_path):
     agent1_dir.mkdir()
     with open(agent1_dir / "agent.py", "w") as f:
         f.write(
-            """from simple_mas.agent import BaseAgent
+            """from openmas.agent import BaseAgent
 
 class Agent1(BaseAgent):
     async def setup(self):
@@ -54,7 +54,7 @@ class Agent1(BaseAgent):
     agent2_dir.mkdir()
     with open(agent2_dir / "agent.py", "w") as f:
         f.write(
-            """from simple_mas.agent import BaseAgent
+            """from openmas.agent import BaseAgent
 
 class Agent2(BaseAgent):
     async def setup(self):
@@ -97,7 +97,7 @@ class Agent2(BaseAgent):
         "default_config": {"log_level": "INFO", "communicator_type": "http"},
     }
 
-    with open(project_dir / "simplemas_project.yml", "w") as f:
+    with open(project_dir / "openmas_project.yml", "w") as f:
         yaml.dump(project_config, f)
 
     return project_dir
@@ -117,12 +117,12 @@ def test_init_command(cli_runner, tmp_path):
     assert (project_path / "extensions").exists()
     assert (project_path / "config").exists()
     assert (project_path / "tests").exists()
-    assert (project_path / "simplemas_project.yml").exists()
+    assert (project_path / "openmas_project.yml").exists()
     assert (project_path / "README.md").exists()
     assert (project_path / "requirements.txt").exists()
 
     # Check the project configuration
-    with open(project_path / "simplemas_project.yml", "r") as f:
+    with open(project_path / "openmas_project.yml", "r") as f:
         config = yaml.safe_load(f)
 
     # The name is the path when using the Click CliRunner in testing
@@ -143,10 +143,10 @@ def test_init_command_with_template(cli_runner, tmp_path):
     # Check that the MCP server agent was created
     assert (project_path / "agents" / "mcp_server").exists()
     assert (project_path / "agents" / "mcp_server" / "agent.py").exists()
-    assert (project_path / "agents" / "mcp_server" / "simplemas.deploy.yaml").exists()
+    assert (project_path / "agents" / "mcp_server" / "openmas.deploy.yaml").exists()
 
     # Check the project configuration
-    with open(project_path / "simplemas_project.yml", "r") as f:
+    with open(project_path / "openmas_project.yml", "r") as f:
         config = yaml.safe_load(f)
 
     assert "agents" in config
@@ -186,7 +186,7 @@ def test_validate_missing_config(cli_runner):
         result = cli_runner.invoke(cli, ["validate"])
 
         assert result.exit_code != 0
-        assert "Project configuration file 'simplemas_project.yml' not found" in result.output
+        assert "Project configuration file 'openmas_project.yml' not found" in result.output
 
 
 def test_list_agents_command(cli_runner, temp_project_dir):
@@ -208,7 +208,7 @@ def test_list_agents_missing_config(cli_runner):
         result = cli_runner.invoke(cli, ["list", "agents"])
 
         assert result.exit_code != 0
-        assert "Project configuration file 'simplemas_project.yml' not found" in result.output
+        assert "Project configuration file 'openmas_project.yml' not found" in result.output
 
 
 class MockBaseAgent:
@@ -234,8 +234,8 @@ class MockBaseAgent:
 
 
 @patch("importlib.import_module")
-@patch("simple_mas.agent.base.BaseAgent", MockBaseAgent)
-@patch("simple_mas.config._find_project_root")
+@patch("openmas.agent.base.BaseAgent", MockBaseAgent)
+@patch("openmas.config._find_project_root")
 def test_run_command_agent_exists(mock_find_root, mock_import, cli_runner, temp_project_dir):
     """Test the run command with an existing agent."""
     mock_find_root.return_value = temp_project_dir
@@ -261,7 +261,7 @@ def test_run_command_agent_exists(mock_find_root, mock_import, cli_runner, temp_
 
                 # Check environment variables were set
                 assert mock_environ.get("AGENT_NAME") == "agent1"
-                assert mock_environ.get("SIMPLEMAS_ENV") == "local"
+                assert mock_environ.get("OPENMAS_ENV") == "local"
 
                 # Verify agent module was imported
                 mock_import.assert_called()
@@ -269,7 +269,7 @@ def test_run_command_agent_exists(mock_find_root, mock_import, cli_runner, temp_
 
 @patch("importlib.import_module")
 @patch("asyncio.get_event_loop")
-@patch("simple_mas.config._find_project_root")
+@patch("openmas.config._find_project_root")
 def test_run_command_with_signal_handling(mock_find_root, mock_get_loop, mock_import, cli_runner, temp_project_dir):
     """Test the run command with signal handling."""
     mock_find_root.return_value = temp_project_dir
@@ -338,7 +338,7 @@ def test_run_command_with_signal_handling(mock_find_root, mock_get_loop, mock_im
 
 
 @patch("importlib.import_module")
-@patch("simple_mas.config._find_project_root")
+@patch("openmas.config._find_project_root")
 def test_run_command_agent_not_found(mock_find_root, mock_import, cli_runner, temp_project_dir):
     """Test the run command with a non-existent agent."""
     mock_find_root.return_value = temp_project_dir
@@ -354,7 +354,7 @@ def test_run_command_agent_not_found(mock_find_root, mock_import, cli_runner, te
 
 
 @patch("importlib.import_module")
-@patch("simple_mas.config._find_project_root")
+@patch("openmas.config._find_project_root")
 def test_run_command_empty_agent_name(mock_find_root, mock_import, cli_runner, temp_project_dir):
     """Test the run command with an empty agent name."""
     mock_find_root.return_value = temp_project_dir
@@ -367,7 +367,7 @@ def test_run_command_empty_agent_name(mock_find_root, mock_import, cli_runner, t
 
 
 @patch("importlib.import_module", side_effect=ImportError("Module not found"))
-@patch("simple_mas.config._find_project_root")
+@patch("openmas.config._find_project_root")
 def test_run_command_import_error(mock_find_root, mock_import, cli_runner, temp_project_dir):
     """Test the run command when the agent module cannot be imported."""
     mock_find_root.return_value = temp_project_dir
@@ -380,7 +380,7 @@ def test_run_command_import_error(mock_find_root, mock_import, cli_runner, temp_
 
 
 @patch("importlib.import_module")
-@patch("simple_mas.config._find_project_root")
+@patch("openmas.config._find_project_root")
 def test_run_command_no_agent_class(mock_find_root, mock_import, cli_runner, temp_project_dir):
     """Test the run command when no BaseAgent subclass is found in the module."""
     mock_find_root.return_value = temp_project_dir
@@ -397,8 +397,8 @@ def test_run_command_no_agent_class(mock_find_root, mock_import, cli_runner, tem
 
 
 @patch("importlib.import_module")
-@patch("simple_mas.agent.base.BaseAgent", MockBaseAgent)
-@patch("simple_mas.config._find_project_root")
+@patch("openmas.agent.base.BaseAgent", MockBaseAgent)
+@patch("openmas.config._find_project_root")
 def test_run_command_with_project_dir(mock_find_root, mock_import, cli_runner, temp_project_dir):
     """Test the run command with the --project-dir parameter."""
     mock_find_root.return_value = temp_project_dir
@@ -420,14 +420,14 @@ def test_run_command_with_project_dir(mock_find_root, mock_import, cli_runner, t
         assert result.exit_code == 0
 
 
-@patch("simple_mas.config._find_project_root")
+@patch("openmas.config._find_project_root")
 def test_run_command_with_invalid_project_dir(mock_find_root, cli_runner):
     """Test the run command with an invalid --project-dir."""
-    # Simulate a case where the project directory doesn't contain simplemas_project.yml
+    # Simulate a case where the project directory doesn't contain openmas_project.yml
     mock_find_root.return_value = None
 
     with cli_runner.isolated_filesystem():
-        # Create a temporary directory that doesn't have a simplemas_project.yml
+        # Create a temporary directory that doesn't have a openmas_project.yml
         invalid_dir = Path("invalid_dir")
         invalid_dir.mkdir()
 
@@ -439,4 +439,4 @@ def test_run_command_with_invalid_project_dir(mock_find_root, cli_runner):
 
         # Verify that the command failed with the correct error message
         assert result.exit_code != 0
-        assert "Project configuration file 'simplemas_project.yml' not found in specified directory" in result.output
+        assert "Project configuration file 'openmas_project.yml' not found in specified directory" in result.output

@@ -1,6 +1,6 @@
-# Common Patterns in SimpleMas
+# Common Patterns in OpenMAS
 
-This document describes common patterns and best practices for building multi-agent systems with SimpleMas.
+This document describes common patterns and best practices for building multi-agent systems with OpenMAS.
 
 ## Basic Patterns
 
@@ -102,9 +102,9 @@ async def handle_discover(params):
 3. **Resource Cleanup**: Make sure to call `agent.stop()` when shutting down
 4. **Message Validation**: Use Pydantic models to validate message structures
 
-# Patterns in SimpleMAS
+# Patterns in OpenMAS
 
-SimpleMAS provides helper classes and utilities for implementing common patterns in multi-agent systems.
+OpenMAS provides helper classes and utilities for implementing common patterns in multi-agent systems.
 
 ## Orchestrator-Worker Pattern
 
@@ -116,7 +116,7 @@ The Orchestrator-Worker pattern is a powerful design pattern for coordinating co
 
 ### Key Components
 
-SimpleMAS implements the Orchestrator-Worker pattern with the following components:
+OpenMAS implements the Orchestrator-Worker pattern with the following components:
 
 - `BaseOrchestratorAgent`: Base class for implementing orchestrator agents
 - `BaseWorkerAgent`: Base class for implementing worker agents
@@ -133,10 +133,10 @@ SimpleMAS implements the Orchestrator-Worker pattern with the following componen
 
 ### Example Usage
 
-Below is a simple example of how to use the Orchestrator-Worker pattern in SimpleMAS:
+Below is a simple example of how to use the Orchestrator-Worker pattern in OpenMAS:
 
 ```python
-from simple_mas.patterns.orchestrator import (
+from openmas.patterns.orchestrator import (
     BaseOrchestratorAgent,
     BaseWorkerAgent,
     TaskHandler
@@ -255,7 +255,7 @@ To create a worker agent:
 3. Optionally override `setup()` to add additional initialization logic
 
 ```python
-from simple_mas.patterns.orchestrator import BaseWorkerAgent, TaskHandler
+from openmas.patterns.orchestrator import BaseWorkerAgent, TaskHandler
 
 class DataProcessingWorker(BaseWorkerAgent):
     async def setup(self) -> None:
@@ -320,7 +320,7 @@ async def start_worker():
 In larger systems, you may want to dynamically discover workers:
 
 ```python
-from simple_mas.patterns.orchestrator import BaseOrchestratorAgent
+from openmas.patterns.orchestrator import BaseOrchestratorAgent
 
 class DynamicOrchestrator(BaseOrchestratorAgent):
     async def setup(self) -> None:
@@ -367,7 +367,7 @@ class DynamicOrchestrator(BaseOrchestratorAgent):
 The `@TaskHandler` decorator makes it easy to register methods as task handlers:
 
 ```python
-from simple_mas.patterns.orchestrator import BaseWorkerAgent, TaskHandler
+from openmas.patterns.orchestrator import BaseWorkerAgent, TaskHandler
 
 class AnalyticsWorker(BaseWorkerAgent):
     @TaskHandler(task_type="summarize", description="Generate summary statistics")
@@ -394,7 +394,7 @@ class AnalyticsWorker(BaseWorkerAgent):
 ### Workflow Orchestration with Error Handling
 
 ```python
-from simple_mas.patterns.orchestrator import BaseOrchestratorAgent
+from openmas.patterns.orchestrator import BaseOrchestratorAgent
 
 class RobustOrchestrator(BaseOrchestratorAgent):
     async def process_data_pipeline(self,
@@ -490,7 +490,7 @@ For agents using MCP for capabilities like LLM integration, you can combine the 
 from mcp.client.session import ClientSession
 from mcp.types import TextContent
 
-from simple_mas.patterns.orchestrator import BaseWorkerAgent, TaskHandler
+from openmas.patterns.orchestrator import BaseWorkerAgent, TaskHandler
 
 class LLMWorker(BaseWorkerAgent):
     async def setup(self) -> None:
@@ -538,7 +538,7 @@ The Chaining pattern provides a way to execute a sequence of service calls, wher
 
 ### Key Components
 
-SimpleMAS implements the Chaining pattern with the following components:
+OpenMAS implements the Chaining pattern with the following components:
 
 - `ServiceChain`: A class for defining and executing a chain of service calls
 - `ChainBuilder`: A builder for creating chains with a fluent interface
@@ -558,7 +558,7 @@ SimpleMAS implements the Chaining pattern with the following components:
 ### Example Usage
 
 ```python
-from simple_mas.patterns.chaining import ChainBuilder
+from openmas.patterns.chaining import ChainBuilder
 
 # Create a chain builder
 chain = ChainBuilder(communicator, name="weather_forecast_chain")
@@ -595,7 +595,7 @@ The Routing pattern provides a flexible way to dispatch requests to different ha
 
 ### Key Components
 
-SimpleMAS implements the Routing pattern with the following components:
+OpenMAS implements the Routing pattern with the following components:
 
 - `Router`: A class for defining routing rules and dispatching requests
 - `RoutingAgent`: A base agent class that includes routing capabilities
@@ -613,7 +613,7 @@ SimpleMAS implements the Routing pattern with the following components:
 ### Example Usage
 
 ```python
-from simple_mas.patterns.routing import (
+from openmas.patterns.routing import (
     RoutingAgent,
     route_method,
     route_param,

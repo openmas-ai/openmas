@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Example agent using OpenAI for reasoning.
 
-This example demonstrates how to integrate OpenAI's LLM into a SimpleMAS agent
+This example demonstrates how to integrate OpenAI's LLM into a OpenMAS agent
 for reasoning capabilities.
 
 To run:
@@ -16,8 +16,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from simple_mas.agent.base import BaseAgent
-from simple_mas.config import AgentConfig
+from openmas.agent.base import BaseAgent
+from openmas.config import AgentConfig
 
 
 class OpenAIAgentConfig(AgentConfig):

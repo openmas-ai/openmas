@@ -1,6 +1,6 @@
-# SimpleMAS Examples
+# OpenMAS Examples
 
-This directory contains examples demonstrating how to use the SimpleMAS framework. Each example illustrates different aspects of the framework and can be used as a reference for building your own agent-based systems.
+This directory contains examples demonstrating how to use the OpenMAS framework. Each example illustrates different aspects of the framework and can be used as a reference for building your own agent-based systems.
 
 ## Getting Started
 

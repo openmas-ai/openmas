@@ -1,3 +1,3 @@
 # hello_agent_example
 
-A SimpleMAS project.
+A OpenMAS project.

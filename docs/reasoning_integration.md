@@ -1,6 +1,6 @@
-# Reasoning Integration in SimpleMAS
+# Reasoning Integration in OpenMAS
 
-SimpleMAS focuses on providing a robust structure and communication layer for multi-agent systems, but it's designed to be extensible and integrate with various reasoning frameworks. This document explains how to integrate external reasoning engines, particularly Belief-Desire-Intention (BDI) frameworks, with SimpleMAS agents.
+OpenMAS focuses on providing a robust structure and communication layer for multi-agent systems, but it's designed to be extensible and integrate with various reasoning frameworks. This document explains how to integrate external reasoning engines, particularly Belief-Desire-Intention (BDI) frameworks, with OpenMAS agents.
 
 ## BDI Architecture Overview
 
@@ -17,9 +17,9 @@ The BDI reasoning cycle typically involves:
 3. **Planning**: Creating intentions (plans) to achieve selected desires
 4. **Execution**: Carrying out intentions
 
-## BDI Integration in SimpleMAS
+## BDI Integration in OpenMAS
 
-SimpleMAS provides a `BdiAgent` base class that extends `BaseAgent` with hooks for BDI integration. This class provides:
+OpenMAS provides a `BdiAgent` base class that extends `BaseAgent` with hooks for BDI integration. This class provides:
 
 1. Basic belief, desire, and intention management
 2. A structured BDI reasoning cycle
@@ -52,7 +52,7 @@ The `BdiAgent` integrates with the `BaseAgent` lifecycle as follows:
 To create a simple BDI agent, subclass `BdiAgent` and override the necessary methods:
 
 ```python
-from simple_mas.agent import BdiAgent
+from openmas.agent import BdiAgent
 
 class MyBdiAgent(BdiAgent):
     async def setup(self) -> None:
@@ -88,22 +88,22 @@ class MyBdiAgent(BdiAgent):
 
 ### Integrating External BDI Frameworks
 
-SimpleMAS can integrate with external BDI frameworks by:
+OpenMAS can integrate with external BDI frameworks by:
 
 1. Subclassing `BdiAgent`
 2. Overriding the BDI lifecycle methods to integrate with the external framework
-3. Synchronizing the agent's state between SimpleMAS and the external framework
+3. Synchronizing the agent's state between OpenMAS and the external framework
 
 #### Example: SPADE-BDI Integration
 
-SimpleMAS includes an example integration with the SPADE-BDI framework. The `SpadeBdiAgent` class demonstrates how to:
+OpenMAS includes an example integration with the SPADE-BDI framework. The `SpadeBdiAgent` class demonstrates how to:
 
 1. Initialize a SPADE-BDI agent
-2. Synchronize beliefs between SimpleMAS and SPADE-BDI
-3. Map the SPADE-BDI lifecycle to the SimpleMAS BDI lifecycle
+2. Synchronize beliefs between OpenMAS and SPADE-BDI
+3. Map the SPADE-BDI lifecycle to the OpenMAS BDI lifecycle
 
 ```python
-from simple_mas.agent import SpadeBdiAgent
+from openmas.agent import SpadeBdiAgent
 
 # Create a SPADE-BDI agent with an AgentSpeak (ASL) file
 agent = SpadeBdiAgent(name="my-agent", asl_file_path="my_plans.asl")
@@ -124,12 +124,12 @@ To integrate with another BDI framework:
 
 1. Subclass `BdiAgent`
 2. Override the BDI lifecycle methods to integrate with the external framework
-3. Synchronize the agent's state between SimpleMAS and the external framework
+3. Synchronize the agent's state between OpenMAS and the external framework
 
 Example:
 
 ```python
-from simple_mas.agent import BdiAgent
+from openmas.agent import BdiAgent
 from external_bdi_framework import ExternalBdiEngine
 
 class CustomBdiAgent(BdiAgent):
@@ -141,7 +141,7 @@ class CustomBdiAgent(BdiAgent):
         self._external_bdi.start()
 
     async def update_beliefs(self) -> None:
-        # Synchronize beliefs from external perception to SimpleMAS
+        # Synchronize beliefs from external perception to OpenMAS
         external_beliefs = self._external_bdi.get_beliefs()
         for belief_name, belief_value in external_beliefs.items():
             self.add_belief(belief_name, belief_value)
@@ -150,7 +150,7 @@ class CustomBdiAgent(BdiAgent):
         # Use the external BDI engine for deliberation
         selected_desires = self._external_bdi.deliberate(self._beliefs)
 
-        # Synchronize desires to SimpleMAS
+        # Synchronize desires to OpenMAS
         for desire in selected_desires:
             self.add_desire(desire)
 
@@ -158,7 +158,7 @@ class CustomBdiAgent(BdiAgent):
         # Use the external BDI engine for planning
         plans = self._external_bdi.plan(self._beliefs, self._desires)
 
-        # Synchronize plans to SimpleMAS as intentions
+        # Synchronize plans to OpenMAS as intentions
         for plan in plans:
             self.add_intention(plan)
 
@@ -175,7 +175,7 @@ class CustomBdiAgent(BdiAgent):
 
 ### Communication in BDI Agents
 
-BDI agents can use the SimpleMAS `Communicator` to interact with other agents:
+BDI agents can use the OpenMAS `Communicator` to interact with other agents:
 
 ```python
 class CommunicativeBdiAgent(BdiAgent):
@@ -204,9 +204,9 @@ class CommunicativeBdiAgent(BdiAgent):
 ## Best Practices
 
 1. **Modular Design**: Keep the BDI reasoning separate from agent-specific functionality
-2. **State Synchronization**: Ensure consistent state between SimpleMAS and external frameworks
+2. **State Synchronization**: Ensure consistent state between OpenMAS and external frameworks
 3. **Error Handling**: Handle exceptions in the BDI reasoning cycle
-4. **Efficient Communication**: Use the SimpleMAS communicator for agent interaction
+4. **Efficient Communication**: Use the OpenMAS communicator for agent interaction
 5. **Performance Considerations**: Adjust the deliberation cycle interval for your use case
 
 ## References

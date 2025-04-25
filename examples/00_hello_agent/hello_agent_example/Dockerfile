@@ -1,5 +1,5 @@
-# SimpleMas Agent Dockerfile
-# Generated with simplemas deploy generate-dockerfile
+# OpenMAS Agent Dockerfile
+# Generated with openmas deploy generate-dockerfile
 
 FROM python:3.10-slim
 
@@ -21,4 +21,4 @@ ENV PYTHONUNBUFFERED=1 \
     AGENT_PORT=8000
 
 # Run the application
-CMD ["python", "-m simple_mas.cli run hello_agent"]
+CMD ["python", "-m openmas.cli run hello_agent"]

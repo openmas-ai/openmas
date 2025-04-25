@@ -1,1 +1,1 @@
-"""Integration tests for SimpleMAS."""
+"""Integration tests for OpenMAS."""

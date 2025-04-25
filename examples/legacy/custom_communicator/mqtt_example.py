@@ -1,6 +1,6 @@
-"""Example usage of the MQTT communicator with SimpleMas.
+"""Example usage of the MQTT communicator with OpenMAS.
 
-This example demonstrates how to use the MQTT communicator in a SimpleMas agent.
+This example demonstrates how to use the MQTT communicator in a OpenMAS agent.
 
 To run this example:
 1. First start an MQTT broker (e.g., Mosquitto)
@@ -15,15 +15,15 @@ import logging
 import os
 import sys
 
-# Add parent directory to path to import simple_mas
+# Add parent directory to path to import openmas
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Import the MQTT communicator
 from mqtt_communicator import MqttCommunicator  # noqa: E402
 
-from simple_mas.agent import BaseAgent  # noqa: E402
-from simple_mas.communication.base import register_communicator  # noqa: E402
-from simple_mas.config import AgentConfig  # noqa: E402
+from openmas.agent import BaseAgent  # noqa: E402
+from openmas.communication.base import register_communicator  # noqa: E402
+from openmas.config import AgentConfig  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

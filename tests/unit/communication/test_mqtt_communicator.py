@@ -11,7 +11,7 @@ try:
     import paho.mqtt.client as mqtt  # noqa: F401
 
     # Then try to import the MqttCommunicator class
-    from simple_mas.communication.mqtt import MqttCommunicator
+    from openmas.communication.mqtt import MqttCommunicator
 
     HAS_MQTT = True
 except ImportError:
@@ -19,7 +19,7 @@ except ImportError:
     # Skip all tests in this module if MQTT is not available
     pytest.skip("MQTT dependencies are not available", allow_module_level=True)
 
-from simple_mas.logging import get_logger
+from openmas.logging import get_logger
 
 # Get logger for tests
 test_logger = get_logger(__name__)
@@ -78,7 +78,7 @@ class TestMqttCommunicator:
             assert communicator.service_urls == service_urls
             assert communicator.broker_host == "localhost"
             assert communicator.broker_port == 1883
-            assert communicator.topic_prefix == "simplemas"
+            assert communicator.topic_prefix == "openmas"
             assert communicator._is_started is False
             assert communicator.handlers == {}
 

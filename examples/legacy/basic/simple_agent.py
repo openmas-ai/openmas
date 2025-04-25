@@ -3,7 +3,7 @@
 Simple Agent Example.
 
 This is a minimal example showing how to create and run a basic agent
-using SimpleMAS. This example demonstrates:
+using OpenMAS. This example demonstrates:
 
 1. Creating a custom agent class
 2. Configuring and initializing an agent
@@ -20,8 +20,8 @@ import random
 import sys
 from typing import Any, Dict, List
 
-from simple_mas.agent import Agent
-from simple_mas.config import AgentConfig
+from openmas.agent import Agent
+from openmas.config import AgentConfig
 
 
 class SimpleAgent(Agent):

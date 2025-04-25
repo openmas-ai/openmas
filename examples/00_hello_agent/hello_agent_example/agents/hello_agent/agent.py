@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from simple_mas.agent import BaseAgent
+from openmas.agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 

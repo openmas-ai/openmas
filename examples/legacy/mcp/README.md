@@ -1,6 +1,6 @@
 # MCP (Model Context Protocol) Examples
 
-This directory contains examples of integrating Large Language Models (LLMs) into SimpleMAS using MCP (Model Context Protocol). These examples demonstrate advanced techniques for using LLMs as part of agent systems.
+This directory contains examples of integrating Large Language Models (LLMs) into OpenMAS using MCP (Model Context Protocol). These examples demonstrate advanced techniques for using LLMs as part of agent systems.
 
 ## Examples
 
@@ -47,7 +47,7 @@ To run these examples, you'll need:
 
 ## MCP Server
 
-The MCP server is the intermediary that handles communication between the SimpleMAS agents and the LLM services.
+The MCP server is the intermediary that handles communication between the OpenMAS agents and the LLM services.
 
 To run a local MCP server:
 ```bash

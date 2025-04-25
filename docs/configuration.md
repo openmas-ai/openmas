@@ -1,22 +1,22 @@
-# SimpleMas Configuration System
+# OpenMAS Configuration System
 
-SimpleMas provides a flexible configuration system that supports layered configuration from multiple sources. This guide explains how the configuration system works, the precedence of different configuration sources, and how to use it in your projects.
+OpenMAS provides a flexible configuration system that supports layered configuration from multiple sources. This guide explains how the configuration system works, the precedence of different configuration sources, and how to use it in your projects.
 
 ## Configuration Sources and Precedence
 
-SimpleMas loads configuration from multiple sources in the following order (from lowest to highest precedence):
+OpenMAS loads configuration from multiple sources in the following order (from lowest to highest precedence):
 
 1. **SDK Internal Defaults**: Default values defined in the Pydantic models (e.g., `AgentConfig`).
-2. **Project Configuration (`simplemas_project.yml`)**: Values in the `default_config` section of the project configuration file.
+2. **Project Configuration (`openmas_project.yml`)**: Values in the `default_config` section of the project configuration file.
 3. **Default Configuration File (`config/default.yml`)**: Settings shared by all environments.
-4. **Environment-Specific Configuration (`config/<SIMPLEMAS_ENV>.yml`)**: Settings specific to the current environment.
+4. **Environment-Specific Configuration (`config/<OPENMAS_ENV>.yml`)**: Settings specific to the current environment.
 5. **Environment Variables**: The highest precedence, overriding all other sources.
 
 This layered approach allows you to define sane defaults, environment-specific configurations, and easily override settings for testing or deployment without modifying code.
 
 ## Configuration Files
 
-### Project Configuration (`simplemas_project.yml`)
+### Project Configuration (`openmas_project.yml`)
 
 The central project configuration file, located at the root of your project:
 
@@ -41,7 +41,7 @@ The `default_config` section provides base configuration values for all agents i
 
 ### Environment Configuration Files
 
-SimpleMas looks for YAML configuration files in the `config/` directory of your project:
+OpenMAS looks for YAML configuration files in the `config/` directory of your project:
 
 1. **Default Configuration (`config/default.yml`)**: Shared settings for all environments:
 
@@ -69,10 +69,10 @@ communicator_options:
   timeout: 60
 ```
 
-To use environment-specific configuration, set the `SIMPLEMAS_ENV` environment variable:
+To use environment-specific configuration, set the `OPENMAS_ENV` environment variable:
 
 ```bash
-export SIMPLEMAS_ENV=production
+export OPENMAS_ENV=production
 ```
 
 ## Using Environment Variables
@@ -124,7 +124,7 @@ export COMMUNICATOR_OPTION_RETRIES=5
 In your agent code, use the `load_config` function to load and validate configuration:
 
 ```python
-from simple_mas.config import load_config, AgentConfig
+from openmas.config import load_config, AgentConfig
 
 # Load standard agent configuration
 config = load_config(AgentConfig)
@@ -169,7 +169,7 @@ service_urls:
 
 In your Dockerfile or docker-compose environment:
 ```bash
-SIMPLEMAS_ENV=production
+OPENMAS_ENV=production
 SERVICE_URL_MCP_SERVER=http://production-mcp.internal:8080/v1
 ```
 

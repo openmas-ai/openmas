@@ -1,10 +1,10 @@
-# SimpleMas central orchestration manifest
+# OpenMAS central orchestration manifest
 version: "1.0"
 
 # Define the components to orchestrate
 components:
   - name: agent1
-    path: ../chess_agent/simplemas.deploy.yaml
+    path: ../chess_agent/openmas.deploy.yaml
     # Override specific metadata values (optional)
     overrides:
       component:
@@ -21,7 +21,7 @@ components:
           required: true
 
   - name: agent2
-    path: agent2/simplemas.deploy.yaml
+    path: agent2/openmas.deploy.yaml
     # Override specific metadata values (optional)
     overrides:
       component:
@@ -38,7 +38,7 @@ components:
           required: true
 
   - name: mcp-server
-    path: mcp-server/simplemas.deploy.yaml
+    path: mcp-server/openmas.deploy.yaml
 
 # Global configuration (applied to all components)
 global:

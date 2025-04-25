@@ -5,7 +5,7 @@ import shutil
 import pytest
 from click.testing import CliRunner
 
-from simple_mas.cli.main import init
+from openmas.cli.main import init
 
 
 @pytest.fixture
@@ -28,13 +28,13 @@ def test_init_new_project(temp_dir):
 
         result = runner.invoke(init, [str(project_path)])
         assert result.exit_code == 0
-        assert f"Created SimpleMAS project '{str(project_path)}'" in result.output
+        assert f"Created OpenMAS project '{str(project_path)}'" in result.output
 
         # Check that the project directory was created
         assert project_path.exists()
 
         # Check that the necessary files and directories were created
-        assert (project_path / "simplemas_project.yml").exists()
+        assert (project_path / "openmas_project.yml").exists()
         assert (project_path / "README.md").exists()
         assert (project_path / "requirements.txt").exists()
         assert (project_path / "agents").exists()
@@ -52,11 +52,11 @@ def test_init_current_directory_with_name(temp_dir):
 
     result = runner.invoke(init, [".", "--name", "current_dir_project"])
     assert result.exit_code == 0
-    assert "Created SimpleMAS project 'current_dir_project'" in result.output
+    assert "Created OpenMAS project 'current_dir_project'" in result.output
     assert "Project structure initialized in current directory" in result.output
 
     # Check that files were created in the current directory
-    assert (temp_dir / "simplemas_project.yml").exists()
+    assert (temp_dir / "openmas_project.yml").exists()
     assert (temp_dir / "README.md").exists()
     assert (temp_dir / "requirements.txt").exists()
     assert (temp_dir / "agents").exists()
@@ -104,10 +104,10 @@ def test_init_with_template(temp_dir):
 
     result = runner.invoke(init, [str(project_path), "--template", "mcp-server"])
     assert result.exit_code == 0
-    assert f"Created SimpleMAS project '{str(project_path)}'" in result.output
+    assert f"Created OpenMAS project '{str(project_path)}'" in result.output
     assert "Used template: mcp-server" in result.output
 
     # Check that the template-specific files were created
     assert (project_path / "agents" / "mcp_server").exists()
     assert (project_path / "agents" / "mcp_server" / "agent.py").exists()
-    assert (project_path / "agents" / "mcp_server" / "simplemas.deploy.yaml").exists()
+    assert (project_path / "agents" / "mcp_server" / "openmas.deploy.yaml").exists()

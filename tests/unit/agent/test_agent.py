@@ -5,7 +5,7 @@ from unittest import mock
 
 import pytest
 
-from simple_mas.exceptions import LifecycleError
+from openmas.exceptions import LifecycleError
 
 # Import SimpleAgent from conftest.py
 from tests.conftest import AgentConfig, SimpleAgent

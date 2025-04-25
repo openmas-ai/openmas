@@ -1,6 +1,6 @@
-# Deploying SimpleMas Systems
+# Deploying OpenMAS Systems
 
-This document provides guidance on deploying multi-agent systems built with SimpleMas.
+This document provides guidance on deploying multi-agent systems built with OpenMAS.
 
 ## Deployment Architectures
 
@@ -10,8 +10,8 @@ Ideal for simpler systems or testing:
 
 ```python
 import asyncio
-from simple_mas import Agent
-from simple_mas.communication.mcp import MCPCommunicator
+from openmas import Agent
+from openmas.communication.mcp import MCPCommunicator
 
 async def main():
     # Create agents in same process
@@ -56,8 +56,8 @@ For larger systems with agents running in separate processes:
 ```python
 # agent1.py
 import asyncio
-from simple_mas import Agent
-from simple_mas.communication import HTTPCommunicator
+from openmas import Agent
+from openmas.communication import HTTPCommunicator
 
 async def main():
     agent = Agent(
@@ -85,8 +85,8 @@ if __name__ == "__main__":
 ```python
 # agent2.py
 import asyncio
-from simple_mas import Agent
-from simple_mas.communication import HTTPCommunicator
+from openmas import Agent
+from openmas.communication import HTTPCommunicator
 
 async def main():
     agent = Agent(
@@ -185,7 +185,7 @@ spec:
     spec:
       containers:
       - name: agent1
-        image: simple-mas-agent:latest
+        image: openmas-agent:latest
         command: ["poetry", "run", "python", "agent1.py"]
         ports:
         - containerPort: 8000
@@ -212,10 +212,10 @@ spec:
 
 ## Monitoring and Logging
 
-Use the SimpleMas logging system to integrate with monitoring tools:
+Use the OpenMAS logging system to integrate with monitoring tools:
 
 ```python
-from simple_mas.logging import get_logger
+from openmas.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -232,15 +232,15 @@ logger.info(
 
 ## Deployment Metadata Definition
 
-SimpleMas provides a standardized way to define deployment requirements for each component through the `simplemas.deploy.yaml` file. This metadata format allows the SimpleMas deployment tooling to automatically generate configurations for Docker Compose, Kubernetes, and other orchestration systems.
+OpenMAS provides a standardized way to define deployment requirements for each component through the `openmas.deploy.yaml` file. This metadata format allows the OpenMAS deployment tooling to automatically generate configurations for Docker Compose, Kubernetes, and other orchestration systems.
 
-### Metadata File Format (simplemas.deploy.yaml)
+### Metadata File Format (openmas.deploy.yaml)
 
-The deployment metadata is defined using a YAML file at the root of your SimpleMas component:
+The deployment metadata is defined using a YAML file at the root of your OpenMAS component:
 
 ```yaml
-# simplemas.deploy.yaml - Component deployment metadata
-version: "1.0"  # SimpleMas deployment metadata version
+# openmas.deploy.yaml - Component deployment metadata
+version: "1.0"  # OpenMAS deployment metadata version
 
 component:
   name: "agent-name"  # Logical name of the component
@@ -283,7 +283,7 @@ volumes:
     description: "Log storage"
 
 dependencies:
-  # Other SimpleMas components this component depends on
+  # Other OpenMAS components this component depends on
   - name: "knowledge-base"
     required: true
     description: "Knowledge base service for retrieving information"
@@ -302,7 +302,7 @@ The metadata format supports variable references using `${var.path}` syntax to m
 
 ### Example Metadata for a Hypothetical Agent
 
-Here's an example `simplemas.deploy.yaml` file for a hypothetical chess playing agent:
+Here's an example `openmas.deploy.yaml` file for a hypothetical chess playing agent:
 
 ```yaml
 version: "1.0"
@@ -351,44 +351,44 @@ dependencies:
 
 ### CLI for Deployment Generation
 
-The SimpleMas deployment tooling provides a CLI for generating deployment configurations:
+The OpenMAS deployment tooling provides a CLI for generating deployment configurations:
 
 ```bash
 # Generate Docker Compose configuration for a single component
-simplemas deploy compose --input simplemas.deploy.yaml --output docker-compose.yml
+openmas deploy compose --input openmas.deploy.yaml --output docker-compose.yml
 
 # Generate Kubernetes manifests for a single component
-simplemas deploy k8s --input simplemas.deploy.yaml --output k8s/
+openmas deploy k8s --input openmas.deploy.yaml --output k8s/
 
 # Validate deployment metadata
-simplemas deploy validate --input simplemas.deploy.yaml
+openmas deploy validate --input openmas.deploy.yaml
 ```
 
 ## Project-Based Deployment
 
-SimpleMas provides a simplified way to generate deployment configurations directly from your `simplemas_project.yml` file. This approach ensures that all agents defined in your project are properly included in the deployment with correct networking configuration.
+OpenMAS provides a simplified way to generate deployment configurations directly from your `openmas_project.yml` file. This approach ensures that all agents defined in your project are properly included in the deployment with correct networking configuration.
 
-### Using the `simplemas deploy generate-compose` Command
+### Using the `openmas deploy generate-compose` Command
 
 The `generate-compose` command reads your project configuration and generates a Docker Compose file with all the agents connected:
 
 ```bash
 # Basic usage
-simplemas deploy generate-compose
+openmas deploy generate-compose
 
 # Specify custom project file and output location
-simplemas deploy generate-compose --project-file=my-project.yml --output=compose/docker-compose.yml
+openmas deploy generate-compose --project-file=my-project.yml --output=compose/docker-compose.yml
 
 # Fail if any agent is missing deployment metadata
-simplemas deploy generate-compose --strict
+openmas deploy generate-compose --strict
 
 # Use agent names from the project file instead of names in the metadata
-simplemas deploy generate-compose --use-project-names
+openmas deploy generate-compose --use-project-names
 ```
 
 #### Command Options
 
-- `--project-file`, `-p`: Path to the SimpleMas project file (default: simplemas_project.yml)
+- `--project-file`, `-p`: Path to the OpenMAS project file (default: openmas_project.yml)
 - `--output`, `-o`: Path to save the Docker Compose configuration file (default: docker-compose.yml)
 - `--strict`, `-s`: Fail if any agent is missing deployment metadata
 - `--use-project-names`, `-n`: Use agent names from project file instead of names in metadata
@@ -397,8 +397,8 @@ simplemas deploy generate-compose --use-project-names
 
 The command performs the following steps:
 
-1. Reads the `simplemas_project.yml` file to get agent definitions and their paths
-2. Looks for a `simplemas.deploy.yaml` file in each agent's directory
+1. Reads the `openmas_project.yml` file to get agent definitions and their paths
+2. Looks for a `openmas.deploy.yaml` file in each agent's directory
 3. Parses each metadata file and collects the deployment information
 4. Automatically generates and configures `SERVICE_URL_*` environment variables based on dependencies
 5. Creates a Docker Compose file with all the services properly connected
@@ -409,18 +409,18 @@ For a project structure like:
 
 ```
 my_project/
-├── simplemas_project.yml
+├── openmas_project.yml
 ├── agents/
 │   ├── orchestrator/
 │   │   ├── agent.py
-│   │   └── simplemas.deploy.yaml
+│   │   └── openmas.deploy.yaml
 │   └── worker/
 │       ├── agent.py
-│       └── simplemas.deploy.yaml
+│       └── openmas.deploy.yaml
 └── ...
 ```
 
-Where `simplemas_project.yml` contains:
+Where `openmas_project.yml` contains:
 
 ```yaml
 name: "my_project"
@@ -431,7 +431,7 @@ agents:
 # ...
 ```
 
-Running `simplemas deploy generate-compose` will:
+Running `openmas deploy generate-compose` will:
 
 1. Read metadata for both agents
 2. Configure the Docker Compose file with proper service URLs
@@ -441,21 +441,21 @@ The resulting Docker Compose file will include both agents with networking autom
 
 ## Multi-component Deployment Orchestration
 
-SimpleMas provides powerful tools for orchestrating the deployment of multi-agent systems consisting of multiple components.
+OpenMAS provides powerful tools for orchestrating the deployment of multi-agent systems consisting of multiple components.
 
 ### Component Discovery
 
-You can automatically discover all SimpleMas components in a directory structure:
+You can automatically discover all OpenMAS components in a directory structure:
 
 ```bash
 # Discover all components in the current directory and subdirectories
-simplemas deploy discover
+openmas deploy discover
 
 # Discover components in a specific directory
-simplemas deploy discover --directory path/to/project
+openmas deploy discover --directory path/to/project
 
 # Use a custom pattern to match metadata files
-simplemas deploy discover --pattern "agent*/simplemas.deploy.yaml"
+openmas deploy discover --pattern "agent*/openmas.deploy.yaml"
 ```
 
 ### Orchestrating Multiple Components
@@ -464,10 +464,10 @@ Generate a combined Docker Compose file for multiple components with automatic d
 
 ```bash
 # Orchestrate all components in the current directory
-simplemas deploy orchestrate --output docker-compose.yml
+openmas deploy orchestrate --output docker-compose.yml
 
 # Orchestrate components in a specific directory with dependency validation
-simplemas deploy orchestrate --directory path/to/project --validate --output docker-compose.yml
+openmas deploy orchestrate --directory path/to/project --validate --output docker-compose.yml
 ```
 
 This automatically configures:
@@ -481,13 +481,13 @@ This automatically configures:
 For more complex deployments, you can define a central manifest file that coordinates multiple components:
 
 ```yaml
-# simplemas.manifest.yaml
+# openmas.manifest.yaml
 version: "1.0"
 
 # Define the components to orchestrate
 components:
   - name: agent1
-    path: agent1/simplemas.deploy.yaml
+    path: agent1/openmas.deploy.yaml
     # Optional overrides for specific values
     overrides:
       environment:
@@ -495,7 +495,7 @@ components:
           value: http://agent2:8001
 
   - name: agent2
-    path: agent2/simplemas.deploy.yaml
+    path: agent2/openmas.deploy.yaml
 
 # Global configuration (applied to all components)
 global:
@@ -508,35 +508,35 @@ Generate a deployment from the manifest:
 
 ```bash
 # Generate Docker Compose from a manifest
-simplemas deploy manifest --manifest simplemas.manifest.yaml --output docker-compose.yml
+openmas deploy manifest --manifest openmas.manifest.yaml --output docker-compose.yml
 ```
 
 ## Dockerfile Generation
 
-SimpleMas provides a command to generate standardized, best-practice Dockerfiles for your agents. This ensures consistent containerization across your multi-agent system.
+OpenMAS provides a command to generate standardized, best-practice Dockerfiles for your agents. This ensures consistent containerization across your multi-agent system.
 
-### Using the `simplemas deploy generate-dockerfile` Command
+### Using the `openmas deploy generate-dockerfile` Command
 
 You can use the `generate-dockerfile` command to create a Dockerfile customized for your specific agent:
 
 ```bash
 # Basic usage - creates a standard Dockerfile in the current directory
-simplemas deploy generate-dockerfile
+openmas deploy generate-dockerfile
 
 # Customize Python version
-simplemas deploy generate-dockerfile --python-version 3.11
+openmas deploy generate-dockerfile --python-version 3.11
 
 # Specify a different entrypoint (default is agent.py)
-simplemas deploy generate-dockerfile --app-entrypoint main.py
+openmas deploy generate-dockerfile --app-entrypoint main.py
 
 # Specify a different requirements file
-simplemas deploy generate-dockerfile --requirements-file requirements-prod.txt
+openmas deploy generate-dockerfile --requirements-file requirements-prod.txt
 
 # Generate a Dockerfile that uses Poetry for dependency management
-simplemas deploy generate-dockerfile --use-poetry
+openmas deploy generate-dockerfile --use-poetry
 
 # Change the output path
-simplemas deploy generate-dockerfile --output ./docker/Dockerfile
+openmas deploy generate-dockerfile --output ./docker/Dockerfile
 ```
 
 ### Command Options
@@ -553,8 +553,8 @@ simplemas deploy generate-dockerfile --output ./docker/Dockerfile
 #### Standard Pip-based Dockerfile
 
 ```dockerfile
-# SimpleMas Agent Dockerfile
-# Generated with simplemas deploy generate-dockerfile
+# OpenMAS Agent Dockerfile
+# Generated with openmas deploy generate-dockerfile
 
 FROM python:3.10-slim
 
@@ -582,8 +582,8 @@ CMD ["python", "agent.py"]
 #### Poetry-based Dockerfile
 
 ```dockerfile
-# SimpleMas Agent Dockerfile
-# Generated with simplemas deploy generate-dockerfile
+# OpenMAS Agent Dockerfile
+# Generated with openmas deploy generate-dockerfile
 
 FROM python:3.10-slim
 
@@ -627,7 +627,7 @@ These Dockerfiles follow best practices for Python applications:
 
 Here's an example of a multi-agent system with two agents:
 
-**Agent 1 (agent1/simplemas.deploy.yaml):**
+**Agent 1 (agent1/openmas.deploy.yaml):**
 ```yaml
 version: "1.0"
 component:
@@ -643,7 +643,7 @@ dependencies:
 # ... other configuration ...
 ```
 
-**Agent 2 (agent2/simplemas.deploy.yaml):**
+**Agent 2 (agent2/openmas.deploy.yaml):**
 ```yaml
 version: "1.0"
 component:
@@ -659,8 +659,8 @@ environment:
 **Orchestrating the system:**
 ```bash
 # Discover and verify the components
-simplemas deploy discover --directory .
+openmas deploy discover --directory .
 
 # Generate a combined Docker Compose file
-simplemas deploy orchestrate --directory . --output docker-compose.yml --validate
+openmas deploy orchestrate --directory . --output docker-compose.yml --validate
 ```

@@ -1,8 +1,8 @@
-"""This test file is for internal SimpleMas framework testing via tox.
+"""This test file is for internal OpenMAS framework testing via tox.
 
 It verifies that the hello_agent example runs correctly with the library.
 
-Note: This is NOT a pattern for how end-users will test their own SimpleMas applications.
+Note: This is NOT a pattern for how end-users will test their own OpenMAS applications.
 """
 
 import asyncio

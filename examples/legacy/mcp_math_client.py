@@ -12,8 +12,8 @@ import logging
 import sys
 from typing import Any, Dict, List
 
-from simple_mas import McpAgent
-from simple_mas.logging import configure_logging, get_logger
+from openmas import McpAgent
+from openmas.logging import configure_logging, get_logger
 
 
 class MathClient(McpAgent):

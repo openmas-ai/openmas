@@ -1,12 +1,12 @@
-# SimpleMas Architecture
+# OpenMAS Architecture
 
-This document provides an overview of the SimpleMas architecture.
+This document provides an overview of the OpenMAS architecture.
 
 ## Core Components
 
 ### Agent
 
-The `Agent` class is the central component in SimpleMas. It provides:
+The `Agent` class is the central component in OpenMAS. It provides:
 
 - Message handling
 - Communication management
@@ -14,7 +14,7 @@ The `Agent` class is the central component in SimpleMas. It provides:
 
 ### Communicator
 
-Communicators handle the message transport between agents and services. SimpleMas provides:
+Communicators handle the message transport between agents and services. OpenMAS provides:
 
 - `HTTPCommunicator` for HTTP-based communication
 - `MCPCommunicator` for high-performance in-memory communication
@@ -58,4 +58,4 @@ Handlers are functions registered with an agent to process specific message type
 
 ## Configuration
 
-SimpleMas uses a configuration system for both agents and communicators, making it easy to set up and customize behavior.
+OpenMAS uses a configuration system for both agents and communicators, making it easy to set up and customize behavior.

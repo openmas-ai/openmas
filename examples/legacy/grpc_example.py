@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Example of using the gRPC communicator with SimpleMas.
+"""Example of using the gRPC communicator with OpenMAS.
 
 This example shows how to create an agent with a gRPC communicator
 and demonstrates request/response and notification patterns.
@@ -9,7 +9,7 @@ To run this example:
    pip install grpcio grpcio-tools protobuf
 
 2. Generate the protobuf code:
-   cd src/simple_mas/communication/grpc && python generate_proto.py
+   cd src/openmas/communication/grpc && python generate_proto.py
 
 3. Run the server agent:
    python examples/grpc_example.py --server
@@ -27,8 +27,8 @@ import sys
 # Add the src directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from simple_mas.agent import BaseAgent  # noqa: E402
-from simple_mas.config import AgentConfig  # noqa: E402
+from openmas.agent import BaseAgent  # noqa: E402
+from openmas.config import AgentConfig  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -102,7 +102,7 @@ async def run_client():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="gRPC example for SimpleMas")
+    parser = argparse.ArgumentParser(description="gRPC example for OpenMAS")
     parser.add_argument("mode", choices=["server", "client"], help="Run as server or client")
     args = parser.parse_args()
 
