@@ -148,3 +148,22 @@ def test_validate_non_dict_dependency(mock_project_dir):
         with patch("builtins.open", mock_open(read_data=yaml.dump(config))):
             result = runner.invoke(cli, ["validate"])
             assert "Dependency #1 is not a dictionary" in result.stdout
+
+
+def test_validate_invalid_local_path(mock_project_dir):
+    """Test validation with an invalid local dependency path."""
+    config = {
+        "name": "test_project",
+        "version": "0.1.0",
+        "agents": {"test_agent": "agents/test_agent"},
+        "shared_paths": ["shared"],
+        "extension_paths": ["extensions"],
+        "dependencies": [{"local": ""}],  # Empty path
+    }
+
+    # Run validation with mocked file operations
+    runner = CliRunner()
+    with patch("pathlib.Path.exists", return_value=True):
+        with patch("builtins.open", mock_open(read_data=yaml.dump(config))):
+            result = runner.invoke(cli, ["validate"])
+            assert "Local dependency #1 has invalid path" in result.stdout

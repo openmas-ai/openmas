@@ -459,19 +459,29 @@ def deps(project_dir: Optional[Path] = None, clean: bool = False) -> None:
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
     help="Explicit path to the project directory containing openmas_project.yml",
 )
-def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
+@click.option(
+    "--env",
+    type=str,
+    help="Environment name to use for configuration (sets OPENMAS_ENV)",
+)
+def run(agent_name: str, project_dir: Optional[Path] = None, env: Optional[str] = None) -> None:
     """Run an agent from the OpenMAS project.
 
     AGENT_NAME is the name of the agent to run.
     """
     import asyncio
-    import importlib
+    import importlib.util
     import inspect
     import signal
     import sys
 
     from openmas.agent.base import BaseAgent
     from openmas.config import _find_project_root
+
+    # Set the environment if provided
+    if env:
+        os.environ["OPENMAS_ENV"] = env
+        click.echo(f"Using environment: {env}")
 
     # Verify that agent_name is not empty
     if not agent_name:
@@ -487,7 +497,10 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
             )
         else:
             click.echo("❌ Project configuration file 'openmas_project.yml' not found in current or parent directories")
+            click.echo("Hint: Make sure you're running the command from within an OpenMAS project or use --project-dir")
         sys.exit(1)
+
+    click.echo(f"Using project root: {project_root}")
 
     # Load project configuration
     try:
@@ -518,9 +531,22 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
     shared_paths = [project_root / path for path in project_config.get("shared_paths", [])]
     extension_paths = [project_root / path for path in project_config.get("extension_paths", [])]
 
-    # Set up PYTHONPATH for imports
+    # Store original sys.path to restore later
     original_sys_path = sys.path.copy()
-    sys_path_additions = [str(project_root), str(agent_path.parent)]
+
+    # Set up PYTHONPATH for imports
+    sys_path_additions = []
+
+    # Add project root first to ensure absolute imports work
+    sys_path_additions.append(str(project_root))
+
+    # Add the agent's parent directory
+    sys_path_additions.append(str(agent_path.parent))
+
+    # Add the agent directory itself
+    sys_path_additions.append(str(agent_path))
+
+    # Add shared and extension paths
     for path in shared_paths + extension_paths:
         if path.exists() and str(path) not in sys_path_additions:
             sys_path_additions.append(str(path))
@@ -538,10 +564,14 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
                 elif str(package_dir) not in sys_path_additions:
                     sys_path_additions.append(str(package_dir))
 
-    # Add to sys.path
-    for path in sys_path_additions:
+    # Update sys.path - add in reverse order so that higher priority paths appear first
+    for path in reversed(sys_path_additions):
         if path not in sys.path:
             sys.path.insert(0, path)
+
+    click.echo("Python import paths:")
+    for idx, path in enumerate(sys_path_additions):
+        click.echo(f"  {idx+1}. {path}")
 
     # Discover local communicators and plugins BEFORE importing agent module
     # This ensures communicators are properly registered before agent code runs
@@ -555,33 +585,65 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
 
     # Set environment variables
     os.environ["AGENT_NAME"] = agent_name
-    os.environ["OPENMAS_ENV"] = os.environ.get("OPENMAS_ENV", "local")
 
-    # Default error message for import failures
+    # Use project_root in the environment so agent can load its configuration
+    os.environ["OPENMAS_PROJECT_ROOT"] = str(project_root)
+
+    # If OPENMAS_ENV is not set, default to 'local'
+    if "OPENMAS_ENV" not in os.environ:
+        os.environ["OPENMAS_ENV"] = "local"
+
+    click.echo(f"Using environment: {os.environ.get('OPENMAS_ENV', 'local')}")
+
+    # Try multiple approaches to import the agent module
     import_error_msg = (
         f"❌ Failed to import agent module from '{agent_file}'. "
         "Check that all dependencies are installed and the agent code is valid."
     )
 
     try:
-        # Convert agent path to a Python module path
-        # First remove the project root from the path
-        rel_path = agent_path.relative_to(project_root)
-        # Convert to module path (replace / with .)
-        module_path = str(rel_path).replace("/", ".").replace("\\", ".")
-        module_name = f"{module_path}.agent"
+        # Try several import approaches
+        agent_module = None
+        import_exceptions = []
 
-        # Import the agent module
+        # Approach 1: Import using the module path from project root
         try:
+            # Convert agent path to a Python module path
+            rel_path = agent_path.relative_to(project_root)
+            # Convert to module path (replace / with .)
+            module_path = str(rel_path).replace("/", ".").replace("\\", ".")
+            module_name = f"{module_path}.agent"
+
+            click.echo(f"Trying to import module: {module_name}")
             agent_module = importlib.import_module(module_name)
         except ImportError as e:
-            # Try alternative approach if the first fails
+            import_exceptions.append(f"Method 1 (module path): {str(e)}")
+
+        # Approach 2: Import using direct file path
+        if agent_module is None:
             try:
-                # Try with a simpler direct import when inside the agent directory
+                module_name = "agent"
+                click.echo(f"Trying to import module directly: {module_name}")
+                spec = importlib.util.spec_from_file_location(module_name, agent_file)
+                if spec is not None and spec.loader is not None:
+                    agent_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(agent_module)
+            except ImportError as e:
+                import_exceptions.append(f"Method 2 (direct import): {str(e)}")
+
+        # Approach 3: Simple import if we're already in the right directory
+        if agent_module is None:
+            try:
+                click.echo("Trying simple import: agent")
                 agent_module = importlib.import_module("agent")
-            except ImportError:
-                click.echo(f"{import_error_msg}\nError: {e}")
-                sys.exit(1)
+            except ImportError as e:
+                import_exceptions.append(f"Method 3 (simple import): {str(e)}")
+
+        # If all import methods failed
+        if agent_module is None:
+            error_details = "\n".join(import_exceptions)
+            click.echo(f"{import_error_msg}\n{error_details}")
+            sys.exit(1)
 
         # Find the BaseAgent subclass in the module
         agent_class = None
@@ -592,11 +654,19 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
 
         if agent_class is None:
             click.echo(f"❌ No BaseAgent subclass found in '{agent_file}'")
+            click.echo("Make sure the agent file contains a class that inherits from openmas.agent.BaseAgent")
             sys.exit(1)
 
         # Initialize the agent
         click.echo(f"Starting agent '{agent_name}' ({agent_class.__name__})")
-        agent = agent_class(name=agent_name)
+
+        # Initialize agent with configuration from the layered config system
+        try:
+            agent = agent_class(name=agent_name)
+        except Exception as e:
+            click.echo(f"❌ Error initializing agent: {e}")
+            click.echo("This may be due to configuration issues or missing dependencies.")
+            sys.exit(1)
 
         # Set up signal handlers for graceful shutdown
         loop = asyncio.get_event_loop()
@@ -604,7 +674,7 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
         agent_task = None
 
         def signal_handler() -> None:
-            click.echo("Shutting down agent gracefully... (press Ctrl+C again to force exit)")
+            click.echo("\nShutting down agent gracefully... (press Ctrl+C again to force exit)")
             shutdown_event.set()
             if agent_task:
                 agent_task.cancel()
@@ -633,6 +703,7 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
                 # Create a task for the run method
                 nonlocal agent_task
                 agent_task = asyncio.create_task(agent.run())
+                click.echo("Agent is running. Press Ctrl+C to stop.")
 
                 # Wait for either the agent to complete or a shutdown signal
                 done, pending = await asyncio.wait(
@@ -658,6 +729,9 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
                 await agent.shutdown()
             except Exception as e:
                 click.echo(f"❌ Error running agent: {e}")
+                import traceback
+
+                click.echo(traceback.format_exc())
                 # Try to shut down gracefully even if there was an error
                 try:
                     await agent.shutdown()
@@ -677,6 +751,9 @@ def run(agent_name: str, project_dir: Optional[Path] = None) -> None:
 
     except Exception as e:
         click.echo(f"❌ Error initializing agent: {e}")
+        import traceback
+
+        click.echo(traceback.format_exc())
         sys.exit(1)
     finally:
         # Restore original sys.path
