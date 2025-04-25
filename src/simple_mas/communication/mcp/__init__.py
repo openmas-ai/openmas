@@ -50,7 +50,7 @@ else:
             Raises:
                 ImportError: Always raised since MCP is not installed
             """
-            raise ImportError("MCP package is not installed. Install it with: pip install mcp==1.6.0")
+            raise ImportError("MCP package is not installed. Install it with: pip install 'simple-mas[mcp]'")
 
     class McpSseCommunicator:
         """Dummy class that raises ImportError when MCP is not installed."""
@@ -77,6 +77,6 @@ else:
             Raises:
                 ImportError: Always raised since MCP is not installed
             """
-            raise ImportError("MCP package is not installed. Install it with: pip install mcp==1.6.0")
+            raise ImportError("MCP package is not installed. Install it with: pip install 'simple-mas[mcp]'")
 
     __all__ = ["McpStdioCommunicator", "McpSseCommunicator"]

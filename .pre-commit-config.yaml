@@ -37,6 +37,7 @@ repos:
           - pydantic>=2.5.0
           - types-requests>=2.31.0.2
           - types-PyYAML>=6.0.12
+          - types-paho-mqtt>=1.6.0
           # Rely on ignore_missing_imports for libraries without type stubs
         # Use root mypy.ini file for configuration
         args: ["--config-file=mypy.ini", "src/", "tests/"]

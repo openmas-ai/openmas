@@ -24,6 +24,34 @@ Or with Poetry:
 poetry add simple-mas
 ```
 
+### Optional Dependencies
+
+SimpleMAS has a modular design with optional dependencies for different communication protocols. The core package is lightweight, and you can install only the dependencies you need:
+
+```bash
+# Install MCP support (Anthropic Model Context Protocol)
+pip install 'simple-mas[mcp]'
+
+# Install gRPC support
+pip install 'simple-mas[grpc]'
+
+# Install MQTT support
+pip install 'simple-mas[mqtt]'
+
+# Install all optional dependencies
+pip install 'simple-mas[all]'
+```
+
+With Poetry:
+
+```bash
+# Install MCP support
+poetry add 'simple-mas[mcp]'
+
+# Install multiple optional dependencies
+poetry add 'simple-mas[mcp,grpc,mqtt]'
+```
+
 ## Usage
 
 ### Basic Agent
@@ -64,7 +92,13 @@ if __name__ == "__main__":
 
 ### MCP Integration
 
-SimpleMAS provides first-class support for the Model Context Protocol (MCP):
+SimpleMAS provides first-class support for the Model Context Protocol (MCP). To use MCP features, make sure to install the MCP dependencies:
+
+```bash
+pip install 'simple-mas[mcp]'
+```
+
+Then, you can use the MCP communicators:
 
 ```python
 from simple_mas.agent import BaseAgent
@@ -116,6 +150,14 @@ For more details, see the [documentation](docs/):
 - [Patterns](docs/patterns.md)
 
 ## Quick Start
+
+For this quick start example, you'll need the MCP dependencies:
+
+```bash
+pip install 'simple-mas[mcp]'
+```
+
+Now you can create your agent:
 
 ```python
 from simple_mas.agent import BaseAgent

@@ -43,6 +43,25 @@ def _load_grpc_communicator() -> Type[BaseCommunicator]:
         raise ImportError(f"Could not import gRPC communicator: {e}") from e
 
 
+def _load_mqtt_communicator() -> Type[BaseCommunicator]:
+    """Lazily load the MQTT communicator only when needed."""
+    try:
+        from simple_mas.communication.mqtt import MqttCommunicator
+
+        # Register it if not already registered
+        if "mqtt" not in COMMUNICATOR_TYPES:
+            register_communicator("mqtt", MqttCommunicator)
+            COMMUNICATOR_TYPES["mqtt"] = MqttCommunicator
+
+        return MqttCommunicator
+    except ImportError as e:
+        raise ImportError(
+            f"Could not import MQTT communicator: {e}. "
+            f"Please ensure you have installed the MQTT dependencies with: "
+            f"pip install simple-mas[mqtt]"
+        ) from e
+
+
 def _load_mcp_sse_communicator() -> Type[BaseCommunicator]:
     """Lazily load the MCP SSE communicator only when needed."""
     try:
@@ -76,6 +95,7 @@ def _load_mcp_stdio_communicator() -> Type[BaseCommunicator]:
 # Define lazy loaders for each communicator type
 COMMUNICATOR_LOADERS = {
     "grpc": _load_grpc_communicator,
+    "mqtt": _load_mqtt_communicator,
     "mcp-sse": _load_mcp_sse_communicator,
     "mcp-stdio": _load_mcp_stdio_communicator,
 }
