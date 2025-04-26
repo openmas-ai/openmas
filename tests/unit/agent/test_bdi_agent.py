@@ -7,20 +7,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from openmas.agent.bdi import BdiAgent
-from openmas.config import AgentConfig
 
-# Note: bdi_agent fixture is now imported from conftest.py
+# Note: bdi_agent fixture is imported from conftest.py
 
 
 class TestBdiAgent:
     """Tests for the BdiAgent class."""
-
-    @pytest.fixture
-    def bdi_agent(self):
-        """Create a BdiAgent instance for testing."""
-        config = AgentConfig(name="test-agent", service_urls={})
-        agent = BdiAgent(config=config)
-        return agent
 
     @pytest.mark.asyncio
     async def test_add_belief(self, bdi_agent: BdiAgent) -> None:
