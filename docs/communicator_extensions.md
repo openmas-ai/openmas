@@ -1,16 +1,16 @@
-# Communicator Plugin System
+# Communicator Extension System
 
-OpenMAS provides a robust system for discovering and using communicator plugins. This allows for extending the framework with custom communication methods, both as installable packages (via entry points) and as local project extensions.
+OpenMAS provides a robust system for discovering and using communicator extensions. This allows for extending the framework with custom communication methods, both as installable packages (via entry points) and as local project extensions.
 
-## Types of Plugins
+## Types of Extensions
 
-The communicator plugin system supports three types of plugin sources:
+The communicator extension system supports three types of extension sources:
 
 1. **Built-in Communicators**: These are included with the OpenMAS package (`HttpCommunicator`, etc.)
-2. **Entry Point Plugins**: These are installed packages that register communicators via the `openmas.communicators` entry point
+2. **Entry Point Extensions**: These are installed packages that register communicators via the `openmas.communicators` entry point
 3. **Local Extensions**: These are project-local communicator implementations found in directories specified in `extension_paths`
 
-## Using Communicator Plugins
+## Using Communicator Extensions
 
 To use a specific communicator in your agent, you can:
 
@@ -36,13 +36,13 @@ agent = MyAgent(
 )
 ```
 
-## Creating Communicator Plugins
+## Creating Communicator Extensions
 
-There are two ways to create and distribute communicator plugins:
+There are two ways to create and distribute communicator extensions:
 
 ### 1. As an Installable Package (Entry Points)
 
-To create a communicator plugin as an installable package:
+To create a communicator extension as an installable package:
 
 1. Create a subclass of `BaseCommunicator`:
 
@@ -131,7 +131,7 @@ You can also configure the communicator type and extension paths through environ
 
 ```bash
 export COMMUNICATOR_TYPE=my_communicator
-export EXTENSION_PATHS='["./extensions", "./plugins"]'  # JSON array
+export EXTENSION_PATHS='["./extensions"]'  # JSON array
 ```
 
 For agent-specific configuration with a prefix:

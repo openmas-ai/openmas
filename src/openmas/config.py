@@ -27,15 +27,10 @@ class AgentConfig(BaseModel):
     communicator_options: Dict[str, Any] = Field(
         default_factory=dict, description="Additional options specific to the selected communicator"
     )
-    plugin_paths: list[str] = Field(
+    extension_paths: list[str] = Field(
         default_factory=list, description="List of paths to search for project-local extensions"
     )
     shared_paths: list[str] = Field(default_factory=list, description="List of paths to search for shared code")
-    # Keep extension_paths for backward compatibility
-    extension_paths: list[str] = Field(
-        default_factory=list,
-        description="List of paths to search for project-local extensions (deprecated, use plugin_paths)",
-    )
 
 
 def _find_project_root(project_dir: Optional[Path] = None) -> Optional[Path]:
@@ -452,18 +447,7 @@ def load_config(config_model: Type[T], prefix: str = "", project_dir: Optional[P
                         # Fallback for older Pydantic
                         config_data["communicator_options"][option_name] = value
 
-        # Plugin paths (replacing extension_paths)
-        plugin_paths_str = os.environ.get(f"{env_prefix}PLUGIN_PATHS")
-        if plugin_paths_str:
-            try:
-                plugin_paths = json.loads(plugin_paths_str)
-                if not isinstance(plugin_paths, list):
-                    raise ConfigurationError(f"{env_prefix}PLUGIN_PATHS must be a JSON array")
-                config_data["plugin_paths"] = plugin_paths
-            except json.JSONDecodeError as e:
-                raise ConfigurationError(f"Invalid JSON in {env_prefix}PLUGIN_PATHS: {e}")
-
-        # For backward compatibility, still support EXTENSION_PATHS
+        # Extension paths
         extension_paths_str = os.environ.get(f"{env_prefix}EXTENSION_PATHS")
         if extension_paths_str:
             try:
@@ -471,11 +455,6 @@ def load_config(config_model: Type[T], prefix: str = "", project_dir: Optional[P
                 if not isinstance(extension_paths, list):
                     raise ConfigurationError(f"{env_prefix}EXTENSION_PATHS must be a JSON array")
                 config_data["extension_paths"] = extension_paths
-
-                # If plugin_paths is not set, initialize it with extension_paths for compatibility
-                if "plugin_paths" not in config_data:
-                    config_data["plugin_paths"] = extension_paths
-                    logger.warning("EXTENSION_PATHS is deprecated, use PLUGIN_PATHS instead")
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}EXTENSION_PATHS: {e}")
 
@@ -490,31 +469,12 @@ def load_config(config_model: Type[T], prefix: str = "", project_dir: Optional[P
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}SHARED_PATHS: {e}")
 
-        # Add paths from project config if available
-        if "plugin_paths" in project_config:
-            project_plugin_paths = project_config["plugin_paths"]
-            if "plugin_paths" not in config_data:
-                config_data["plugin_paths"] = []
-            config_data["plugin_paths"].extend(project_plugin_paths)
-
-        # For backward compatibility, still support extension_paths in project config
+        # Add extension paths from project config if available
         if "extension_paths" in project_config:
             project_extension_paths = project_config["extension_paths"]
             if "extension_paths" not in config_data:
                 config_data["extension_paths"] = []
             config_data["extension_paths"].extend(project_extension_paths)
-
-            # If plugin_paths is not set or if it is equal to extension_paths set via environment,
-            # initialize it with project extension_paths for compatibility
-            extension_paths_match = "plugin_paths" in config_data and config_data["plugin_paths"] == config_data.get(
-                "extension_paths", []
-            )
-
-            if "plugin_paths" not in config_data or extension_paths_match:
-                if "plugin_paths" not in config_data:
-                    config_data["plugin_paths"] = []
-                config_data["plugin_paths"].extend(project_extension_paths)
-                logger.warning("extension_paths in project config is deprecated, use plugin_paths instead")
 
         # Add shared paths from project config if available
         if "shared_paths" in project_config:

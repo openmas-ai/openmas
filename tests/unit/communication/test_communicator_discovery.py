@@ -17,7 +17,7 @@ from openmas.agent import BaseAgent
 from openmas.communication import (
     COMMUNICATOR_LOADERS,
     BaseCommunicator,
-    discover_communicator_plugins,
+    discover_communicator_extensions,
     discover_local_communicators,
     get_communicator_by_type,
     get_communicator_class,
@@ -93,8 +93,8 @@ def mock_entry_point():
     return mock_ep
 
 
-def test_discover_communicator_plugins(monkeypatch):
-    """Test discovering communicator plugins via entry points."""
+def test_discover_communicator_extensions(monkeypatch):
+    """Test discovering communicator extensions via entry points."""
     # Clear registry to ensure clean test
     _COMMUNICATOR_REGISTRY.clear()
 
@@ -120,7 +120,7 @@ def test_discover_communicator_plugins(monkeypatch):
     monkeypatch.setattr("importlib.metadata.entry_points", mock_entry_points)
 
     # Call the function
-    discover_communicator_plugins()
+    discover_communicator_extensions()
 
     # Verify the communicator was registered correctly
     assert ("mock_communicator", TestCommunicator) in registered_communicators
@@ -173,7 +173,7 @@ class CustomCommunicator(BaseCommunicator):
 
 
 def test_discover_local_communicators(create_extension_dir):
-    """Test discovering communicator plugins from local extensions."""
+    """Test discovering communicator extensions from local extensions."""
     # Clear registry to ensure clean test
     _COMMUNICATOR_REGISTRY.clear()
 
@@ -283,8 +283,8 @@ def test_agent_init_with_extension_paths(create_extension_dir, monkeypatch):
     assert agent.communicator.__class__.__name__ == "CustomCommunicator"
 
 
-def test_agent_init_with_plugin_paths(create_extension_dir, monkeypatch):
-    """Test initializing an agent with plugin_paths in the config."""
+def test_agent_init_with_extension_paths_array(create_extension_dir, monkeypatch):
+    """Test initializing an agent with multiple extension_paths in the config."""
     # Add the extension directory to sys.path
     monkeypatch.syspath_prepend(str(create_extension_dir))
 
@@ -299,13 +299,13 @@ def test_agent_init_with_plugin_paths(create_extension_dir, monkeypatch):
         async def shutdown(self):
             pass
 
-    # Initialize with plugin_paths and a custom communicator type
+    # Initialize with multiple extension_paths and a custom communicator type
     agent = MockAgent(
         name="test_agent",
         config={
             "name": "test_agent",
             "communicator_type": "custom_communicator",
-            "plugin_paths": [str(create_extension_dir)],
+            "extension_paths": [str(create_extension_dir), "/another/path"],
         },
     )
 

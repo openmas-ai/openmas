@@ -164,13 +164,13 @@ OpenMAS's request/response model maps to MCP's tool/prompt/resource model as fol
 
 OpenMAS allows you to create custom protocol implementations by extending the `BaseCommunicator` class. See the developer documentation for details on implementing your own communicator.
 
-## Communicator Plugin System
+## Communicator Extension System
 
-OpenMAS includes a plugin system that allows developers to create and register their own communicator implementations. This system enables easy extension of OpenMAS with custom communication protocols.
+OpenMAS includes an extension system that allows developers to create and register their own communicator implementations. This system enables easy extension of OpenMAS with custom communication protocols.
 
-### Using the Plugin System
+### Using the Extension System
 
-The communicator plugin system allows users to specify a communicator type in their agent configuration:
+The communicator extension system allows users to specify a communicator type in their agent configuration:
 
 ```python
 from openmas.agent import BaseAgent
@@ -306,9 +306,9 @@ The main trade-offs compared to HTTP communicator:
 - Less human-readable message format
 - Requires gRPC infrastructure support
 
-### Creating a Custom Communicator Plugin
+### Creating a Custom Communicator Extension
 
-To create a custom communicator plugin:
+To create a custom communicator extension:
 
 1. Implement the `BaseCommunicator` interface:
 

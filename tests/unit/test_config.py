@@ -901,82 +901,23 @@ def test_load_config_shared_paths_not_list():
         assert "SHARED_PATHS must be a JSON array" in str(exc_info.value)
 
 
-def test_load_config_plugin_paths_from_project():
-    """Test loading plugin_paths from project config."""
-    project_config = {"name": "test_project", "plugin_paths": ["plugins/custom", "plugins/third-party"]}
+def test_load_config_extension_paths_from_project():
+    """Test loading extension_paths from project config."""
+    project_config = {"name": "test_project", "extension_paths": ["extensions/custom", "extensions/third-party"]}
 
     with patch("openmas.config._load_project_config", return_value=project_config), patch.dict(
         os.environ, {"AGENT_NAME": "test-agent"}
     ):
         config = load_config(AgentConfig)
-        assert config.plugin_paths == ["plugins/custom", "plugins/third-party"]
+        assert config.extension_paths == ["extensions/custom", "extensions/third-party"]
 
 
-def test_load_config_plugin_paths_from_env():
-    """Test loading plugin_paths from environment variables."""
-    plugin_paths = ["env/custom", "env/third-party"]
-
-    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "PLUGIN_PATHS": json.dumps(plugin_paths)}
-    ):
-        config = load_config(AgentConfig)
-        assert config.plugin_paths == plugin_paths
-
-
-def test_load_config_plugin_paths_invalid_json():
-    """Test handling invalid JSON in PLUGIN_PATHS."""
-    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "PLUGIN_PATHS": "not-json"}
-    ):
-        with pytest.raises(ConfigurationError) as exc_info:
-            load_config(AgentConfig)
-        assert "Invalid JSON in PLUGIN_PATHS" in str(exc_info.value)
-
-
-def test_load_config_plugin_paths_not_list():
-    """Test handling non-list value in PLUGIN_PATHS."""
-    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "PLUGIN_PATHS": '{"not": "list"}'}
-    ):
-        with pytest.raises(ConfigurationError) as exc_info:
-            load_config(AgentConfig)
-        assert "PLUGIN_PATHS must be a JSON array" in str(exc_info.value)
-
-
-def test_load_config_backwards_compatibility_extension_paths():
-    """Test backward compatibility with extension_paths."""
-    # When extension_paths is set in project config but plugin_paths is not
-    project_config = {"name": "test_project", "extension_paths": ["legacy/extensions"]}
-
-    with patch("openmas.config._load_project_config", return_value=project_config), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent"}
-    ):
-        config = load_config(AgentConfig)
-        # Both should be set for backward compatibility
-        assert config.extension_paths == ["legacy/extensions"]
-        assert config.plugin_paths == ["legacy/extensions"]
-
-
-def test_load_config_extension_paths_env_backwards_compatibility():
-    """Test backward compatibility with EXTENSION_PATHS environment variable."""
-    extension_paths = ["env/extensions"]
+def test_load_config_extension_paths_from_env():
+    """Test loading extension_paths from environment variables."""
+    extension_paths = ["env/custom", "env/third-party"]
 
     with patch("openmas.config._load_project_config", return_value={}), patch.dict(
         os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": json.dumps(extension_paths)}
     ):
         config = load_config(AgentConfig)
-        # Both should be set for backward compatibility
         assert config.extension_paths == extension_paths
-        assert config.plugin_paths == extension_paths
-
-
-def test_find_project_root_not_found():
-    """Test that None is returned when no project root is found."""
-    from openmas.config import _find_project_root
-
-    # Set up a simple mock where no directory has the project file
-    with patch("pathlib.Path.cwd", return_value=Path("/some/deep/path")), patch(
-        "pathlib.Path.exists", return_value=False
-    ):
-        result = _find_project_root()
-        assert result is None

@@ -23,16 +23,16 @@ The `BaseCommunicator` abstract base class defines the interface that all protoc
 
 Any new protocol implementation must adhere to this interface to ensure compatibility with the OpenMAS framework.
 
-## Communicator Plugin System
+## Communicator Extension System
 
-OpenMAS provides a flexible plugin system that allows developers to easily add custom communicator implementations. The plugin architecture consists of:
+OpenMAS provides a flexible extension system that allows developers to easily add custom communicator implementations. The extension architecture consists of:
 
 1. **Registry Mechanism**: A central registry that maps communicator types to their implementation classes
 2. **Discovery API**: Functions to look up available communicator types and retrieve their classes
 3. **Configuration Integration**: Support for communicator-specific configuration options
 4. **Dynamic Instantiation**: Ability to create communicator instances based on configuration
 
-### Using the Plugin System
+### Using the Extension System
 
 To use a specific communicator in your agent:
 
@@ -59,7 +59,7 @@ agent = BaseAgent(
 
 ### Implementing Custom Communicators
 
-To create a custom communicator plugin:
+To create a custom communicator extension:
 
 1. Implement the `BaseCommunicator` interface:
 
@@ -152,7 +152,7 @@ from mypackage.communicator import MyCustomCommunicator
 register_communicator("my_custom", MyCustomCommunicator)
 ```
 
-### Plugin Discovery Process
+### Extension Discovery Process
 
 When a OpenMAS agent is initialized:
 
@@ -166,7 +166,7 @@ When a OpenMAS agent is initialized:
 ```
 communication/
 ├── __init__.py          # Module initialization and protocol registration
-├── base.py              # BaseCommunicator abstract base class and plugin registry
+├── base.py              # BaseCommunicator abstract base class and extension registry
 ├── http.py              # HTTP protocol implementation
 ├── mcp/                 # Message Channel Protocol implementation
 │   ├── __init__.py
@@ -189,7 +189,7 @@ The Message Channel Protocol implementation (`mcp/`) provides high-performance i
 
 For details, see the [MCP Documentation](../../docs/communication.md#message-channel-protocol-mcp).
 
-## Best Practices for Plugin Developers
+## Best Practices for Extension Developers
 
 1. **Clear Documentation**: Document your communicator's configuration options, constraints, and use cases.
 2. **Comprehensive Testing**: Thoroughly test your communicator in isolation and integrated with OpenMAS.

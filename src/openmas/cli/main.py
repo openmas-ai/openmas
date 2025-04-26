@@ -533,10 +533,6 @@ def run(agent_name: str, project_dir: Optional[Path] = None, env: Optional[str] 
     # Get shared and extension paths
     shared_paths = [project_root / path for path in project_config.get("shared_paths", [])]
     extension_paths = [project_root / path for path in project_config.get("extension_paths", [])]
-    plugin_paths = [project_root / path for path in project_config.get("plugin_paths", [])]
-
-    # Use plugin_paths if available, otherwise fall back to extension_paths
-    effective_plugin_paths = plugin_paths if plugin_paths else extension_paths
 
     # Store original sys.path to restore later
     original_sys_path = sys.path.copy()
@@ -554,7 +550,7 @@ def run(agent_name: str, project_dir: Optional[Path] = None, env: Optional[str] 
     sys_path_additions.append(str(agent_path))
 
     # Add shared and extension paths
-    for path in shared_paths + effective_plugin_paths:
+    for path in shared_paths + extension_paths:
         if path.exists() and str(path) not in sys_path_additions:
             sys_path_additions.append(str(path))
 
@@ -580,15 +576,15 @@ def run(agent_name: str, project_dir: Optional[Path] = None, env: Optional[str] 
     for idx, path in enumerate(sys_path_additions):
         click.echo(f"  {idx+1}. {path}")
 
-    # Discover local communicators and plugins BEFORE importing agent module
+    # Discover local communicators and extensions BEFORE importing agent module
     # This ensures communicators are properly registered before agent code runs
-    from openmas.communication import discover_communicator_plugins, discover_local_communicators
+    from openmas.communication import discover_communicator_extensions, discover_local_communicators
 
     click.echo("Discovering local communicators...")
-    discover_local_communicators([str(path) for path in effective_plugin_paths if path.exists()])
+    discover_local_communicators([str(path) for path in extension_paths if path.exists()])
 
     # Also discover package entry point communicators
-    discover_communicator_plugins()
+    discover_communicator_extensions()
 
     # Set environment variables
     os.environ["AGENT_NAME"] = agent_name

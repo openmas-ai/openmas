@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Type
 
 from openmas.communication.base import (
     BaseCommunicator,
-    discover_communicator_plugins,
+    discover_communicator_extensions,
     discover_local_communicators,
     get_available_communicator_types,
     get_communicator_class,
@@ -172,9 +172,9 @@ def get_communicator_by_type(communicator_type: str) -> Type[BaseCommunicator]:
     if communicator_type in _COMMUNICATOR_REGISTRY:
         return _COMMUNICATOR_REGISTRY[communicator_type]
 
-    # Step 4: Not found yet, try to discover communicator plugins from packages
-    discover_communicator_plugins()
-    # Check if the communicator is now in the registry after plugin discovery
+    # Step 4: Not found yet, try to discover communicator extensions from packages
+    discover_communicator_extensions()
+    # Check if the communicator is now in the registry after extension discovery
     if communicator_type in _COMMUNICATOR_REGISTRY:
         return _COMMUNICATOR_REGISTRY[communicator_type]
 
@@ -196,12 +196,12 @@ __all__ = [
     "register_communicator",
     "get_communicator_class",
     "get_available_communicator_types",
-    "discover_communicator_plugins",
+    "discover_communicator_extensions",
     "discover_local_communicators",
     "load_local_communicator",
     "COMMUNICATOR_TYPES",
     "get_communicator_by_type",
 ]
 
-# Discover and register communicator plugins from installed packages
-discover_communicator_plugins()
+# Discover and register communicator extensions from installed packages
+discover_communicator_extensions()

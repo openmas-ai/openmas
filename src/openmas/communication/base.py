@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
-# Registry for communicator plugins
+# Registry for communicator extensions
 _COMMUNICATOR_REGISTRY: Dict[str, Type["BaseCommunicator"]] = {}
 
 
@@ -119,7 +119,7 @@ def load_local_communicator(module_path: str, communicator_type: str) -> None:
 
 
 def discover_local_communicators(extension_paths: list[str]) -> None:
-    """Discover and register communicator plugins from local extensions.
+    """Discover and register communicator extensions from local extensions.
 
     This function searches the provided paths for communicator implementations
     and registers them. It assumes that sys.path has already been set up
@@ -208,10 +208,10 @@ def discover_local_communicators(extension_paths: list[str]) -> None:
             logger.error(f"Error processing extension path {base_path}: {str(e)}", exc_info=True)
 
 
-def discover_communicator_plugins() -> None:
-    """Discover and register communicator plugins using entry points.
+def discover_communicator_extensions() -> None:
+    """Discover and register communicator extensions using entry points.
 
-    This function loads communicator plugins that are registered using
+    This function loads communicator extensions that are registered using
     the 'openmas.communicators' entry point.
     """
     try:
@@ -227,9 +227,9 @@ def discover_communicator_plugins() -> None:
                 try:
                     communicator_class = ep.load()
                     register_communicator(ep.name, communicator_class)
-                    logger.debug(f"Loaded communicator plugin from entry point: {ep.name}")
+                    logger.debug(f"Loaded communicator extension from entry point: {ep.name}")
                 except Exception as e:
-                    logger.error(f"Failed to load communicator plugin {ep.name}: {e}")
+                    logger.error(f"Failed to load communicator extension {ep.name}: {e}")
         except (TypeError, AttributeError):
             # Fallback for Python 3.8-3.9
             try:
@@ -248,9 +248,9 @@ def discover_communicator_plugins() -> None:
                                 try:
                                     communicator_class = ep.load()
                                     register_communicator(ep.name, communicator_class)  # type: ignore[assignment]
-                                    logger.debug(f"Loaded communicator plugin from entry point: {ep.name}")
+                                    logger.debug(f"Loaded communicator extension from entry point: {ep.name}")
                                 except Exception as e:
-                                    logger.error(f"Failed to load communicator plugin {ep.name}: {e}")
+                                    logger.error(f"Failed to load communicator extension {ep.name}: {e}")
                     else:
                         # It's probably an iterable - filter by group
                         for ep in entry_points_collection:
@@ -259,9 +259,9 @@ def discover_communicator_plugins() -> None:
                                     try:
                                         communicator_class = ep.load()
                                         register_communicator(ep.name, communicator_class)
-                                        logger.debug(f"Loaded communicator plugin from entry point: {ep.name}")
+                                        logger.debug(f"Loaded communicator extension from entry point: {ep.name}")
                                     except Exception as e:
-                                        logger.error(f"Failed to load communicator plugin {ep.name}: {e}")
+                                        logger.error(f"Failed to load communicator extension {ep.name}: {e}")
                 except Exception as e:
                     logger.error(f"Failed to process entry points: {e}")
             except Exception as e:
@@ -279,11 +279,11 @@ def discover_communicator_plugins() -> None:
                     # but they have compatible interfaces
                     communicator_class = ep.load()  # type: ignore
                     register_communicator(ep.name, communicator_class)  # type: ignore[assignment]
-                    logger.debug(f"Loaded communicator plugin from entry point: {ep.name}")
+                    logger.debug(f"Loaded communicator extension from entry point: {ep.name}")
                 except Exception as e:
-                    logger.error(f"Failed to load communicator plugin {ep.name}: {e}")
+                    logger.error(f"Failed to load communicator extension {ep.name}: {e}")
         except ImportError:
-            logger.warning("pkg_resources not available, cannot load plugins from entry points")
+            logger.warning("pkg_resources not available, cannot load extensions from entry points")
 
 
 class BaseCommunicator(abc.ABC):

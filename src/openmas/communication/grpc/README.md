@@ -7,7 +7,7 @@ This module provides a gRPC-based communicator implementation for OpenMAS. It en
 - **High Performance**: Efficient binary serialization using Protocol Buffers
 - **Strong Typing**: Type-safe communication defined by proto files
 - **Bidirectional**: Support for both client and server roles
-- **Pluggable**: Integrates with OpenMAS's communicator plugin system
+- **Pluggable**: Integrates with OpenMAS's communicator extension system
 
 ## Requirements
 
@@ -239,7 +239,7 @@ While the default implementation uses a generic message structure, you can exten
 1. Create your own `.proto` file with specific service and message definitions
 2. Generate the Python code using `protoc`
 3. Implement a custom communicator class that extends `GrpcCommunicator`
-4. Register your communicator with OpenMAS's plugin system
+4. Register your communicator with OpenMAS's extension system
 
 ## Design Considerations
 

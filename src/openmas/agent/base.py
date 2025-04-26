@@ -118,11 +118,9 @@ class BaseAgent(abc.ABC):
             self.logger.error(f"Missing dependency for communicator type '{communicator_type}': {str(e)}")
             raise
         except ValueError:
-            # If not found, check extension/plugin paths (extension_paths is deprecated
-            # but supported for backwards compatibility)
-            check_paths = self.config.plugin_paths or self.config.extension_paths
-            if check_paths:
-                discover_local_communicators(check_paths)
+            # If not found, check local extension paths
+            if self.config.extension_paths:
+                discover_local_communicators(self.config.extension_paths)
                 try:
                     # Try again after discovering local communicators
                     from openmas.communication import get_communicator_by_type

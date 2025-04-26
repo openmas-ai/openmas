@@ -17,7 +17,7 @@ from openmas.communication import (
     COMMUNICATOR_LOADERS,
     COMMUNICATOR_TYPES,
     BaseCommunicator,
-    discover_communicator_plugins,
+    discover_communicator_extensions,
     discover_local_communicators,
     get_communicator_by_type,
     get_communicator_class,
@@ -195,18 +195,18 @@ def test_extension_communicator_precedence(setup_communicator_registry, monkeypa
     # Set up test communicators with the same name
     comm_name = "test_precedence"
 
-    # Mock the discover_communicator_plugins function to register a package communicator
-    original_discover_plugins = discover_communicator_plugins
+    # Mock the discover_communicator_extensions function to register a package communicator
+    original_discover_extensions = discover_communicator_extensions
 
-    def mock_discover_plugins():
+    def mock_discover_extensions():
         register_communicator(comm_name, PackageTestCommunicator)
 
-    monkeypatch.setattr("openmas.communication.discover_communicator_plugins", mock_discover_plugins)
+    monkeypatch.setattr("openmas.communication.discover_communicator_extensions", mock_discover_extensions)
 
     # Register an extension communicator
     register_communicator(comm_name, ExtensionTestCommunicator)
 
-    # Get the communicator - discovery_plugins will be called, but extension should have precedence
+    # Get the communicator - discovery_extensions will be called, but extension should have precedence
     comm_class = get_communicator_by_type(comm_name)
 
     # Verify it's the correct class (extension has precedence over package)
@@ -218,11 +218,11 @@ def test_fallback_to_package_communicator(setup_communicator_registry, monkeypat
     # Set up test communicators with the same name
     comm_name = "test_precedence"
 
-    # Mock the discover_communicator_plugins function to register a package communicator
-    def mock_discover_plugins():
+    # Mock the discover_communicator_extensions function to register a package communicator
+    def mock_discover_extensions():
         register_communicator(comm_name, PackageTestCommunicator)
 
-    monkeypatch.setattr("openmas.communication.discover_communicator_plugins", mock_discover_plugins)
+    monkeypatch.setattr("openmas.communication.discover_communicator_extensions", mock_discover_extensions)
 
     # Get the communicator - should trigger discovery and return the package communicator
     comm_class = get_communicator_by_type(comm_name)
@@ -236,11 +236,11 @@ def test_communicator_not_found(setup_communicator_registry, monkeypatch):
     # Set up a non-existent communicator name
     comm_name = "nonexistent_communicator"
 
-    # Mock the discover_communicator_plugins function to do nothing
-    def mock_discover_plugins():
+    # Mock the discover_communicator_extensions function to do nothing
+    def mock_discover_extensions():
         pass
 
-    monkeypatch.setattr("openmas.communication.discover_communicator_plugins", mock_discover_plugins)
+    monkeypatch.setattr("openmas.communication.discover_communicator_extensions", mock_discover_extensions)
 
     # Attempt to get the non-existent communicator
     with pytest.raises(ValueError) as exc_info:
@@ -281,13 +281,13 @@ def test_communicator_discovery_order_simulation(setup_communicator_registry, mo
     monkeypatch.setattr("openmas.communication.discover_local_communicators", mock_discover_locals)
 
     # Mock package discovery to register package communicators
-    original_discover_plugins = discover_communicator_plugins
+    original_discover_extensions = discover_communicator_extensions
 
-    def mock_discover_plugins():
+    def mock_discover_extensions():
         register_communicator(package_name, PackageTestCommunicator)
         register_communicator(conflict_name, PackageTestCommunicator)  # Conflict with built-in and extension
 
-    monkeypatch.setattr("openmas.communication.discover_communicator_plugins", mock_discover_plugins)
+    monkeypatch.setattr("openmas.communication.discover_communicator_extensions", mock_discover_extensions)
 
     # Test built-in communicator
     assert get_communicator_by_type(builtin_name) is BuiltInTestCommunicator
@@ -299,7 +299,7 @@ def test_communicator_discovery_order_simulation(setup_communicator_registry, mo
     mock_discover_locals([])
     assert get_communicator_by_type(extension_name) is ExtensionTestCommunicator
 
-    # Test package communicator (requires discovering plugins)
+    # Test package communicator (requires discovering extensions)
     assert get_communicator_by_type(package_name) is PackageTestCommunicator
 
     # Test conflict case - built-in should win

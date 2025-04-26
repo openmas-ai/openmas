@@ -121,7 +121,7 @@ your_mas_project_name/
 │   └── <agent_name_2>/ ...
 │
 ├── extensions/             # Project-local OpenMAS extensions (custom communicators, patterns, base agents)
-│   └── my_custom_plugin/
+│   └── my_custom_extension/
 │       └── communicator.py
 │
 ├── shared/              # Project-internal shared Python code (utils, models used by agents/extensions)
@@ -148,7 +148,7 @@ agents/: Contains the primary logic for each distinct agent or component in the 
 extensions/ (Local extensions - Replaces extensions/):
 Role: Holds project-specific Python code that extends or customizes the OpenMAS framework locally. This includes custom BaseCommunicator subclasses, specialized BaseAgent types, reusable patterns, or utility functions tightly coupled to this project.
 Nature: Code written directly within this project, not intended for easy sharing without copying.
-Discovery: The framework finds code here based on plugin_paths in openmas_project.yml and adds relevant directories to sys.path during execution (e.g., via openmas run).
+Discovery: The framework finds code here based on extension_paths in openmas_project.yml and adds relevant directories to sys.path during execution (e.g., via openmas run).
 shared/:
 Role: Contains general-purpose Python code (utility functions, data models/schemas, constants) that needs to be shared between multiple local components within the same project (i.e., shared between different agents in agents/ or code in extensions/).
 Nature: Project-internal library code.
@@ -160,9 +160,9 @@ Discovery: The framework must also search within this directory (specifically, c
 How they work together: When `openmas run <agent_name>` executes:
 It identifies the project root and the effective project directory (via CWD or --project-dir).
 It parses the relevant openmas_project.yml.
-It identifies required agent code, plugin_paths, shared_paths.
+It identifies required agent code, extension_paths, shared_paths.
 It identifies installed packages/ (implicitly or via metadata).
-It constructs the sys.path to include the agent's directory, paths from shared_paths, paths from plugin_paths, and relevant paths within packages/.
+It constructs the sys.path to include the agent's directory, paths from shared_paths, paths from extension_paths, and relevant paths within packages/.
 It loads the agent code, which can now import modules from shared/, extensions/, and installed packages/.
 Framework mechanisms (like communicator lookup) search across built-ins, extensions/, and packages/.
 6.3. Configuration Layering Strategy
@@ -183,7 +183,7 @@ Key Sections:
 name: Project name.
 version: Project version.
 agents: Mapping of logical agent names to their code paths (e.g., orchestrator: agents/orchestrator).
-plugin_paths: List of directories containing local extensions (replaces extension_paths).
+extension_paths: List of directories containing local extensions (replaces extension_paths).
 shared_paths: List of directories containing shared project code.
 dependencies: List defining external OpenMAS package dependencies (e.g., Git URL, version/tag). Used by openmas deps.
 default_config: Dictionary of default parameters (lowest precedence).
@@ -216,7 +216,7 @@ Optionally uses a project template (e.g., --template=basic, --template=mcp-serve
 openmas validate [--project-dir <path>]:
 Parses openmas_project.yml in the effective project directory.
 Checks YAML syntax.
-Verifies that paths specified in agents, plugin_paths, shared_paths exist.
+Verifies that paths specified in agents, extension_paths, shared_paths exist.
 (Future) Can perform deeper validation (e.g., check agent code structure).
 openmas list agents [--project-dir <path>]:
 Parses openmas_project.yml.
@@ -225,7 +225,7 @@ openmas run <agent_name> [--project-dir <path>]:
 Core local execution command.
 Uses CWD or --project-dir to find the effective project directory and openmas_project.yml.
 Loads the full layered configuration (including .env, config/*.yml).
-Sets up sys.path based on agent path, shared_paths, plugin_paths, and installed packages/.
+Sets up sys.path based on agent path, shared_paths, extension_paths, and installed packages/.
 Dynamically loads and instantiates the specified <agent_name>.
 Executes the agent's setup(), run(), shutdown() lifecycle.
 Blocks the terminal while run() executes.
@@ -239,7 +239,7 @@ Installs/places the package source code into the packages/ directory within the 
 (Future) Could handle dependency resolution, updates, and potentially integrate with PyPI.
 openmas generate-dockerfile <agent_name> [--project-dir <path>] [--output-file <path>] ...:
 Generates a best-practice, multi-stage Dockerfile tailored for the specified <agent_name>.
-Reads openmas_project.yml (from effective project dir) to understand agent path, shared/plugin usage.
+Reads openmas_project.yml (from effective project dir) to understand agent path, shared/extension usage.
 Reads optional agent-specific metadata from agents/<agent_name>/openmas.deploy.yaml.
 Copies necessary code (agent, shared, extensions) correctly based on project structure.
 Sets up non-root user, entrypoint (openmas run <agent_name>), etc.
@@ -301,7 +301,7 @@ Dogfooding Loop: When `tox -e <example_env>` fails due to a framework issue, dev
 (Renumbered from v0.2.0 Section 9)
 11.1. SDK Enhancements
 Full MCP Support: Implement/refine MCP communicators, add SDK helpers/decorators. Ensure lazy loading. (High Priority)
-Formalize Plugin & Package System: Implement robust discovery (entry points, plugin_paths, packages/) and configuration. Ensure lazy loading works correctly for components found via these mechanisms. (High Priority)
+Formalize Extension & Package System: Implement robust discovery (entry points, extension_paths, packages/) and configuration. Ensure lazy loading works correctly for components found via these mechanisms. (High Priority)
 Add More Communicators: Mature gRPC, RabbitMQ, Redis implementations. Ensure lazy loading and optional dependencies via extras. (Medium Priority)
 Pattern Helpers: Enhance optional modules (openmas.patterns) for Orchestrator-Worker, Chaining, Routing. (Medium Priority)
 BDI/Reasoning Integration: Refine optional hooks/base classes (BdiAgent). (Medium Priority)
