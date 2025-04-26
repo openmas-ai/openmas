@@ -470,11 +470,11 @@ def run(agent_name: str, project_dir: Optional[Path] = None, env: Optional[str] 
     AGENT_NAME is the name of the agent to run.
     """
     import asyncio
-    import functools
     import importlib.util
     import inspect
     import signal
     import sys
+    import functools
     import traceback
 
     from openmas.agent.base import BaseAgent
@@ -681,7 +681,7 @@ def run(agent_name: str, project_dir: Optional[Path] = None, env: Optional[str] 
         stop_in_progress = False
 
         # Enhanced signal handler for more robust shutdown
-        def signal_handler(signame: Optional[str] = None) -> None:
+        def signal_handler(signame=None) -> None:
             nonlocal stop_in_progress
             if stop_in_progress:
                 click.echo("\nForced exit in progress. Press Ctrl+C again to force immediate termination.")
@@ -769,7 +769,7 @@ def run(agent_name: str, project_dir: Optional[Path] = None, env: Optional[str] 
                 click.echo(f"Error cleaning up tasks: {e}")
 
             # Close the event loop cleanly
-            if hasattr(loop, "shutdown_asyncgens"):
+            if hasattr(loop, 'shutdown_asyncgens'):
                 loop.run_until_complete(loop.shutdown_asyncgens())
             loop.close()
 
