@@ -1,6 +1,7 @@
 """Tests for the 'deps' command in the OpenMAS CLI."""
 
 import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -128,44 +129,48 @@ def test_deps_git_dependency_error(mock_project_dir, mock_project_config):
 
 
 def test_run_with_packages(mock_project_dir, mock_project_config):
-    """Test that the run command includes packages in sys.path."""
+    """Test that package paths are correctly added to sys.path."""
+    from openmas.cli.run import add_package_paths_to_sys_path
+
     # Create agent structure
     agent_dir = mock_project_dir / "agents" / "test_agent"
     agent_dir.mkdir(parents=True)
 
-    with open(agent_dir / "agent.py", "w") as f:
-        f.write(
-            """
-from openmas.agent import BaseAgent
-
-class TestAgent(BaseAgent):
-    async def setup(self):
-        pass
-
-    async def run(self):
-        pass
-
-    async def shutdown(self):
-        pass
-"""
-        )
-
     # Create package directories
     packages_dir = mock_project_dir / "packages"
+    packages_dir.mkdir(exist_ok=True)
 
     # Package 1 - with src directory
     pkg1_dir = packages_dir / "package1"
+    pkg1_src_dir = pkg1_dir / "src"
     pkg1_dir.mkdir()
-    (pkg1_dir / "src").mkdir()
+    pkg1_src_dir.mkdir()
 
     # Package 2 - without src directory
     pkg2_dir = packages_dir / "package2"
     pkg2_dir.mkdir()
 
-    # Skip the test for now as it needs more complex mocking
-    # This test is more of an integration test and should be refactored
-    # to test the specific function that adds package paths
-    pytest.skip("This test needs to be rewritten as a more focused unit test")
+    # Mock sys.path
+    original_sys_path = sys.path.copy()
+
+    try:
+        # Reset sys.path to a known state
+        sys.path = ["/original/path"]
+
+        # Call the function being tested
+        add_package_paths_to_sys_path(packages_dir)
+
+        # Verify that paths were added correctly
+        assert str(pkg1_src_dir) in sys.path
+        assert str(pkg2_dir) in sys.path
+        assert "/original/path" in sys.path  # Original path still present
+
+        # Verify paths added only once
+        assert sys.path.count(str(pkg1_src_dir)) == 1
+        assert sys.path.count(str(pkg2_dir)) == 1
+    finally:
+        # Restore the original sys.path
+        sys.path = original_sys_path
 
 
 def test_add_package_paths_to_sys_path():

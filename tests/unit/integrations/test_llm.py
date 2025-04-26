@@ -6,12 +6,7 @@ from unittest import mock
 
 import pytest
 
-from openmas.integrations.llm import (
-    initialize_anthropic_client,
-    initialize_google_genai,
-    initialize_llm_client,
-    initialize_openai_client,
-)
+from openmas.integrations.llm import initialize_anthropic_client, initialize_llm_client, initialize_openai_client
 
 
 class TestOpenAIIntegration:
@@ -145,17 +140,23 @@ class TestAnthropicIntegration:
 class TestGoogleIntegration:
     """Tests for Google GenerativeAI integration helpers."""
 
-    # Skip the entire class to avoid the google.__spec__ error
-    pytestmark = pytest.mark.skip(reason="Google package not installed. Install with 'pip install google-generativeai'")
-
-    @mock.patch.dict(sys.modules, {"google.generativeai": mock.MagicMock()})
-    def test_initialize_google_genai_with_api_key_param(self):
+    def test_initialize_google_genai_with_api_key_param(self, monkeypatch):
         """Test initializing Google GenerativeAI with API key as a parameter."""
         # Setup comprehensive google module mocking
         mock_genai = mock.MagicMock()
         mock_model = mock.MagicMock()
         mock_genai.GenerativeModel.return_value = mock_model
-        sys.modules["google.generativeai"] = mock_genai
+
+        # Create a mock google module
+        mock_google = mock.MagicMock()
+        mock_google.generativeai = mock_genai
+
+        # Patch sys.modules before importing the function
+        monkeypatch.setitem(sys.modules, "google", mock_google)
+        monkeypatch.setitem(sys.modules, "google.generativeai", mock_genai)
+
+        # Import the function after patching
+        from openmas.integrations.llm import initialize_google_genai
 
         # API key for test
         api_key = "test-api-key"
@@ -168,14 +169,23 @@ class TestGoogleIntegration:
         mock_genai.GenerativeModel.assert_called_once_with("gemini-pro")
         assert result == mock_model
 
-    @mock.patch.dict(sys.modules, {"google.generativeai": mock.MagicMock()})
-    def test_initialize_google_genai_with_config(self):
+    def test_initialize_google_genai_with_config(self, monkeypatch):
         """Test initializing Google GenerativeAI with config dictionary."""
         # Setup google.generativeai module mocking
         mock_genai = mock.MagicMock()
         mock_model = mock.MagicMock()
         mock_genai.GenerativeModel.return_value = mock_model
-        sys.modules["google.generativeai"] = mock_genai
+
+        # Create a mock google module
+        mock_google = mock.MagicMock()
+        mock_google.generativeai = mock_genai
+
+        # Patch sys.modules before importing the function
+        monkeypatch.setitem(sys.modules, "google", mock_google)
+        monkeypatch.setitem(sys.modules, "google.generativeai", mock_genai)
+
+        # Import the function after patching
+        from openmas.integrations.llm import initialize_google_genai
 
         # Config with API key
         config = {"google_api_key": "config-api-key"}
@@ -188,15 +198,27 @@ class TestGoogleIntegration:
         mock_genai.GenerativeModel.assert_called_once_with("gemini-pro")
         assert result == mock_model
 
-    @mock.patch.dict(sys.modules, {"google.generativeai": mock.MagicMock()})
-    @mock.patch.dict(os.environ, {"GOOGLE_API_KEY": "env-api-key", "GOOGLE_MODEL_NAME": "custom-model"})
-    def test_initialize_google_genai_with_env_var(self):
+    def test_initialize_google_genai_with_env_var(self, monkeypatch):
         """Test initializing Google GenerativeAI with environment variables."""
         # Setup google.generativeai module mocking
         mock_genai = mock.MagicMock()
         mock_model = mock.MagicMock()
         mock_genai.GenerativeModel.return_value = mock_model
-        sys.modules["google.generativeai"] = mock_genai
+
+        # Create a mock google module
+        mock_google = mock.MagicMock()
+        mock_google.generativeai = mock_genai
+
+        # Patch sys.modules before importing the function
+        monkeypatch.setitem(sys.modules, "google", mock_google)
+        monkeypatch.setitem(sys.modules, "google.generativeai", mock_genai)
+
+        # Set environment variables
+        monkeypatch.setenv("GOOGLE_API_KEY", "env-api-key")
+        monkeypatch.setenv("GOOGLE_MODEL_NAME", "custom-model")
+
+        # Import the function after patching
+        from openmas.integrations.llm import initialize_google_genai
 
         # Act
         result = initialize_google_genai()
@@ -206,25 +228,40 @@ class TestGoogleIntegration:
         mock_genai.GenerativeModel.assert_called_once_with("custom-model")
         assert result == mock_model
 
-    @mock.patch.dict(sys.modules, {"google.generativeai": mock.MagicMock()})
-    @mock.patch.dict(os.environ, {}, clear=True)
-    def test_initialize_google_genai_no_api_key(self):
+    def test_initialize_google_genai_no_api_key(self, monkeypatch):
         """Test that ValueError is raised when no API key is provided."""
         # Setup google.generativeai module mocking
         mock_genai = mock.MagicMock()
-        sys.modules["google.generativeai"] = mock_genai
+
+        # Create a mock google module
+        mock_google = mock.MagicMock()
+        mock_google.generativeai = mock_genai
+
+        # Patch sys.modules before importing the function
+        monkeypatch.setitem(sys.modules, "google", mock_google)
+        monkeypatch.setitem(sys.modules, "google.generativeai", mock_genai)
+
+        # Clear environment variables
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+        # Import the function after patching
+        from openmas.integrations.llm import initialize_google_genai
 
         # Act & Assert
         with pytest.raises(ValueError, match="No Google API key provided"):
             initialize_google_genai()
 
-    def test_initialize_google_genai_import_error(self):
+    def test_initialize_google_genai_import_error(self, monkeypatch):
         """Test that ImportError is raised when generativeai package is not installed."""
-        # Temporarily remove the mock so we get a real import error
-        with mock.patch.dict(sys.modules, {"google.generativeai": None}):
-            # Act & Assert
-            with pytest.raises(ImportError, match="Google GenerativeAI package not installed"):
-                initialize_google_genai(api_key="test")
+        # Remove the google module from sys.modules to cause an import error
+        monkeypatch.delitem(sys.modules, "google", raising=False)
+
+        # Import the function after patching
+        from openmas.integrations.llm import initialize_google_genai
+
+        # Act & Assert
+        with pytest.raises(ImportError, match="Google GenerativeAI package not installed"):
+            initialize_google_genai(api_key="test")
 
 
 class TestLLMClientInitializer:

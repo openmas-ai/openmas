@@ -6,6 +6,10 @@ from unittest import mock
 
 import pytest
 
+# Import OpenMAS exceptions and logging
+from openmas.exceptions import ServiceNotFoundError
+from openmas.logging import get_logger
+
 # Create mock MCP modules and classes
 mock_mcp = mock.MagicMock()
 mock_client = mock.MagicMock()
@@ -26,19 +30,6 @@ sys.modules["mcp.client.sse"] = mock_sse
 sys.modules["mcp.client.session"] = mock_session
 sys.modules["mcp.types"] = mock_types
 
-# Check if MCP module is available
-try:
-    import mcp  # noqa: F401
-
-    from openmas.communication.mcp import McpSseCommunicator
-    from openmas.exceptions import ServiceNotFoundError
-    from openmas.logging import get_logger
-
-    HAS_MCP = True
-except ImportError:
-    HAS_MCP = False
-    pytest.skip("MCP module is not available", allow_module_level=True)
-
 # Get logger for tests
 test_logger = get_logger(__name__)
 
@@ -50,6 +41,9 @@ def mocked_sse_environment():
     This fixture sets up all necessary mocks for the SSE client and ClientSession
     to avoid actual connection attempts, which can hang the tests.
     """
+    # Import the communicator after mocking dependencies
+    from openmas.communication.mcp import McpSseCommunicator
+
     # Create a communicator with test services
     service_urls = {
         "test-service": "http://localhost:8000",
@@ -129,6 +123,9 @@ class TestMcpSseCommunicator:
 
     def test_initialization(self):
         """Test that initialization sets up the communicator correctly."""
+        # Import the communicator after mocking dependencies
+        from openmas.communication.mcp import McpSseCommunicator
+
         service_urls = {
             "test-service": "http://localhost:8000",
             "other-service": "http://localhost:8001",
@@ -318,6 +315,9 @@ class TestMcpSseCommunicator:
     @pytest.mark.asyncio
     async def test_start_and_stop_server_mode(self):
         """Test starting and stopping the server mode."""
+        # Import the communicator after mocking dependencies
+        from openmas.communication.mcp import McpSseCommunicator
+
         # Create a communicator with server setup - but initially set server_mode to False
         communicator = McpSseCommunicator("test-server", {}, server_mode=False, http_port=8000)
 
