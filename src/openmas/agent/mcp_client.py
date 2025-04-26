@@ -346,15 +346,23 @@ class McpClientAgent(McpAgent):
                     timeout=timeout,
                 )
 
-                # Ensure we always return bytes
-                content = response.get("content", b"")
-                if isinstance(content, str):
-                    return content.encode("utf-8")
-                elif isinstance(content, bytes):
-                    return content
-                else:
-                    # If content is neither str nor bytes, convert to string and then to bytes
-                    return str(content).encode("utf-8")
+                # Handle case where response is already bytes (from MockCommunicator)
+                if isinstance(response, bytes):
+                    return response
+
+                # Handle dict response with content field
+                if isinstance(response, dict):
+                    content = response.get("content", b"")
+                    if isinstance(content, str):
+                        return content.encode("utf-8")
+                    elif isinstance(content, bytes):
+                        return content
+                    else:
+                        # If content is neither str nor bytes, convert to string and then to bytes
+                        return str(content).encode("utf-8")
+
+                # If response is neither bytes nor dict, convert to string and then to bytes
+                return str(response).encode("utf-8")
         except Exception as e:
             self.logger.error(f"Error reading resource {uri} from {target_service}: {e}")
             raise
