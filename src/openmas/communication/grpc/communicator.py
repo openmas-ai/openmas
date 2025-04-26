@@ -287,7 +287,7 @@ class GrpcCommunicator(BaseCommunicator):
 
             return result_data
 
-        except (ServiceNotFoundError, MethodNotFoundError, RequestTimeoutError):
+        except (ServiceNotFoundError, MethodNotFoundError, RequestTimeoutError, OpenMasValidationError):
             # Re-raise specific OpenMAS errors without wrapping
             raise
         except asyncio.TimeoutError:
@@ -317,10 +317,10 @@ class GrpcCommunicator(BaseCommunicator):
 
             # For all other errors, wrap in CommunicationError
             raise CommunicationError(
-                f"Error from '{target_service}': {str(e)}",
+                f"Error communicating with '{target_service}': {str(e)}",
                 target=target_service,
                 details={"method": method, "error_type": type(e).__name__},
-            )
+            ) from e
 
     async def send_notification(
         self, target_service: str, method: str, params: Optional[Dict[str, Any]] = None
@@ -380,10 +380,10 @@ class GrpcCommunicator(BaseCommunicator):
 
             # For all other errors, wrap in CommunicationError
             raise CommunicationError(
-                f"Error from '{target_service}': {str(e)}",
+                f"Error communicating with '{target_service}': {str(e)}",
                 target=target_service,
                 details={"method": method, "error_type": type(e).__name__},
-            )
+            ) from e
 
     async def register_handler(self, method: str, handler: Callable) -> None:
         """Register a handler for a method.

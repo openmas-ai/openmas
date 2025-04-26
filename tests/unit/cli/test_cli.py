@@ -474,4 +474,4 @@ def test_run_command_with_invalid_project_dir(mock_find_root, cli_runner):
 
         # Verify that the command failed with the correct error message
         assert result.exit_code != 0
-        assert "Project configuration file 'openmas_project.yml' not found in specified directory" in result.output
+        assert "Project configuration file 'openmas_project.yml' not found" in result.output

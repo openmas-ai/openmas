@@ -4,17 +4,15 @@ from unittest import mock
 
 import pytest
 
-# Skip tests if MCP is not available
-try:
-    from mcp.types import TextContent  # noqa: F401
-
-    HAS_MCP = True
-except ImportError:
-    HAS_MCP = False
-    pytest.skip("MCP module is not available", allow_module_level=True)
+# Import all modules at the top level
+from mcp.types import TextContent
 
 from openmas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
 from openmas.exceptions import CommunicationError
+from tests.unit.communication.mcp.mcp_mocks import apply_mcp_mocks
+
+# Apply MCP mocks after imports
+apply_mcp_mocks()
 
 
 @pytest.fixture

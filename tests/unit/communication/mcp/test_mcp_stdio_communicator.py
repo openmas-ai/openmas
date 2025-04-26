@@ -5,22 +5,14 @@ from unittest import mock
 
 import pytest
 
-# Check if MCP module is available
-try:
-    # First, check basic import of the mcp package
-    import mcp  # noqa: F401
-
-    # Then try to import the McpStdioCommunicator class
-    from openmas.communication.mcp import McpStdioCommunicator
-
-    HAS_MCP = True
-except ImportError as e:
-    HAS_MCP = False
-    # More descriptive skip reason with the actual import error
-    pytest.skip(f"MCP module is not available: {e}", allow_module_level=True)
-
+# Import all modules at the top level
+from openmas.communication.mcp import McpStdioCommunicator
 from openmas.exceptions import ServiceNotFoundError
 from openmas.logging import get_logger
+from tests.unit.communication.mcp.mcp_mocks import apply_mcp_mocks
+
+# Apply MCP mocks after imports
+apply_mcp_mocks()
 
 # Get logger for tests
 test_logger = get_logger(__name__)
@@ -129,18 +121,29 @@ class TestMcpStdioCommunicator:
         with mock.patch("openmas.communication.mcp.stdio_communicator.ClientSession") as mock_session_class:
             mock_session_class.return_value = mock_session
 
-            # Connect to the external service
-            await stdio_communicator._connect_to_service("external-service")
+            # Mock StdioServerParameters to capture its arguments
+            with mock.patch("openmas.communication.mcp.stdio_communicator.StdioServerParameters") as mock_params_class:
+                mock_params = mock.MagicMock()
+                mock_params_class.return_value = mock_params
 
-            # Check that the client and session were created correctly with the right command
-            mock_stdio_client.assert_called_once()
-            args, kwargs = mock_stdio_client.call_args
-            # Verify the command was correctly passed to stdio_client
-            assert "/path/to/external/executable" in str(args) or "/path/to/external/executable" in str(kwargs)
+                # Connect to the external service
+                await stdio_communicator._connect_to_service("external-service")
 
-            mock_session_class.assert_called_once_with(mock_read_stream, mock_write_stream)
-            assert stdio_communicator.clients["external-service"] == (mock_read_stream, mock_write_stream)
-            assert stdio_communicator.sessions["external-service"] == mock_session
+                # Verify that path.exists was called with the executable path
+                mock_path_exists.assert_called_once_with("/path/to/external/executable")
+
+                # Verify that StdioServerParameters was called with the right command
+                mock_params_class.assert_called_once()
+                params_args = mock_params_class.call_args[1]  # Get kwargs
+                assert params_args.get("command") == "/path/to/external/executable"
+
+                # Verify that stdio_client was called with the mocked parameters
+                mock_stdio_client.assert_called_once_with(mock_params)
+
+                # Check that the session and client were correctly created
+                mock_session_class.assert_called_once_with(mock_read_stream, mock_write_stream)
+                assert stdio_communicator.clients["external-service"] == (mock_read_stream, mock_write_stream)
+                assert stdio_communicator.sessions["external-service"] == mock_session
 
     @pytest.mark.asyncio
     async def test_connect_to_invalid_service(self, stdio_communicator):

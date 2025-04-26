@@ -85,7 +85,7 @@ def agent_name() -> str:
 @pytest.fixture
 def config(agent_name: str) -> AgentConfig:
     """Create a standard agent configuration for testing."""
-    return AgentConfig(name=agent_name, service_urls={})
+    return AgentConfig(name=agent_name, service_urls={}, communicator_type="mock")
 
 
 @pytest.fixture

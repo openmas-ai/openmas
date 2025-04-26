@@ -1,23 +1,43 @@
 """Tests for the MCP SSE communicator."""
 
 import asyncio
+import sys
 from unittest import mock
 
 import pytest
+
+# Create mock MCP modules and classes
+mock_mcp = mock.MagicMock()
+mock_client = mock.MagicMock()
+mock_sse = mock.MagicMock()
+mock_session = mock.MagicMock()
+mock_types = mock.MagicMock()
+
+# Set up the module structure
+mock_mcp.client = mock_client
+mock_client.sse = mock_sse
+mock_client.session = mock_session
+mock_mcp.types = mock_types
+
+# Mock the MCP module in sys.modules
+sys.modules["mcp"] = mock_mcp
+sys.modules["mcp.client"] = mock_client
+sys.modules["mcp.client.sse"] = mock_sse
+sys.modules["mcp.client.session"] = mock_session
+sys.modules["mcp.types"] = mock_types
 
 # Check if MCP module is available
 try:
     import mcp  # noqa: F401
 
     from openmas.communication.mcp import McpSseCommunicator
+    from openmas.exceptions import ServiceNotFoundError
+    from openmas.logging import get_logger
 
     HAS_MCP = True
 except ImportError:
     HAS_MCP = False
     pytest.skip("MCP module is not available", allow_module_level=True)
-
-from openmas.exceptions import ServiceNotFoundError
-from openmas.logging import get_logger
 
 # Get logger for tests
 test_logger = get_logger(__name__)

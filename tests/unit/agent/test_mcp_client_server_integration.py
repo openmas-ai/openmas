@@ -5,20 +5,16 @@ from typing import Any, Dict, Tuple
 import pytest
 from pydantic import BaseModel
 
+# Import all modules at the top level
 from openmas.agent import McpClientAgent, McpServerAgent
 from openmas.agent.mcp import mcp_prompt, mcp_resource, mcp_tool
 from openmas.config import AgentConfig
 from openmas.exceptions import CommunicationError
 from openmas.testing.mock_communicator import MockCommunicator
+from tests.unit.communication.mcp.mcp_mocks import apply_mcp_mocks
 
-# Skip the tests if MCP module is not available
-try:
-    import mcp  # noqa: F401
-
-    HAS_MCP = True
-except ImportError:
-    HAS_MCP = False
-    pytest.skip("MCP module is not available", allow_module_level=True)
+# Apply MCP mocks after imports
+apply_mcp_mocks()
 
 
 class SampleInput(BaseModel):

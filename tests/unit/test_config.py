@@ -6,12 +6,12 @@ from pathlib import Path
 from typing import Any, Dict, cast
 from unittest import mock
 
-# Remove unused MagicMock import:
+# Using only the needed imports
 from unittest.mock import mock_open, patch
 
 import pytest
 import yaml
-from pydantic import Field
+from pydantic import Field, ValidationError
 from pytest import MonkeyPatch
 
 from openmas.config import (
@@ -39,7 +39,7 @@ class TestAgentConfig:
         assert config.service_urls == {}
 
         # Should fail without a name
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             AgentConfig()
 
 
@@ -61,7 +61,7 @@ class TestCustomConfig:
         assert config.model_name == "gpt-4"
 
         # Should fail without an API key
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             self.CustomConfig(name="test-agent")
 
 
@@ -378,11 +378,33 @@ def test_load_config_with_individual_communicator_options(mock_project_config):
         assert config.communicator_options["max_retries"] == 5
 
 
-@pytest.mark.skip("Complex patching requirements")
 def test_find_project_root():
     """Test finding the project root by checking for openmas_project.yml."""
-    # Tests for this function are skipped due to complexity in mocking Path internals
-    pass
+    from openmas.config import _find_project_root
+
+    # Mock the current working directory
+    cwd_mock = Path("/some/project/directory")
+
+    # Mock Path.cwd() to return our test path
+    with patch("pathlib.Path.cwd", return_value=cwd_mock):
+        # Case 1: Project file exists in the current directory
+        with patch("pathlib.Path.exists") as mock_exists:
+            mock_exists.return_value = True
+            result = _find_project_root()
+            assert result == cwd_mock
+
+        # Case 2: Project file doesn't exist in current directory or any parent directories
+        with patch("pathlib.Path.exists") as mock_exists:
+            mock_exists.return_value = False
+            result = _find_project_root()
+            assert result is None
+
+    # Test with explicit directory
+    explicit_dir = Path("/explicit/directory")
+    with patch("pathlib.Path.resolve", return_value=explicit_dir), patch("pathlib.Path.exists") as mock_exists:
+        mock_exists.return_value = True
+        result = _find_project_root(explicit_dir)
+        assert result == explicit_dir
 
 
 def test_find_project_root_explicit_dir():
@@ -416,24 +438,37 @@ def test_find_project_root_current_dir():
 
 def test_find_project_root_parent_dir():
     """Test finding a project root in a parent directory."""
-    # Skip this test - mocking Path.parent is too complex for unit testing
-    pytest.skip("Mocking Path.parent is too complex - needs integration testing")
-
-    # The rest of the test would look like this, but it won't run:
-    # The ideal test would simulate a directory structure with a project file only
-    # in a grandparent directory, but this is difficult to mock with Path objects
-
-
-def test_find_project_root_not_found():
-    """Test that None is returned when no project root is found."""
     from openmas.config import _find_project_root
 
-    # Set up a simple mock where no directory has the project file
-    with patch("pathlib.Path.cwd", return_value=Path("/some/deep/path")), patch(
-        "pathlib.Path.exists", return_value=False
-    ):
+    # Mock the directory paths
+    mock_cwd = mock.MagicMock(spec=Path)
+    mock_parent = mock.MagicMock(spec=Path)
+    mock_grandparent = mock.MagicMock(spec=Path)
+
+    # Setup the necessary Path mocks
+    with mock.patch("pathlib.Path.cwd", return_value=mock_cwd):
+        # Configure the parent directory chain
+        mock_cwd.parent = mock_parent
+        mock_parent.parent = mock_grandparent
+
+        # Configure exists() calls
+        mock_cwd_config = mock.MagicMock()
+        mock_parent_config = mock.MagicMock()
+        mock_grandparent_config = mock.MagicMock()
+
+        mock_cwd.__truediv__.return_value = mock_cwd_config
+        mock_parent.__truediv__.return_value = mock_parent_config
+        mock_grandparent.__truediv__.return_value = mock_grandparent_config
+
+        mock_cwd_config.exists.return_value = False
+        mock_parent_config.exists.return_value = False
+        mock_grandparent_config.exists.return_value = True
+
+        # Call the function
         result = _find_project_root()
-        assert result is None
+
+        # Verify it returns the grandparent dir where the config file was found
+        assert result == mock_grandparent
 
 
 def test_load_yaml_config():
@@ -541,14 +576,6 @@ def test_load_config_env_overrides_yaml():
         # Restore original environment
         os.environ.clear()
         os.environ.update(saved_environ)
-
-
-# Skip or remove the original test that's failing
-@pytest.mark.skip("Replaced by test_load_config_env_overrides_yaml")
-def test_load_config_with_yaml_files():
-    """Test loading configuration with YAML files in the precedence order."""
-    # This test is skipped and replaced by test_load_config_env_overrides_yaml
-    pass
 
 
 def test_load_config_with_service_urls_in_yaml():
@@ -941,3 +968,15 @@ def test_load_config_extension_paths_env_backwards_compatibility():
         # Both should be set for backward compatibility
         assert config.extension_paths == extension_paths
         assert config.plugin_paths == extension_paths
+
+
+def test_find_project_root_not_found():
+    """Test that None is returned when no project root is found."""
+    from openmas.config import _find_project_root
+
+    # Set up a simple mock where no directory has the project file
+    with patch("pathlib.Path.cwd", return_value=Path("/some/deep/path")), patch(
+        "pathlib.Path.exists", return_value=False
+    ):
+        result = _find_project_root()
+        assert result is None

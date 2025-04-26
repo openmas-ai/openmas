@@ -1,25 +1,38 @@
 """Tests for the MQTT communicator."""
 
 import asyncio
+import sys
 from unittest import mock
 
 import pytest
 
-# Check if MQTT module is available
-try:
-    # First, check if we can import paho.mqtt
-    import paho.mqtt.client as mqtt  # noqa: F401
 
-    # Then try to import the MqttCommunicator class
-    from openmas.communication.mqtt import MqttCommunicator
+def setup_mqtt_mocks():
+    """Set up MQTT mocks for testing.
 
-    HAS_MQTT = True
-except ImportError:
-    HAS_MQTT = False
-    # Skip all tests in this module if MQTT is not available
-    pytest.skip("MQTT dependencies are not available", allow_module_level=True)
+    This function mocks the paho.mqtt module and its dependencies.
+    """
+    # Create the mocks
+    mock_paho = mock.MagicMock()
+    mock_mqtt = mock.MagicMock()
+    mock_mqtt.Client.return_value = mock.MagicMock()
+    mock_paho.mqtt = mock_mqtt
+    mock_paho.mqtt.client = mock_mqtt
 
-from openmas.logging import get_logger
+    # Apply the mocks to sys.modules
+    sys.modules["paho"] = mock_paho
+    sys.modules["paho.mqtt"] = mock_paho.mqtt
+    sys.modules["paho.mqtt.client"] = mock_paho.mqtt.client
+
+    return mock_paho, mock_mqtt
+
+
+# Apply the mocks - must be done before imports
+mock_paho, mock_mqtt = setup_mqtt_mocks()
+
+# Now import the MQTT communicator module
+from openmas.communication.mqtt import MqttCommunicator  # noqa: E402
+from openmas.logging import get_logger  # noqa: E402
 
 # Get logger for tests
 test_logger = get_logger(__name__)

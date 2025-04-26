@@ -558,23 +558,56 @@ class McpStdioCommunicator(BaseCommunicator):
         arguments: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
     ) -> Any:
-        """Get a prompt from a target service.
+        """Get a prompt from a service.
 
         Args:
-            target_service: The name of the service to get the prompt from
+            target_service: The service to get the prompt from
             prompt_name: The name of the prompt to get
             arguments: The arguments to pass to the prompt
             timeout: Optional timeout in seconds
 
         Returns:
-            The prompt result
+            The result of the prompt
 
         Raises:
-            ServiceNotFoundError: If the target service is not found
             CommunicationError: If there is a problem with the communication
         """
-        method = f"prompt/get/{prompt_name}"
-        return await self.send_request(target_service, method, arguments, timeout=timeout)
+        arguments = arguments or {}
+        response = await self.send_request(
+            target_service=target_service,
+            method=f"prompt/get/{prompt_name}",
+            params=arguments,
+            timeout=timeout,
+        )
+        return response
+
+    async def read_resource(
+        self,
+        target_service: str,
+        resource_uri: str,
+        timeout: Optional[float] = None,
+    ) -> Any:
+        """Read a resource from a service.
+
+        Args:
+            target_service: The service to read the resource from
+            resource_uri: The URI of the resource to read
+            timeout: Optional timeout in seconds
+
+        Returns:
+            The content of the resource, either as a dict with mime_type and content,
+            or as raw bytes or string
+
+        Raises:
+            CommunicationError: If there is a problem with the communication
+        """
+        response = await self.send_request(
+            target_service=target_service,
+            method="resource/read",
+            params={"uri": resource_uri},
+            timeout=timeout,
+        )
+        return response
 
     async def sample_prompt(
         self,

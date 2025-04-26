@@ -56,7 +56,17 @@ class BaseAgent(abc.ABC):
                 raise ConfigurationError(error_msg)
         else:
             # config is already an AgentConfig instance
-            self.config = config
+            # Ensure it's the right type though
+            if not isinstance(config, config_model):
+                try:
+                    # If it's a different AgentConfig subclass, try to convert
+                    self.config = config_model(**config.model_dump())
+                except ValidationError as e:
+                    error_msg = f"Configuration validation failed: {e}"
+                    logger.error(error_msg)
+                    raise ConfigurationError(error_msg)
+            else:
+                self.config = config
 
         # Override name if provided
         if name:
