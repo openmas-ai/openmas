@@ -11,6 +11,22 @@ class ConfigurationError(OpenMasError):
     """Error raised when there is a configuration problem."""
 
 
+class DependencyError(OpenMasError):
+    """Error raised when a required optional dependency is not installed."""
+
+    def __init__(self, message: str, dependency: str, extras: Optional[str] = None) -> None:
+        """Initialize a DependencyError.
+
+        Args:
+            message: Error message
+            dependency: The name of the missing dependency
+            extras: The extras group that can be installed to get this dependency
+        """
+        self.dependency = dependency
+        self.extras = extras
+        super().__init__(message)
+
+
 class CommunicationError(OpenMasError):
     """Error raised when there is a communication problem."""
 

@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from openmas.communication import BaseCommunicator, discover_local_communicators
 from openmas.config import AgentConfig, load_config
-from openmas.exceptions import ConfigurationError, LifecycleError
+from openmas.exceptions import ConfigurationError, DependencyError, LifecycleError
 from openmas.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
@@ -92,22 +92,34 @@ class BaseAgent(abc.ABC):
             The communicator class
 
         Raises:
-            ValueError: If the communicator type cannot be found
+            ConfigurationError: If the communicator type cannot be found
+            DependencyError: If the communicator requires an optional dependency that is not installed
         """
         try:
             # First try to get using our lazy loading mechanism
             from openmas.communication import get_communicator_by_type
 
             return get_communicator_by_type(communicator_type)
+        except DependencyError as e:
+            # This is a special error case for missing optional dependencies - propagate it
+            # with the helpful installation instructions already included
+            self.logger.error(f"Missing dependency for communicator type '{communicator_type}': {str(e)}")
+            raise
         except ValueError:
-            # If not found, check extension paths
-            if self.config.extension_paths:
-                discover_local_communicators(self.config.extension_paths)
+            # If not found, check extension/plugin paths (extension_paths is deprecated
+            # but supported for backwards compatibility)
+            check_paths = self.config.plugin_paths or self.config.extension_paths
+            if check_paths:
+                discover_local_communicators(check_paths)
                 try:
                     # Try again after discovering local communicators
                     from openmas.communication import get_communicator_by_type
 
                     return get_communicator_by_type(communicator_type)
+                except DependencyError as e:
+                    # This is a special error case for missing optional dependencies
+                    self.logger.error(f"Missing dependency for communicator type '{communicator_type}': {str(e)}")
+                    raise
                 except ValueError:
                     pass
 
@@ -122,7 +134,7 @@ class BaseAgent(abc.ABC):
                 f"Check your configuration or provide a valid communicator_class."
             )
             self.logger.error(message)
-            raise ValueError(message)
+            raise ConfigurationError(message)
 
     @property
     def name(self) -> str:

@@ -15,14 +15,17 @@ sys.modules["mcp.types"] = mock.MagicMock()
 
 from openmas.agent import BaseAgent
 from openmas.communication import (
+    COMMUNICATOR_LOADERS,
     BaseCommunicator,
     discover_communicator_plugins,
     discover_local_communicators,
+    get_communicator_by_type,
     get_communicator_class,
     load_local_communicator,
     register_communicator,
 )
 from openmas.communication.base import _COMMUNICATOR_REGISTRY
+from openmas.exceptions import ConfigurationError, DependencyError
 from openmas.testing import MockCommunicator
 
 
@@ -251,9 +254,9 @@ def test_agent_init_with_communicator_type(monkeypatch):
 
 
 def test_agent_init_with_extension_paths(create_extension_dir, monkeypatch):
-    """Test initializing an agent with extension paths."""
-    # Clear registry to ensure clean test
-    _COMMUNICATOR_REGISTRY.clear()
+    """Test initializing an agent with extension_paths in the config."""
+    # Add the extension directory to sys.path
+    monkeypatch.syspath_prepend(str(create_extension_dir))
 
     # Create a mock agent class
     class MockAgent(BaseAgent):
@@ -266,7 +269,7 @@ def test_agent_init_with_extension_paths(create_extension_dir, monkeypatch):
         async def shutdown(self):
             pass
 
-    # Initialize with extension paths
+    # Initialize with extension_paths and a custom communicator type
     agent = MockAgent(
         name="test_agent",
         config={
@@ -276,5 +279,169 @@ def test_agent_init_with_extension_paths(create_extension_dir, monkeypatch):
         },
     )
 
-    # Verify the communicator from extension path was used
+    # Verify the custom communicator was used
     assert agent.communicator.__class__.__name__ == "CustomCommunicator"
+
+
+def test_agent_init_with_plugin_paths(create_extension_dir, monkeypatch):
+    """Test initializing an agent with plugin_paths in the config."""
+    # Add the extension directory to sys.path
+    monkeypatch.syspath_prepend(str(create_extension_dir))
+
+    # Create a mock agent class
+    class MockAgent(BaseAgent):
+        async def setup(self):
+            pass
+
+        async def run(self):
+            pass
+
+        async def shutdown(self):
+            pass
+
+    # Initialize with plugin_paths and a custom communicator type
+    agent = MockAgent(
+        name="test_agent",
+        config={
+            "name": "test_agent",
+            "communicator_type": "custom_communicator",
+            "plugin_paths": [str(create_extension_dir)],
+        },
+    )
+
+    # Verify the custom communicator was used
+    assert agent.communicator.__class__.__name__ == "CustomCommunicator"
+
+
+def test_missing_mcp_dependency(monkeypatch):
+    """Test that a helpful error is raised when the mcp dependency is missing."""
+    # Preserve the original COMMUNICATOR_LOADERS
+    original_loaders = COMMUNICATOR_LOADERS.copy()
+
+    try:
+        # Create a mock MCP loader function that raises DependencyError
+        def mock_mcp_loader():
+            raise DependencyError(
+                "The MCP SSE communicator requires the 'mcp' package. "
+                "Please install it using: pip install openmas[mcp]",
+                dependency="mcp",
+                extras="mcp",
+            )
+
+        # Override the MCP loader
+        COMMUNICATOR_LOADERS["mcp-sse"] = mock_mcp_loader
+
+        # Try to get the MCP communicator
+        with pytest.raises(DependencyError) as exc_info:
+            get_communicator_by_type("mcp-sse")
+
+        # Verify the error message mentions mcp and pip install
+        assert "mcp" in str(exc_info.value)
+        assert "pip install" in str(exc_info.value)
+        assert hasattr(exc_info.value, "dependency")
+        assert exc_info.value.dependency == "mcp"
+        assert hasattr(exc_info.value, "extras")
+        assert exc_info.value.extras == "mcp"
+    finally:
+        # Restore original loaders
+        COMMUNICATOR_LOADERS.clear()
+        COMMUNICATOR_LOADERS.update(original_loaders)
+
+
+def test_missing_grpc_dependency(monkeypatch):
+    """Test that a helpful error is raised when the grpc dependency is missing."""
+    # Preserve the original COMMUNICATOR_LOADERS
+    original_loaders = COMMUNICATOR_LOADERS.copy()
+
+    try:
+        # Create a mock gRPC loader function that raises DependencyError
+        def mock_grpc_loader():
+            raise DependencyError(
+                "The gRPC communicator requires the 'grpcio' and 'grpcio-tools' packages. "
+                "Please install them using: pip install openmas[grpc]",
+                dependency="grpcio",
+                extras="grpc",
+            )
+
+        # Override the gRPC loader
+        COMMUNICATOR_LOADERS["grpc"] = mock_grpc_loader
+
+        # Try to get the gRPC communicator
+        with pytest.raises(DependencyError) as exc_info:
+            get_communicator_by_type("grpc")
+
+        # Verify the error message mentions grpc and pip install
+        assert "grpc" in str(exc_info.value)
+        assert "pip install" in str(exc_info.value)
+        assert hasattr(exc_info.value, "dependency")
+        assert exc_info.value.dependency == "grpcio"
+        assert hasattr(exc_info.value, "extras")
+        assert exc_info.value.extras == "grpc"
+    finally:
+        # Restore original loaders
+        COMMUNICATOR_LOADERS.clear()
+        COMMUNICATOR_LOADERS.update(original_loaders)
+
+
+def test_agent_with_missing_dependency(monkeypatch):
+    """Test that an agent correctly handles a missing dependency for a communicator."""
+    # Preserve the original COMMUNICATOR_LOADERS
+    original_loaders = COMMUNICATOR_LOADERS.copy()
+
+    try:
+        # Create a mock MCP loader function that raises DependencyError
+        def mock_mcp_loader():
+            raise DependencyError(
+                "The MCP SSE communicator requires the 'mcp' package. "
+                "Please install it using: pip install openmas[mcp]",
+                dependency="mcp",
+                extras="mcp",
+            )
+
+        # Override the MCP loader
+        COMMUNICATOR_LOADERS["mcp-sse"] = mock_mcp_loader
+
+        # Create a mock agent class
+        class MockAgent(BaseAgent):
+            async def setup(self):
+                pass
+
+            async def run(self):
+                pass
+
+            async def shutdown(self):
+                pass
+
+        # Try to initialize an agent with mcp-sse communicator type
+        with pytest.raises(DependencyError) as exc_info:
+            MockAgent(name="test_agent", config={"name": "test_agent", "communicator_type": "mcp-sse"})
+
+        # Verify the error message mentions mcp and pip install
+        assert "mcp" in str(exc_info.value)
+        assert "pip install" in str(exc_info.value)
+    finally:
+        # Restore original loaders
+        COMMUNICATOR_LOADERS.clear()
+        COMMUNICATOR_LOADERS.update(original_loaders)
+
+
+def test_nonexistent_communicator_type_in_agent():
+    """Test that an agent correctly handles a non-existent communicator type."""
+
+    # Create a mock agent class
+    class MockAgent(BaseAgent):
+        async def setup(self):
+            pass
+
+        async def run(self):
+            pass
+
+        async def shutdown(self):
+            pass
+
+    # Try to initialize an agent with a non-existent communicator type
+    with pytest.raises(ConfigurationError) as exc_info:
+        MockAgent(name="test_agent", config={"name": "test_agent", "communicator_type": "nonexistent_type"})
+
+    # Verify the error message mentions the communicator type
+    assert "nonexistent_type" in str(exc_info.value)

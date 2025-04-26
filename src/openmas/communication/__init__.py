@@ -17,6 +17,7 @@ from openmas.communication.base import (
 
 # Import the guaranteed-available communicator
 from openmas.communication.http import HttpCommunicator
+from openmas.exceptions import DependencyError
 
 # Define available communicator types
 COMMUNICATOR_TYPES: Dict[str, Type[BaseCommunicator]] = {
@@ -40,7 +41,13 @@ def _load_grpc_communicator() -> Type[BaseCommunicator]:
 
         return GrpcCommunicator
     except ImportError as e:
-        raise ImportError(f"Could not import gRPC communicator: {e}") from e
+        # Provide a helpful error message about the missing dependency
+        raise DependencyError(
+            "The gRPC communicator requires the 'grpcio' and 'grpcio-tools' packages. "
+            "Please install them using: pip install openmas[grpc]",
+            dependency="grpcio",
+            extras="grpc",
+        ) from e
 
 
 def _load_mqtt_communicator() -> Type[BaseCommunicator]:
@@ -55,10 +62,12 @@ def _load_mqtt_communicator() -> Type[BaseCommunicator]:
 
         return MqttCommunicator
     except ImportError as e:
-        raise ImportError(
-            f"Could not import MQTT communicator: {e}. "
-            f"Please ensure you have installed the MQTT dependencies with: "
-            f"pip install openmas[mqtt]"
+        # Provide a helpful error message about the missing dependency
+        raise DependencyError(
+            "The MQTT communicator requires the 'paho-mqtt' package. "
+            "Please install it using: pip install openmas[mqtt]",
+            dependency="paho-mqtt",
+            extras="mqtt",
         ) from e
 
 
@@ -74,7 +83,21 @@ def _load_mcp_sse_communicator() -> Type[BaseCommunicator]:
 
         return McpSseCommunicator
     except ImportError as e:
-        raise ImportError(f"Could not import MCP SSE communicator: {e}") from e
+        # Check if it's specifically the mcp package that's missing
+        if "mcp" in str(e):
+            raise DependencyError(
+                "The MCP SSE communicator requires the 'mcp' package. "
+                "Please install it using: pip install openmas[mcp]",
+                dependency="mcp",
+                extras="mcp",
+            ) from e
+        # Otherwise, re-raise the original error
+        raise DependencyError(
+            f"Failed to load MCP SSE communicator: {e}. "
+            f"Make sure you have the required dependencies installed: pip install openmas[mcp]",
+            dependency="mcp",
+            extras="mcp",
+        ) from e
 
 
 def _load_mcp_stdio_communicator() -> Type[BaseCommunicator]:
@@ -89,7 +112,21 @@ def _load_mcp_stdio_communicator() -> Type[BaseCommunicator]:
 
         return McpStdioCommunicator
     except ImportError as e:
-        raise ImportError(f"Could not import MCP STDIO communicator: {e}") from e
+        # Check if it's specifically the mcp package that's missing
+        if "mcp" in str(e):
+            raise DependencyError(
+                "The MCP STDIO communicator requires the 'mcp' package. "
+                "Please install it using: pip install openmas[mcp]",
+                dependency="mcp",
+                extras="mcp",
+            ) from e
+        # Otherwise, re-raise the original error
+        raise DependencyError(
+            f"Failed to load MCP STDIO communicator: {e}. "
+            f"Make sure you have the required dependencies installed: pip install openmas[mcp]",
+            dependency="mcp",
+            extras="mcp",
+        ) from e
 
 
 # Define lazy loaders for each communicator type
@@ -118,6 +155,7 @@ def get_communicator_by_type(communicator_type: str) -> Type[BaseCommunicator]:
 
     Raises:
         ValueError: If the communicator type is not found
+        DependencyError: If the communicator requires an optional dependency that is not installed
     """
     from openmas.communication.base import _COMMUNICATOR_REGISTRY
 
@@ -127,7 +165,7 @@ def get_communicator_by_type(communicator_type: str) -> Type[BaseCommunicator]:
 
     # Step 2: Check if we have a lazy loader for built-in types
     if communicator_type in COMMUNICATOR_LOADERS:
-        # Lazily load it
+        # Lazily load it - may raise DependencyError if dependencies are missing
         return COMMUNICATOR_LOADERS[communicator_type]()
 
     # Step 3: Check the registry (which includes extensions already discovered)
