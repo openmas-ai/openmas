@@ -27,8 +27,14 @@ class AgentConfig(BaseModel):
     communicator_options: Dict[str, Any] = Field(
         default_factory=dict, description="Additional options specific to the selected communicator"
     )
-    extension_paths: list[str] = Field(
+    plugin_paths: list[str] = Field(
         default_factory=list, description="List of paths to search for project-local extensions"
+    )
+    shared_paths: list[str] = Field(default_factory=list, description="List of paths to search for shared code")
+    # Keep extension_paths for backward compatibility
+    extension_paths: list[str] = Field(
+        default_factory=list,
+        description="List of paths to search for project-local extensions (deprecated, use plugin_paths)",
     )
 
 
@@ -64,6 +70,7 @@ def _find_project_root(project_dir: Optional[Path] = None) -> Optional[Path]:
         if (current_dir / "openmas_project.yml").exists():
             return current_dir
 
+    logger.warning("No openmas_project.yml found in current or parent directories")
     return None
 
 
@@ -90,6 +97,10 @@ def _load_yaml_config(file_path: Path) -> Dict[str, Any]:
                 logger.warning(f"Config file {file_path} does not contain a dictionary")
                 return {}
             return cast(Dict[str, Any], result)
+    except yaml.YAMLError as e:
+        message = f"Failed to parse YAML in config file {file_path}: {e}"
+        logger.error(message)
+        raise ConfigurationError(message)
     except Exception as e:
         message = f"Failed to load config file {file_path}: {e}"
         logger.error(message)
@@ -125,7 +136,10 @@ def _load_project_config(project_dir: Optional[Path] = None) -> Dict[str, Any]:
         project_dir: Optional explicit path to the project directory.
 
     Returns:
-        Dictionary containing the project configuration
+        Dictionary containing the project configuration or empty dict if not found
+
+    Raises:
+        ConfigurationError: If the project config exists but parsing fails
     """
     config: Dict[str, Any] = {}
 
@@ -138,7 +152,12 @@ def _load_project_config(project_dir: Optional[Path] = None) -> Dict[str, Any]:
             if result is None or not isinstance(result, dict):
                 logger.warning("Project config from environment is not a dictionary")
                 return {}
+            logger.debug("Loaded project config from OPENMAS_PROJECT_CONFIG environment variable")
             return cast(Dict[str, Any], result)
+        except yaml.YAMLError as e:
+            message = f"Failed to parse YAML in OPENMAS_PROJECT_CONFIG: {e}"
+            logger.error(message)
+            raise ConfigurationError(message)
         except Exception as e:
             logger.warning(f"Failed to parse project config from environment: {e}")
             return {}
@@ -148,11 +167,12 @@ def _load_project_config(project_dir: Optional[Path] = None) -> Dict[str, Any]:
     if project_root:
         try:
             config_path = project_root / "openmas_project.yml"
-            with open(config_path, "r") as f:
-                config = yaml.safe_load(f) or {}
-            logger.info(f"Loaded project config from {config_path}")
-        except Exception as e:
-            logger.error(f"Error loading project config: {e}")
+            config = _load_yaml_config(config_path)
+            if config:
+                logger.info(f"Loaded project config from {config_path}")
+        except ConfigurationError as e:
+            # Re-raise with clearer message
+            raise ConfigurationError(f"Error in project config file (openmas_project.yml): {e}")
     else:
         logger.warning("No openmas_project.yml found in project directory")
 
@@ -174,8 +194,14 @@ def _load_env_file(project_dir: Optional[Path] = None) -> None:
 
     env_file = project_root / ".env"
     if env_file.exists():
-        load_dotenv(env_file, override=True)
-        logger.debug(f"Loaded environment variables from {env_file}")
+        try:
+            load_dotenv(env_file, override=True)
+            logger.debug(f"Loaded environment variables from {env_file}")
+        except Exception as e:
+            logger.warning(f"Failed to load .env file: {e}")
+            # Continue execution, don't raise an error for .env file failures
+    else:
+        logger.debug(f".env file not found: {env_file}")
 
 
 def _load_environment_config_files(project_dir: Optional[Path] = None) -> Dict[str, Any]:
@@ -197,35 +223,104 @@ def _load_environment_config_files(project_dir: Optional[Path] = None) -> Dict[s
         logger.debug("Project root not found, skipping config file loading")
         return {}
 
+    # Create the config directory path
+    config_dir = project_root / "config"
+    if not config_dir.exists():
+        logger.debug(f"Config directory does not exist: {config_dir}")
+        return {}
+
     # Load default config file
-    default_config_path = project_root / "config" / "default.yml"
-    default_config = _load_yaml_config(default_config_path)
-    if default_config:
-        logger.debug(f"Loaded default configuration from {default_config_path}")
-        config_data = default_config
+    default_config_path = config_dir / "default.yml"
+    try:
+        default_config = _load_yaml_config(default_config_path)
+        if default_config:
+            logger.debug(f"Loaded default configuration from {default_config_path}")
+            config_data = default_config
+    except ConfigurationError as e:
+        # Re-raise with clearer message
+        raise ConfigurationError(f"Error in default config file (config/default.yml): {e}")
 
     # Load environment-specific config if OPENMAS_ENV is set
     # If OPENMAS_ENV is not set, default to 'local'
     env_name = os.environ.get("OPENMAS_ENV", "local")
-    env_config_path = project_root / "config" / f"{env_name}.yml"
-    env_config = _load_yaml_config(env_config_path)
-    if env_config:
-        logger.debug(f"Loaded environment configuration from {env_config_path}")
-        config_data = _deep_merge_dicts(config_data, env_config)
+    env_config_path = config_dir / f"{env_name}.yml"
+
+    try:
+        env_config = _load_yaml_config(env_config_path)
+        if env_config:
+            logger.debug(f"Loaded environment configuration from {env_config_path}")
+            config_data = _deep_merge_dicts(config_data, env_config)
+    except ConfigurationError as e:
+        # Re-raise with clearer message
+        raise ConfigurationError(f"Error in environment config file (config/{env_name}.yml): {e}")
 
     return config_data
+
+
+def _coerce_env_value(value: str, target_type: Any) -> Any:
+    """Coerce environment variable values to appropriate types.
+
+    Args:
+        value: The string value from the environment
+        target_type: The target type to convert to
+
+    Returns:
+        The coerced value
+    """
+    if target_type == bool:
+        # Handle boolean values case-insensitively
+        if value.lower() in ("true", "yes", "1", "y", "t"):
+            return True
+        elif value.lower() in ("false", "no", "0", "n", "f"):
+            return False
+        else:
+            raise ValueError(f"Cannot convert '{value}' to boolean")
+
+    if target_type == int:
+        return int(value)
+
+    if target_type == float:
+        return float(value)
+
+    # Default to string
+    return value
+
+
+def _get_env_var_with_type(name: str, target_type: Any, prefix: str = "") -> Optional[Any]:
+    """Get environment variable with type conversion.
+
+    Args:
+        name: Environment variable name (without prefix)
+        target_type: Target type for conversion
+        prefix: Optional prefix for environment variables
+
+    Returns:
+        Converted value or None if variable doesn't exist
+    """
+    env_name = f"{prefix}_{name}" if prefix else name
+    value = os.environ.get(env_name)
+
+    if value is None:
+        return None
+
+    try:
+        return _coerce_env_value(value, target_type)
+    except (ValueError, TypeError) as e:
+        message = f"Failed to convert environment variable {env_name} value '{value}' to {target_type.__name__}: {e}"
+        logger.error(message)
+        raise ConfigurationError(message)
 
 
 def load_config(config_model: Type[T], prefix: str = "", project_dir: Optional[Path] = None) -> T:
     """Load configuration from files, environment variables and project configuration.
 
     Configuration is loaded in the following order (lowest to highest precedence):
-    1. OpenMAS SDK Internal Defaults (in the Pydantic model)
-    2. default_config section in openmas_project.yml
-    3. config/default.yml file
-    4. config/<OPENMAS_ENV>.yml file (default: local.yml if OPENMAS_ENV not set)
-    5. .env file at project root
-    6. Environment Variables (highest precedence)
+    1. SDK Internal Defaults (in the Pydantic model)
+    2. Project Defaults: default_config section in openmas_project.yml
+    3. Default Environment YAML: config/default.yml
+    4. Environment-specific YAML: config/<OPENMAS_ENV>.yml (defaults to local)
+    5. .env File(s): Loaded from project directory
+    6. Environment Variables: Directly set in the shell (Highest)
 
     Args:
         config_model: The Pydantic model to use for validation
@@ -239,51 +334,73 @@ def load_config(config_model: Type[T], prefix: str = "", project_dir: Optional[P
         ConfigurationError: If configuration loading or validation fails
     """
     try:
-        # Load environment variables from .env file (if exists)
-        _load_env_file(project_dir)
-
-        # Build a dictionary from environment variables and project configuration
+        # Build our configuration in correct precedence order (lowest to highest)
         config_data: Dict[str, Any] = {}
         env_prefix = f"{prefix}_" if prefix else ""
 
-        # Load project configuration and extract default_config
+        # [LAYER 1] SDK Internal Defaults - These are in the Pydantic model
+        # Nothing to do here, as Pydantic will use these if no value is provided
+
+        # [LAYER 2] Project Defaults (default_config in openmas_project.yml)
         project_config = _load_project_config(project_dir)
         default_config = project_config.get("default_config", {})
-
-        # Apply default config as base layer
         if default_config:
             logger.debug("Applying default configuration from project config")
             config_data.update(default_config)
 
-        # Load and apply configuration from YAML files
+        # [LAYER 3 & 4] Config files (default.yml and <env>.yml)
         yaml_config = _load_environment_config_files(project_dir)
         if yaml_config:
             logger.debug("Applying configuration from YAML files")
             config_data = _deep_merge_dicts(config_data, yaml_config)
 
-        # First check for a JSON config string
+        # [LAYER 5] .env file from project directory
+        # This affects the environment variables, loaded next
+        _load_env_file(project_dir)
+
+        # [LAYER 6] Environment Variables (highest precedence)
+
+        # First check for a JSON config string (highest precedence)
         json_config = os.environ.get(f"{env_prefix}CONFIG")
         if json_config:
             try:
                 env_config_data = json.loads(json_config)
-                config_data.update(env_config_data)
-                logger.debug("Loaded configuration from JSON", source=f"{env_prefix}CONFIG")
+                logger.debug(f"Loaded configuration from JSON in {env_prefix}CONFIG")
+                config_data = _deep_merge_dicts(config_data, env_config_data)
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}CONFIG: {e}")
 
-        # Get the agent name - this must be explicitly provided or validation will fail
+        # Process specific environment variables
+
+        # Agent name
         name = os.environ.get(f"{env_prefix}AGENT_NAME")
         if name:
             config_data["name"] = name
 
-        # Load service URLs from environment
+        # Log level
+        log_level = os.environ.get(f"{env_prefix}LOG_LEVEL")
+        if log_level:
+            config_data["log_level"] = log_level
+
+        # Communicator type
+        communicator_type = os.environ.get(f"{env_prefix}COMMUNICATOR_TYPE")
+        if communicator_type:
+            config_data["communicator_type"] = communicator_type
+
+        # Service URLs (JSON dictionary)
         service_urls_str = os.environ.get(f"{env_prefix}SERVICE_URLS")
         if service_urls_str:
             try:
                 service_urls = json.loads(service_urls_str)
                 if not isinstance(service_urls, dict):
                     raise ConfigurationError(f"{env_prefix}SERVICE_URLS must be a JSON dictionary")
-                config_data["service_urls"] = service_urls
+
+                # Initialize service_urls if not present
+                if "service_urls" not in config_data:
+                    config_data["service_urls"] = {}
+
+                # Merge service URLs
+                config_data["service_urls"] = _deep_merge_dicts(config_data["service_urls"], service_urls)
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}SERVICE_URLS: {e}")
 
@@ -295,17 +412,7 @@ def load_config(config_model: Type[T], prefix: str = "", project_dir: Optional[P
                     config_data["service_urls"] = {}
                 config_data["service_urls"][service_name] = value
 
-        # Load log level
-        log_level = os.environ.get(f"{env_prefix}LOG_LEVEL")
-        if log_level:
-            config_data["log_level"] = log_level
-
-        # Load communicator configuration
-        communicator_type = os.environ.get(f"{env_prefix}COMMUNICATOR_TYPE")
-        if communicator_type:
-            config_data["communicator_type"] = communicator_type
-
-        # Load communicator options
+        # Communicator options (JSON dictionary)
         communicator_options_str = os.environ.get(f"{env_prefix}COMMUNICATOR_OPTIONS")
         if communicator_options_str:
             try:
@@ -313,35 +420,18 @@ def load_config(config_model: Type[T], prefix: str = "", project_dir: Optional[P
                 if not isinstance(communicator_options, dict):
                     raise ConfigurationError(f"{env_prefix}COMMUNICATOR_OPTIONS must be a JSON dictionary")
 
-                # Use deep merge to combine options while preserving nested dictionaries
-                if "communicator_options" in config_data:
-                    config_data["communicator_options"] = _deep_merge_dicts(
-                        config_data["communicator_options"], communicator_options
-                    )
-                else:
-                    config_data["communicator_options"] = communicator_options
+                # Initialize communicator_options if not present
+                if "communicator_options" not in config_data:
+                    config_data["communicator_options"] = {}
+
+                # Merge communicator options
+                config_data["communicator_options"] = _deep_merge_dicts(
+                    config_data["communicator_options"], communicator_options
+                )
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid JSON in {env_prefix}COMMUNICATOR_OPTIONS: {e}")
 
-        # Load extension paths
-        extension_paths_str = os.environ.get(f"{env_prefix}EXTENSION_PATHS")
-        if extension_paths_str:
-            try:
-                extension_paths = json.loads(extension_paths_str)
-                if not isinstance(extension_paths, list):
-                    raise ConfigurationError(f"{env_prefix}EXTENSION_PATHS must be a JSON array")
-                config_data["extension_paths"] = extension_paths
-            except json.JSONDecodeError as e:
-                raise ConfigurationError(f"Invalid JSON in {env_prefix}EXTENSION_PATHS: {e}")
-
-        # Add extension paths from project config if available
-        if "extension_paths" in project_config:
-            project_extension_paths = project_config["extension_paths"]
-            if "extension_paths" not in config_data:
-                config_data["extension_paths"] = []
-            config_data["extension_paths"].extend(project_extension_paths)
-
-        # Load individual communicator options
+        # Individual communicator options
         for key, value in os.environ.items():
             if key.startswith(f"{env_prefix}COMMUNICATOR_OPTION_"):
                 option_name = key[len(f"{env_prefix}COMMUNICATOR_OPTION_") :].lower()
@@ -353,17 +443,99 @@ def load_config(config_model: Type[T], prefix: str = "", project_dir: Optional[P
                     option_value = json.loads(value)
                     config_data["communicator_options"][option_name] = option_value
                 except json.JSONDecodeError:
-                    config_data["communicator_options"][option_name] = value
+                    # Try to coerce to appropriate type by looking at field info in config_model
+                    # This is a best effort; if unsure, leave as string
+                    if hasattr(config_model, "model_fields") and "communicator_options" in config_model.model_fields:
+                        # This is for newer Pydantic v2
+                        config_data["communicator_options"][option_name] = value
+                    else:
+                        # Fallback for older Pydantic
+                        config_data["communicator_options"][option_name] = value
+
+        # Plugin paths (replacing extension_paths)
+        plugin_paths_str = os.environ.get(f"{env_prefix}PLUGIN_PATHS")
+        if plugin_paths_str:
+            try:
+                plugin_paths = json.loads(plugin_paths_str)
+                if not isinstance(plugin_paths, list):
+                    raise ConfigurationError(f"{env_prefix}PLUGIN_PATHS must be a JSON array")
+                config_data["plugin_paths"] = plugin_paths
+            except json.JSONDecodeError as e:
+                raise ConfigurationError(f"Invalid JSON in {env_prefix}PLUGIN_PATHS: {e}")
+
+        # For backward compatibility, still support EXTENSION_PATHS
+        extension_paths_str = os.environ.get(f"{env_prefix}EXTENSION_PATHS")
+        if extension_paths_str:
+            try:
+                extension_paths = json.loads(extension_paths_str)
+                if not isinstance(extension_paths, list):
+                    raise ConfigurationError(f"{env_prefix}EXTENSION_PATHS must be a JSON array")
+                config_data["extension_paths"] = extension_paths
+
+                # If plugin_paths is not set, initialize it with extension_paths for compatibility
+                if "plugin_paths" not in config_data:
+                    config_data["plugin_paths"] = extension_paths
+                    logger.warning("EXTENSION_PATHS is deprecated, use PLUGIN_PATHS instead")
+            except json.JSONDecodeError as e:
+                raise ConfigurationError(f"Invalid JSON in {env_prefix}EXTENSION_PATHS: {e}")
+
+        # Shared paths
+        shared_paths_str = os.environ.get(f"{env_prefix}SHARED_PATHS")
+        if shared_paths_str:
+            try:
+                shared_paths = json.loads(shared_paths_str)
+                if not isinstance(shared_paths, list):
+                    raise ConfigurationError(f"{env_prefix}SHARED_PATHS must be a JSON array")
+                config_data["shared_paths"] = shared_paths
+            except json.JSONDecodeError as e:
+                raise ConfigurationError(f"Invalid JSON in {env_prefix}SHARED_PATHS: {e}")
+
+        # Add paths from project config if available
+        if "plugin_paths" in project_config:
+            project_plugin_paths = project_config["plugin_paths"]
+            if "plugin_paths" not in config_data:
+                config_data["plugin_paths"] = []
+            config_data["plugin_paths"].extend(project_plugin_paths)
+
+        # For backward compatibility, still support extension_paths in project config
+        if "extension_paths" in project_config:
+            project_extension_paths = project_config["extension_paths"]
+            if "extension_paths" not in config_data:
+                config_data["extension_paths"] = []
+            config_data["extension_paths"].extend(project_extension_paths)
+
+            # If plugin_paths is not set or if it is equal to extension_paths set via environment,
+            # initialize it with project extension_paths for compatibility
+            extension_paths_match = "plugin_paths" in config_data and config_data["plugin_paths"] == config_data.get(
+                "extension_paths", []
+            )
+
+            if "plugin_paths" not in config_data or extension_paths_match:
+                if "plugin_paths" not in config_data:
+                    config_data["plugin_paths"] = []
+                config_data["plugin_paths"].extend(project_extension_paths)
+                logger.warning("extension_paths in project config is deprecated, use plugin_paths instead")
+
+        # Add shared paths from project config if available
+        if "shared_paths" in project_config:
+            project_shared_paths = project_config["shared_paths"]
+            if "shared_paths" not in config_data:
+                config_data["shared_paths"] = []
+            config_data["shared_paths"].extend(project_shared_paths)
 
         # Validate and create the configuration object
-        config = config_model(**config_data)
-        logger.debug("Configuration loaded successfully", config=config.model_dump())
-        return config
+        try:
+            config = config_model(**config_data)
+            logger.debug("Configuration loaded successfully")
+            return config
+        except ValidationError as e:
+            error_msg = f"Configuration validation failed: {e}"
+            logger.error(error_msg)
+            raise ConfigurationError(error_msg)
 
-    except ValidationError as e:
-        error_msg = f"Configuration validation failed: {e}"
-        logger.error(error_msg)
-        raise ConfigurationError(error_msg)
+    except ConfigurationError:
+        # Re-raise ConfigurationError without wrapping it again
+        raise
     except Exception as e:
         error_msg = f"Failed to load configuration: {e}"
         logger.error(error_msg)

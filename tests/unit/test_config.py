@@ -14,7 +14,9 @@ from pytest import MonkeyPatch
 
 from openmas.config import (
     AgentConfig,
+    _coerce_env_value,
     _deep_merge_dicts,
+    _get_env_var_with_type,
     _load_environment_config_files,
     _load_project_config,
     _load_yaml_config,
@@ -240,12 +242,16 @@ def test_load_project_config_file_not_found():
 
 def test_load_project_config_invalid_yaml():
     """Test loading project config with invalid YAML."""
-    with patch.dict(os.environ, {"OPENMAS_PROJECT_CONFIG": "invalid: yaml: content:"}), patch(
+    with patch.dict(os.environ, {}, clear=True), patch(
+        "openmas.config._find_project_root", return_value=Path("/project")
+    ), patch("pathlib.Path.exists", return_value=True), patch(
+        "builtins.open", mock_open(read_data="invalid: yaml: content:")
+    ), patch(
         "yaml.safe_load", side_effect=yaml.YAMLError("Invalid YAML")
     ):
-        config = _load_project_config()
-
-        assert config == {}
+        with pytest.raises(ConfigurationError) as exc_info:
+            _load_project_config()
+        assert "Error in project config file" in str(exc_info.value)
 
 
 def test_load_config_with_default_config(mock_project_config):
@@ -429,8 +435,13 @@ def test_load_environment_config_files():
 
     # Test loading both default and env configs
     with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
-        "openmas.config._load_yaml_config", side_effect=[default_config, env_config]
-    ), patch.dict(os.environ, {"OPENMAS_ENV": "dev"}):
+        "pathlib.Path.exists", return_value=True
+    ), patch(
+        "openmas.config._load_yaml_config",
+        side_effect=lambda p: default_config if p.name == "default.yml" else env_config,
+    ), patch.dict(
+        os.environ, {"OPENMAS_ENV": "dev"}
+    ):
         config = cast(Dict[str, Any], _load_environment_config_files())
         assert config["log_level"] == "DEBUG"  # From env config
         assert config["service_urls"]["service1"] == "http://default"  # From default config
@@ -438,8 +449,8 @@ def test_load_environment_config_files():
 
     # Test loading only default config (no OPENMAS_ENV)
     with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
-        "openmas.config._load_yaml_config", return_value=default_config
-    ), patch.dict(os.environ, {}, clear=True):
+        "pathlib.Path.exists", return_value=True
+    ), patch("openmas.config._load_yaml_config", return_value=default_config), patch.dict(os.environ, {}, clear=True):
         config = cast(Dict[str, Any], _load_environment_config_files())
         assert config["log_level"] == "INFO"
         assert config["service_urls"]["service1"] == "http://default"
@@ -583,3 +594,297 @@ def test_load_config_full_precedence_chain():
         assert config.communicator_type == "mcp"
         assert config.communicator_options["timeout"] == 30
         assert config.communicator_options["retries"] == 3
+
+
+def test_coerce_env_value():
+    """Test converting environment variable strings to appropriate types."""
+    # Boolean values
+    assert _coerce_env_value("true", bool) is True
+    assert _coerce_env_value("True", bool) is True
+    assert _coerce_env_value("TRUE", bool) is True
+    assert _coerce_env_value("yes", bool) is True
+    assert _coerce_env_value("1", bool) is True
+    assert _coerce_env_value("y", bool) is True
+
+    assert _coerce_env_value("false", bool) is False
+    assert _coerce_env_value("False", bool) is False
+    assert _coerce_env_value("FALSE", bool) is False
+    assert _coerce_env_value("no", bool) is False
+    assert _coerce_env_value("0", bool) is False
+    assert _coerce_env_value("n", bool) is False
+
+    with pytest.raises(ValueError):
+        _coerce_env_value("invalid", bool)
+
+    # Integer values
+    assert _coerce_env_value("123", int) == 123
+    assert _coerce_env_value("-456", int) == -456
+
+    with pytest.raises(ValueError):
+        _coerce_env_value("12.34", int)
+
+    # Float values
+    assert _coerce_env_value("12.34", float) == 12.34
+    assert _coerce_env_value("-56.78", float) == -56.78
+    assert _coerce_env_value("90", float) == 90.0
+
+    # String values (passed through)
+    assert _coerce_env_value("hello", str) == "hello"
+
+
+def test_get_env_var_with_type(monkeypatch):
+    """Test getting environment variables with type conversion."""
+    monkeypatch.setenv("TEST_INT", "123")
+    monkeypatch.setenv("TEST_FLOAT", "45.67")
+    monkeypatch.setenv("TEST_BOOL", "true")
+    monkeypatch.setenv("TEST_STR", "hello world")
+    monkeypatch.setenv("PREFIX_VALUE", "prefixed")
+
+    # Test different types
+    assert _get_env_var_with_type("TEST_INT", int) == 123
+    assert _get_env_var_with_type("TEST_FLOAT", float) == 45.67
+    assert _get_env_var_with_type("TEST_BOOL", bool) is True
+    assert _get_env_var_with_type("TEST_STR", str) == "hello world"
+
+    # Test with prefix
+    assert _get_env_var_with_type("VALUE", str, prefix="PREFIX") == "prefixed"
+
+    # Test non-existent variable
+    assert _get_env_var_with_type("NONEXISTENT", str) is None
+
+    # Test invalid value for type
+    monkeypatch.setenv("TEST_INVALID_INT", "not-an-int")
+    with pytest.raises(ConfigurationError):
+        _get_env_var_with_type("TEST_INVALID_INT", int)
+
+
+def test_load_yaml_config_missing_file():
+    """Test loading a YAML configuration file that does not exist."""
+    with patch("pathlib.Path.exists", return_value=False):
+        config = _load_yaml_config(Path("/config/missing.yml"))
+        assert config == {}
+
+
+def test_load_yaml_config_none_or_not_dict():
+    """Test loading a YAML configuration file that does not contain a dictionary."""
+    # Test with None result from yaml.safe_load
+    with patch("pathlib.Path.exists", return_value=True), patch("builtins.open", mock_open(read_data="")), patch(
+        "yaml.safe_load", return_value=None
+    ):
+        config = _load_yaml_config(Path("/config/empty.yml"))
+        assert config == {}
+
+    # Test with non-dictionary result from yaml.safe_load
+    with patch("pathlib.Path.exists", return_value=True), patch(
+        "builtins.open", mock_open(read_data="- list item")
+    ), patch("yaml.safe_load", return_value=["list item"]):
+        config = _load_yaml_config(Path("/config/list.yml"))
+        assert config == {}
+
+
+def test_load_yaml_config_yaml_error():
+    """Test loading a YAML configuration file with invalid YAML."""
+    with patch("pathlib.Path.exists", return_value=True), patch(
+        "builtins.open", mock_open(read_data="invalid: : yaml")
+    ), patch("yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")):
+        with pytest.raises(ConfigurationError) as exc_info:
+            _load_yaml_config(Path("/config/invalid.yml"))
+        assert "Failed to parse YAML" in str(exc_info.value)
+        assert "YAML syntax error" in str(exc_info.value)
+
+
+def test_load_project_config_yaml_error():
+    """Test loading a project configuration file with invalid YAML."""
+    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch("builtins.open", mock_open(read_data="invalid: : yaml")), patch(
+        "yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")
+    ):
+        with pytest.raises(ConfigurationError) as exc_info:
+            _load_project_config()
+        assert "Error in project config file" in str(exc_info.value)
+        assert "YAML syntax error" in str(exc_info.value)
+
+
+def test_load_project_config_from_env_yaml_error():
+    """Test loading project config from environment variable with invalid YAML."""
+    with patch.dict(os.environ, {"OPENMAS_PROJECT_CONFIG": "invalid: : yaml"}), patch(
+        "yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")
+    ):
+        with pytest.raises(ConfigurationError) as exc_info:
+            _load_project_config()
+        assert "Failed to parse YAML in OPENMAS_PROJECT_CONFIG" in str(exc_info.value)
+
+
+def test_load_environment_config_files_missing_config_dir():
+    """Test loading environment config files when config directory doesn't exist."""
+    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
+        "pathlib.Path.exists", return_value=False
+    ):
+        config = _load_environment_config_files()
+        assert config == {}
+
+
+def test_load_environment_config_files_default_yaml_error():
+    """Test loading environment config files with error in default.yml."""
+
+    class YamlErrorRaiser:
+        def __call__(self, p):
+            if "default.yml" in str(p):
+                raise ConfigurationError("YAML error")
+            return {}
+
+    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch("openmas.config._load_yaml_config", side_effect=YamlErrorRaiser()):
+        with pytest.raises(ConfigurationError) as exc_info:
+            _load_environment_config_files()
+        assert "Error in default config file" in str(exc_info.value)
+
+
+def test_load_environment_config_files_env_yaml_error():
+    """Test loading environment config files with error in environment-specific YAML."""
+
+    class YamlErrorRaiser:
+        def __call__(self, p):
+            if "default.yml" in str(p):
+                return {}
+            raise ConfigurationError("YAML error")
+
+    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch.dict(os.environ, {"OPENMAS_ENV": "prod"}), patch(
+        "openmas.config._load_yaml_config", side_effect=YamlErrorRaiser()
+    ):
+        with pytest.raises(ConfigurationError) as exc_info:
+            _load_environment_config_files()
+        assert "Error in environment config file" in str(exc_info.value)
+        assert "prod.yml" in str(exc_info.value)
+
+
+def test_load_config_with_env_file_error():
+    """Test load_config with error loading .env file."""
+    # We should continue gracefully if .env file can't be loaded
+    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch("dotenv.load_dotenv", side_effect=Exception("Failed to load .env")), patch(
+        "openmas.config._load_project_config", return_value={}
+    ), patch(
+        "openmas.config._load_environment_config_files", return_value={}
+    ), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent"}
+    ):
+        # This should not raise an exception
+        config = load_config(AgentConfig)
+        assert config.name == "test-agent"
+
+
+def test_load_config_shared_paths_from_project():
+    """Test loading shared_paths from project config."""
+    project_config = {"name": "test_project", "shared_paths": ["shared/utils", "shared/models"]}
+
+    with patch("openmas.config._load_project_config", return_value=project_config), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent"}
+    ):
+        config = load_config(AgentConfig)
+        assert config.shared_paths == ["shared/utils", "shared/models"]
+
+
+def test_load_config_shared_paths_from_env():
+    """Test loading shared_paths from environment variables."""
+    shared_paths = ["env/utils", "env/models"]
+
+    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "SHARED_PATHS": json.dumps(shared_paths)}
+    ):
+        config = load_config(AgentConfig)
+        assert config.shared_paths == shared_paths
+
+
+def test_load_config_shared_paths_invalid_json():
+    """Test handling invalid JSON in SHARED_PATHS."""
+    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "SHARED_PATHS": "not-json"}
+    ):
+        with pytest.raises(ConfigurationError) as exc_info:
+            load_config(AgentConfig)
+        assert "Invalid JSON in SHARED_PATHS" in str(exc_info.value)
+
+
+def test_load_config_shared_paths_not_list():
+    """Test handling non-list value in SHARED_PATHS."""
+    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "SHARED_PATHS": '{"not": "list"}'}
+    ):
+        with pytest.raises(ConfigurationError) as exc_info:
+            load_config(AgentConfig)
+        assert "SHARED_PATHS must be a JSON array" in str(exc_info.value)
+
+
+def test_load_config_plugin_paths_from_project():
+    """Test loading plugin_paths from project config."""
+    project_config = {"name": "test_project", "plugin_paths": ["plugins/custom", "plugins/third-party"]}
+
+    with patch("openmas.config._load_project_config", return_value=project_config), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent"}
+    ):
+        config = load_config(AgentConfig)
+        assert config.plugin_paths == ["plugins/custom", "plugins/third-party"]
+
+
+def test_load_config_plugin_paths_from_env():
+    """Test loading plugin_paths from environment variables."""
+    plugin_paths = ["env/custom", "env/third-party"]
+
+    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "PLUGIN_PATHS": json.dumps(plugin_paths)}
+    ):
+        config = load_config(AgentConfig)
+        assert config.plugin_paths == plugin_paths
+
+
+def test_load_config_plugin_paths_invalid_json():
+    """Test handling invalid JSON in PLUGIN_PATHS."""
+    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "PLUGIN_PATHS": "not-json"}
+    ):
+        with pytest.raises(ConfigurationError) as exc_info:
+            load_config(AgentConfig)
+        assert "Invalid JSON in PLUGIN_PATHS" in str(exc_info.value)
+
+
+def test_load_config_plugin_paths_not_list():
+    """Test handling non-list value in PLUGIN_PATHS."""
+    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "PLUGIN_PATHS": '{"not": "list"}'}
+    ):
+        with pytest.raises(ConfigurationError) as exc_info:
+            load_config(AgentConfig)
+        assert "PLUGIN_PATHS must be a JSON array" in str(exc_info.value)
+
+
+def test_load_config_backwards_compatibility_extension_paths():
+    """Test backward compatibility with extension_paths."""
+    # When extension_paths is set in project config but plugin_paths is not
+    project_config = {"name": "test_project", "extension_paths": ["legacy/extensions"]}
+
+    with patch("openmas.config._load_project_config", return_value=project_config), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent"}
+    ):
+        config = load_config(AgentConfig)
+        # Both should be set for backward compatibility
+        assert config.extension_paths == ["legacy/extensions"]
+        assert config.plugin_paths == ["legacy/extensions"]
+
+
+def test_load_config_extension_paths_env_backwards_compatibility():
+    """Test backward compatibility with EXTENSION_PATHS environment variable."""
+    extension_paths = ["env/extensions"]
+
+    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": json.dumps(extension_paths)}
+    ):
+        config = load_config(AgentConfig)
+        # Both should be set for backward compatibility
+        assert config.extension_paths == extension_paths
+        assert config.plugin_paths == extension_paths
