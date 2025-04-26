@@ -6,7 +6,7 @@ to expose functionality to MCP clients (like Claude) using FastMCP.
 
 import asyncio
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, cast, get_type_hints
+from typing import Any, Callable, Dict, List, Optional, Protocol, Type, TypeVar, cast, get_type_hints, runtime_checkable
 
 from pydantic import BaseModel, Field, create_model
 
@@ -224,6 +224,26 @@ def mcp_resource(
     return decorator
 
 
+@runtime_checkable
+class McpCommunicatorProtocol(Protocol):
+    """Protocol for MCP communicators that support sampling prompts."""
+
+    async def sample_prompt(
+        self,
+        target_service: str,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        include_context: Optional[str] = None,
+        model_preferences: Optional[Dict[str, Any]] = None,
+        stop_sequences: Optional[List[str]] = None,
+        timeout: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Protocol method for sampling prompts."""
+        ...
+
+
 class McpAgent(BaseAgent):
     """Base class for MCP-enabled agents.
 
@@ -294,60 +314,43 @@ class McpAgent(BaseAgent):
         )
 
     def _discover_mcp_methods(self) -> None:
-        """Discover all methods decorated with MCP decorators in this class."""
-        self.logger.debug(f"Discovering MCP methods in {self.__class__.__name__}")
+        """Discover methods decorated with MCP decorators.
 
-        # Get all methods defined in this class (including inherited methods)
-        methods = inspect.getmembers(self, predicate=inspect.ismethod)
+        This method inspects the agent class for methods decorated with @mcp_tool,
+        @mcp_prompt, and @mcp_resource and prepares them for registration with
+        an MCP server.
+        """
+        # Reset collections
+        self._tools = {}
+        self._prompts = {}
+        self._resources = {}
 
-        # Process each method
-        for name, method in methods:
-            # Skip special methods
+        # Get all public methods from the instance
+        for name in dir(self):
             if name.startswith("_"):
-                continue
+                continue  # Skip private methods
 
-            # Check for MCP tool metadata
-            if hasattr(method, MCP_TOOL_ATTR):
-                metadata = getattr(method, MCP_TOOL_ATTR)
-                tool_name = metadata.get("name", name)
-                self._tools[tool_name] = {
-                    "metadata": metadata,
-                    "function": method,
-                }
-                self.logger.debug(f"Found MCP tool: {tool_name}")
+            attr = getattr(self, name)
+            if not callable(attr):
+                continue  # Skip non-callables
 
-                # Log the input and output models for validation
-                input_model = metadata.get("input_model")
-                output_model = metadata.get("output_model")
-                if input_model:
-                    self.logger.debug(f"Tool {tool_name} has input model: {input_model.__name__}")
-                if output_model:
-                    self.logger.debug(f"Tool {tool_name} has output model: {output_model.__name__}")
+            # Check for tool decorator
+            if hasattr(attr, MCP_TOOL_ATTR):
+                metadata = getattr(attr, MCP_TOOL_ATTR)
+                self.logger.debug(f"Discovered MCP tool: {metadata['name']}")
+                self._tools[metadata["name"]] = {"metadata": metadata, "function": attr}
 
-            # Check for MCP prompt metadata
-            if hasattr(method, MCP_PROMPT_ATTR):
-                metadata = getattr(method, MCP_PROMPT_ATTR)
-                prompt_name = metadata.get("name", name)
-                self._prompts[prompt_name] = {
-                    "metadata": metadata,
-                    "function": method,
-                }
-                self.logger.debug(f"Found MCP prompt: {prompt_name}")
+            # Check for prompt decorator
+            if hasattr(attr, MCP_PROMPT_ATTR):
+                metadata = getattr(attr, MCP_PROMPT_ATTR)
+                self.logger.debug(f"Discovered MCP prompt: {metadata['name']}")
+                self._prompts[metadata["name"]] = {"metadata": metadata, "function": attr}
 
-                # Log the template for validation
-                template = metadata.get("template")
-                if template:
-                    self.logger.debug(f"Prompt {prompt_name} has template of length {len(template)}")
-
-            # Check for MCP resource metadata
-            if hasattr(method, MCP_RESOURCE_ATTR):
-                metadata = getattr(method, MCP_RESOURCE_ATTR)
-                resource_uri = metadata.get("uri")
-                self._resources[resource_uri] = {
-                    "metadata": metadata,
-                    "function": method,
-                }
-                self.logger.debug(f"Found MCP resource: {resource_uri} with mime_type: {metadata.get('mime_type')}")
+            # Check for resource decorator
+            if hasattr(attr, MCP_RESOURCE_ATTR):
+                metadata = getattr(attr, MCP_RESOURCE_ATTR)
+                self.logger.debug(f"Discovered MCP resource at URI: {metadata['uri']}")
+                self._resources[metadata["uri"]] = {"metadata": metadata, "function": attr}
 
     def set_communicator(self, communicator: BaseCommunicator) -> None:
         """Set the communicator for this agent.
@@ -397,27 +400,126 @@ class McpAgent(BaseAgent):
     async def setup(self) -> None:
         """Set up the agent.
 
-        This method is called during agent startup and handles registration
-        of MCP tools, prompts, and resources with the communicator if
-        running in server mode.
+        This method is called when the agent is started.
+        If the agent has an MCP communicator in server mode, it registers
+        its decorated methods as MCP tools, prompts, and resources.
         """
-        if self._server_mode:
-            self.logger.info(f"Setting up MCP agent {self.name} in server mode")
+        # NOTE: Not calling super().setup() because BaseAgent's setup is abstract
+        # and we're providing a concrete implementation here
 
-            # Registration of methods will be handled during communicator.start()
-            # However, we should prepare the communicator here if needed
+        # Refresh MCP method discovery
+        self._discover_mcp_methods()
+
+        # If we have an MCP communicator, register decorated methods
+        if self.communicator:
             if hasattr(self.communicator, "prepare_registration"):
-                self.logger.debug("Preparing MCP registration with communicator")
+                # If the communicator supports preparation, send all registrations at once
+                self.logger.debug("Preparing MCP registrations with communicator")
                 await self.communicator.prepare_registration(
                     tools=self._tools, prompts=self._prompts, resources=self._resources
                 )
+            else:
+                # Register tools
+                for tool_name, tool_data in self._tools.items():
+                    metadata = tool_data["metadata"]
+                    function = tool_data["function"]
+                    await self._register_tool_with_communicator(
+                        name=metadata.get("name", tool_name),
+                        description=metadata.get("description", ""),
+                        function=function,
+                    )
 
-            self.logger.debug(
-                f"MCP agent {self.name} ready with {len(self._tools)} tools, "
-                f"{len(self._prompts)} prompts, and {len(self._resources)} resources"
-            )
-        else:
-            self.logger.info(f"Setting up MCP agent {self.name} in client mode")
+                # Register prompts
+                for prompt_name, prompt_data in self._prompts.items():
+                    metadata = prompt_data["metadata"]
+                    function = prompt_data["function"]
+                    await self._register_prompt_with_communicator(
+                        name=metadata.get("name", prompt_name),
+                        description=metadata.get("description", ""),
+                        function=function,
+                    )
+
+                # Register resources
+                for resource_uri, resource_data in self._resources.items():
+                    metadata = resource_data["metadata"]
+                    function = resource_data["function"]
+                    await self._register_resource_with_communicator(
+                        uri=metadata.get("uri", resource_uri),
+                        name=metadata.get("name", ""),
+                        description=metadata.get("description", ""),
+                        function=function,
+                        mime_type=metadata.get("mime_type", "text/plain"),
+                    )
+
+    async def _register_tool_with_communicator(self, name: str, description: str, function: Callable) -> None:
+        """Register a tool with the communicator.
+
+        Args:
+            name: Tool name
+            description: Tool description
+            function: Tool function
+        """
+        if not self.communicator:
+            return
+
+        try:
+            self.logger.debug(f"Registering MCP tool: {name}")
+
+            if hasattr(self.communicator, "register_tool"):
+                await self.communicator.register_tool(name, description, function)
+            else:
+                self.logger.warning(f"Communicator does not support registering tools, can't register: {name}")
+        except Exception as e:
+            self.logger.error(f"Failed to register MCP tool {name}: {e}")
+            # Don't raise - we want to continue with other registrations
+
+    async def _register_prompt_with_communicator(self, name: str, description: str, function: Callable) -> None:
+        """Register a prompt with the communicator.
+
+        Args:
+            name: Prompt name
+            description: Prompt description
+            function: Prompt function
+        """
+        if not self.communicator:
+            return
+
+        try:
+            self.logger.debug(f"Registering MCP prompt: {name}")
+
+            if hasattr(self.communicator, "register_prompt"):
+                await self.communicator.register_prompt(name, description, function)
+            else:
+                self.logger.warning(f"Communicator does not support registering prompts, can't register: {name}")
+        except Exception as e:
+            self.logger.error(f"Failed to register MCP prompt {name}: {e}")
+            # Don't raise - we want to continue with other registrations
+
+    async def _register_resource_with_communicator(
+        self, uri: str, name: str, description: str, function: Callable, mime_type: str = "text/plain"
+    ) -> None:
+        """Register a resource with the communicator.
+
+        Args:
+            uri: Resource URI
+            name: Resource name
+            description: Resource description
+            function: Resource function
+            mime_type: Resource MIME type
+        """
+        if not self.communicator:
+            return
+
+        try:
+            self.logger.debug(f"Registering MCP resource at URI: {uri}")
+
+            if hasattr(self.communicator, "register_resource"):
+                await self.communicator.register_resource(name, description, function, mime_type)
+            else:
+                self.logger.warning(f"Communicator does not support registering resources, can't register: {uri}")
+        except Exception as e:
+            self.logger.error(f"Failed to register MCP resource {uri}: {e}")
+            # Don't raise - we want to continue with other registrations
 
     async def run(self) -> None:
         """Run the agent.
@@ -452,45 +554,55 @@ class McpAgent(BaseAgent):
         stop_sequences: Optional[List[str]] = None,
         timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Request an LLM sampling from the MCP client for a given prompt.
+        """Sample a prompt from a service.
 
-        This method delegates to the communicator's sample_prompt method,
-        allowing agents to request generation from LLMs through the MCP protocol.
+        This method sends a request to sample a prompt from the target service.
+        It's used for conversational interactions with LLMs via MCP.
 
         Args:
-            target_service: The service to request sampling from.
-            messages: List of messages to include in the sampling request,
-                     each with 'role' and 'content' fields.
-            system_prompt: Optional system prompt to use.
-            temperature: Optional temperature for sampling (0.0 to 1.0).
-            max_tokens: Optional maximum number of tokens to generate.
-            include_context: Optional context inclusion mode ("none", "thisServer", "allServers").
-            model_preferences: Optional dictionary of model preferences (hints, priorities).
-            stop_sequences: Optional list of sequences that should stop generation.
-            timeout: Optional timeout in seconds.
+            target_service: The service to sample from
+            messages: List of message objects in the format {"role": "...", "content": "..."}
+            system_prompt: Optional system prompt
+            temperature: Optional temperature parameter
+            max_tokens: Optional maximum tokens parameter
+            include_context: Optional include_context parameter
+            model_preferences: Optional model preferences
+            stop_sequences: Optional stop sequences
+            timeout: Optional timeout in seconds
 
         Returns:
-            The sampling result, including generated content.
+            The sampling result with at least a "content" field
 
         Raises:
-            AttributeError: If the communicator doesn't support sample_prompt.
-            CommunicationError: If there's a problem with the communication.
+            AttributeError: If the communicator doesn't support sample_prompt
+            CommunicationError: If there's a communication problem
         """
-        if not hasattr(self.communicator, "sample_prompt"):
+        if not self.communicator:
+            raise AttributeError("Agent has no communicator set")
+
+        # Check if the communicator implements the protocol
+        if not isinstance(self.communicator, McpCommunicatorProtocol):
             raise AttributeError("Communicator does not support sample_prompt method")
 
-        result = await self.communicator.sample_prompt(
-            target_service=target_service,
-            messages=messages,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            include_context=include_context,
-            model_preferences=model_preferences,
-            stop_sequences=stop_sequences,
-            timeout=timeout,
-        )
-        return cast(Dict[str, Any], result)
+        try:
+            result = await self.communicator.sample_prompt(
+                target_service=target_service,
+                messages=messages,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                include_context=include_context,
+                model_preferences=model_preferences,
+                stop_sequences=stop_sequences,
+                timeout=timeout,
+            )
+            # Ensure we return a dictionary with at least a content field
+            if not isinstance(result, dict):
+                return {"content": str(result)}
+            return result
+        except Exception as e:
+            self.logger.error(f"Error sampling prompt from {target_service}: {e}")
+            raise
 
     async def call_tool(
         self,

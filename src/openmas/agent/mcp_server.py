@@ -4,9 +4,11 @@ This module provides a server-side Model Context Protocol (MCP) agent implementa
 to expose functionality to MCP clients (like Claude) using FastMCP.
 """
 
+import asyncio
 from typing import Any, Dict, Optional
 
 from openmas.agent.mcp import McpAgent
+from openmas.exceptions import ConfigurationError
 
 
 class McpServerAgent(McpAgent):
@@ -53,15 +55,31 @@ class McpServerAgent(McpAgent):
 
         Args:
             instructions: Optional instructions for the MCP server
+
+        Raises:
+            ImportError: If required dependencies are not installed
+            ConfigurationError: If server_type is not supported
         """
-        from openmas.communication import BaseCommunicator
-        from openmas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
+        try:
+            from openmas.communication import BaseCommunicator
+            from openmas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
+        except ImportError as e:
+            raise ImportError(
+                f"Failed to import MCP communicator dependencies: {e}. "
+                "Make sure 'mcp' is installed: `poetry add mcp`"
+            ) from e
 
         # Variable to store the created communicator
         comm: BaseCommunicator
 
         if self.server_type.lower() == "sse":
-            from fastapi import FastAPI
+            try:
+                from fastapi import FastAPI
+            except ImportError as e:
+                raise ImportError(
+                    f"FastAPI is required for SSE server mode but not installed: {e}. "
+                    "Install it with: `poetry add fastapi uvicorn`"
+                ) from e
 
             # Create FastAPI app
             app = FastAPI(title=f"{self.name} MCP Server")
@@ -86,7 +104,7 @@ class McpServerAgent(McpAgent):
             )
 
         else:
-            raise ValueError(f"Unsupported server type: {self.server_type}")
+            raise ConfigurationError(f"Unsupported server type: {self.server_type}")
 
         # Set the communicator for this agent
         self.set_communicator(comm)
@@ -99,13 +117,31 @@ class McpServerAgent(McpAgent):
 
         Args:
             instructions: Optional instructions for the MCP server
+
+        Raises:
+            RuntimeError: If server fails to start
         """
         # Set up communicator if not done already
         if not self.communicator:
-            self.setup_communicator(instructions)
+            try:
+                self.setup_communicator(instructions)
+            except Exception as e:
+                self.logger.error(f"Failed to setup MCP server communicator: {e}")
+                raise RuntimeError(f"Failed to setup MCP server: {e}") from e
 
-        # Start the communicator (which starts the server)
-        await self.communicator.start()
+        # Ensure we've discovered and prepared MCP methods
+        self._discover_mcp_methods()
+
+        try:
+            # Start the communicator (which starts the server)
+            await self.communicator.start()
+            self.logger.info(
+                f"MCP {self.server_type} server started for agent {self.name}"
+                + (f" on port {self.port}" if self.server_type.lower() == "sse" else "")
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to start MCP server: {e}")
+            raise RuntimeError(f"Failed to start MCP server: {e}") from e
 
     async def stop_server(self) -> None:
         """Stop the MCP server.
@@ -114,4 +150,37 @@ class McpServerAgent(McpAgent):
         which in turn stops the server.
         """
         if self.communicator:
-            await self.communicator.stop()
+            try:
+                await self.communicator.stop()
+                self.logger.info(f"MCP {self.server_type} server stopped for agent {self.name}")
+            except Exception as e:
+                self.logger.error(f"Error while stopping MCP server: {e}")
+                # Continue with shutdown even if there was an error
+
+    async def shutdown(self) -> None:
+        """Shutdown the agent, including stopping the server if running."""
+        # Stop the server if it's running
+        await self.stop_server()
+
+        # Call the parent shutdown
+        await super().shutdown()
+
+    async def wait_until_ready(self, timeout: float = 5.0) -> bool:
+        """Wait until the server is ready to accept connections.
+
+        Args:
+            timeout: Maximum time to wait in seconds
+
+        Returns:
+            True if the server is ready, False if timed out
+        """
+        if not hasattr(self.communicator, "_server_task"):
+            return False
+
+        start_time = asyncio.get_event_loop().time()
+        while (asyncio.get_event_loop().time() - start_time) < timeout:
+            if getattr(self.communicator, "_server") is not None:
+                return True
+            await asyncio.sleep(0.1)
+
+        return False

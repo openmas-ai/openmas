@@ -127,56 +127,88 @@ class McpStdioCommunicator(BaseCommunicator):
                         )
                     command = exe_path
 
-                # Create stdio client parameters
-                params = StdioServerParameters(command=command)
-                self._client_managers[service_name] = stdio_client(params)
-                logger.debug(f"Created stdio client manager for service: {service_name}")
+                try:
+                    # Create stdio client parameters
+                    params = StdioServerParameters(command=command)
+                    self._client_managers[service_name] = stdio_client(params)
+                    logger.debug(f"Created stdio client manager for service: {service_name}")
+                except Exception as e:
+                    logger.exception(f"Failed to create stdio client for service: {service_name}", error=str(e))
+                    raise CommunicationError(
+                        f"Failed to create stdio client for service '{service_name}': {e}", target=service_name
+                    ) from e
 
             # Connect to the service
             client_manager = self._client_managers[service_name]
             logger.debug(f"Getting client for service: {service_name}")
 
-            # Access the internal __aenter__ method to get the streams
-            stream_ctx = await client_manager.__aenter__()
+            try:
+                # Access the internal __aenter__ method to get the streams
+                stream_ctx = await client_manager.__aenter__()
 
-            # Extract read and write streams, handling both tuple and single-object formats
-            read_stream, write_stream = stream_ctx if isinstance(stream_ctx, tuple) else (stream_ctx, stream_ctx)
+                # Extract read and write streams, handling both tuple and single-object formats
+                read_stream, write_stream = stream_ctx if isinstance(stream_ctx, tuple) else (stream_ctx, stream_ctx)
+            except Exception as e:
+                logger.exception(f"Failed to get streams for service: {service_name}", error=str(e))
+                await self._cleanup_client_manager(service_name)
+                raise CommunicationError(
+                    f"Failed to establish connection with service '{service_name}': {e}", target=service_name
+                ) from e
 
             # Store the streams
             self.clients[service_name] = (read_stream, write_stream)
             logger.debug(f"Created client for service: {service_name}")
 
-            # Create a new session with the client
-            self.sessions[service_name] = ClientSession(read_stream, write_stream)
+            try:
+                # Create a new session with the client
+                self.sessions[service_name] = ClientSession(read_stream, write_stream)
 
-            # Initialize the session with the agent name
-            await self.sessions[service_name].initialize()
+                # Initialize the session with the agent name
+                await self.sessions[service_name].initialize()
+            except Exception as e:
+                logger.exception(f"Failed to initialize MCP session for service: {service_name}", error=str(e))
+                await self._cleanup_client_manager(service_name)
+                raise CommunicationError(
+                    f"Failed to initialize MCP session with service '{service_name}': {e}", target=service_name
+                ) from e
+
             logger.info(f"Connected to service: {service_name}")
         except Exception as e:
-            logger.exception(f"Failed to connect to service: {service_name}", error=str(e))
-            # Clean up any partial connections
-            if service_name in self._client_managers:
-                client_manager = self._client_managers[service_name]
-                try:
-                    await client_manager.__aexit__(None, None, None)
-                except Exception:
-                    pass
-                del self._client_managers[service_name]
+            if not isinstance(e, (CommunicationError, ServiceNotFoundError)):
+                logger.exception(f"Failed to connect to service: {service_name}", error=str(e))
+                # Clean up any partial connections
+                await self._cleanup_client_manager(service_name)
+                raise CommunicationError(
+                    f"Failed to connect to service '{service_name}': {e}", target=service_name
+                ) from e
+            raise
 
-            if service_name in self.clients:
-                del self.clients[service_name]
+    async def _cleanup_client_manager(self, service_name: str) -> None:
+        """Clean up client manager and related resources.
 
-            if service_name in self.sessions:
-                del self.sessions[service_name]
+        Args:
+            service_name: The name of the service to clean up
+        """
+        if service_name in self._client_managers:
+            client_manager = self._client_managers[service_name]
+            try:
+                await client_manager.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Error while cleaning up client manager for {service_name}: {e}")
+            del self._client_managers[service_name]
 
-            if service_name in self.subprocesses:
-                try:
-                    self.subprocesses[service_name].terminate()
-                except Exception:
-                    pass
-                del self.subprocesses[service_name]
+        if service_name in self.clients:
+            del self.clients[service_name]
 
-            raise ServiceNotFoundError(f"Failed to connect to service '{service_name}': {e}", target=service_name)
+        if service_name in self.sessions:
+            del self.sessions[service_name]
+
+        if service_name in self.subprocesses:
+            try:
+                self.subprocesses[service_name].terminate()
+            except Exception as e:
+                logger.warning(f"Error while terminating subprocess for {service_name}: {e}")
+            del self.subprocesses[service_name]
 
     async def send_request(
         self,
@@ -499,8 +531,25 @@ class McpStdioCommunicator(BaseCommunicator):
             ServiceNotFoundError: If the target service is not found
             CommunicationError: If there is a problem with the communication
         """
-        method = f"tool/call/{tool_name}"
-        return await self.send_request(target_service, method, arguments, timeout=timeout)
+        if not tool_name:
+            raise ValueError("Tool name cannot be empty")
+
+        arguments = arguments or {}
+        await self._connect_to_service(target_service)
+        session = self.sessions[target_service]
+
+        try:
+            result = await session.call_tool(tool_name, arguments=arguments)
+
+            # Convert result to a dictionary if possible
+            if hasattr(result, "__dict__"):
+                return result.__dict__
+            return result
+        except Exception as e:
+            logger.exception(f"Error calling tool {tool_name} on {target_service}", error=str(e))
+            raise CommunicationError(
+                f"Failed to call tool '{tool_name}' on service '{target_service}': {e}", target=target_service
+            ) from e
 
     async def get_prompt(
         self,
@@ -539,68 +588,91 @@ class McpStdioCommunicator(BaseCommunicator):
         stop_sequences: Optional[List[str]] = None,
         timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Sample a prompt from a target service.
+        """Sample a prompt from the target service.
 
         Args:
-            target_service: The name of the service to sample the prompt from
-            messages: The messages to include in the prompt
+            target_service: The service to sample from
+            messages: List of message objects in the format {"role": "...", "content": "..."}
             system_prompt: Optional system prompt
-            temperature: Optional temperature for sampling
-            max_tokens: Optional maximum number of tokens to generate
-            include_context: Optional context to include
+            temperature: Optional temperature parameter
+            max_tokens: Optional maximum tokens parameter
+            include_context: Optional include_context parameter
             model_preferences: Optional model preferences
             stop_sequences: Optional stop sequences
             timeout: Optional timeout in seconds
 
         Returns:
-            The sampled prompt result
+            The response from the service with at least a "content" field
 
         Raises:
-            ServiceNotFoundError: If the target service is not found
-            CommunicationError: If there is a problem with the communication
+            CommunicationError: If there's a communication problem
+            ValueError: If the messages parameter is invalid
         """
-        # Convert messages to ContentBlock objects if MCP types are available
-        content_blocks = []
-        for message in messages:
-            role = message.get("role", "user")
-            content = message.get("content", "")
+        if not messages:
+            raise ValueError("Messages cannot be empty")
+
+        await self._connect_to_service(target_service)
+        session = self.sessions[target_service]
+
+        # Prepare the messages in the format expected by the MCP SDK
+        prepared_messages = []
+        for msg in messages:
+            if not isinstance(msg, dict) or "role" not in msg or "content" not in msg:
+                raise ValueError(f"Invalid message format: {msg}")
+
+            role = msg["role"]
+            content = msg["content"]
+
+            # Convert to TextContent if MCP types are available
             if HAS_MCP_TYPES:
-                # Create TextContent with proper arguments
-                text_content = TextContent(text=content, type="text")
-                content_blocks.append({"role": role, "content": text_content})
-            else:
-                # Just use the original message format
-                content_blocks.append({"role": role, "content": content})
+                content = TextContent(type="text", text=content) if isinstance(content, str) else content
 
-        # Build the arguments
-        arguments: Dict[str, Any] = {
-            "messages": content_blocks,
-        }
+            prepared_messages.append({"role": role, "content": content})
 
-        # Add optional arguments
-        if system_prompt is not None:
-            arguments["system_prompt"] = system_prompt
+        # Sample parameters
+        sampling_params: Dict[str, Any] = {}
         if temperature is not None:
-            arguments["temperature"] = temperature
+            sampling_params["temperature"] = temperature
         if max_tokens is not None:
-            arguments["max_tokens"] = max_tokens
-        if include_context is not None:
-            arguments["include_context"] = include_context
-        if model_preferences is not None:
-            arguments["model_preferences"] = model_preferences
+            sampling_params["max_tokens"] = max_tokens
         if stop_sequences is not None:
-            arguments["stop_sequences"] = stop_sequences
+            sampling_params["stop_sequences"] = stop_sequences
+        if model_preferences is not None:
+            sampling_params["model_preferences"] = model_preferences
 
-        # Call the sample_prompt tool
-        result = await self.call_tool(target_service, "sample_prompt", arguments, timeout=timeout)
+        try:
+            # Use cast for the session.sample method
+            result = await cast(Any, session).sample(
+                messages=prepared_messages,
+                system=system_prompt,
+                include_context=include_context,
+                **sampling_params,
+            )
 
-        # Ensure we return a dictionary
-        if hasattr(result, "__dict__"):
-            return cast(Dict[str, Any], result.__dict__)
-        elif isinstance(result, dict):
-            return cast(Dict[str, Any], result)
-        else:
-            return {"result": result}
+            # Convert result to a dictionary with at least a "content" field
+            result_dict: Dict[str, Any] = {}
+            if hasattr(result, "__dict__"):
+                result_dict = cast(Dict[str, Any], result.__dict__)
+            elif isinstance(result, dict):
+                result_dict = cast(Dict[str, Any], result)
+            else:
+                # If result is neither a dict nor has __dict__, create a new dict
+                content = str(result) if result is not None else ""
+                result_dict = {"content": content}
+
+            # Ensure content field exists and is a string
+            if "content" not in result_dict:
+                if "text" in result_dict:
+                    result_dict["content"] = result_dict["text"]
+                else:
+                    result_dict["content"] = str(result)
+
+            return result_dict
+        except Exception as e:
+            logger.exception(f"Error sampling prompt from {target_service}", error=str(e))
+            raise CommunicationError(
+                f"Failed to sample prompt from service '{target_service}': {e}", target=target_service
+            ) from e
 
     async def _handle_mcp_request(
         self, method: str, params: Optional[Dict[str, Any]] = None, target_service: Optional[str] = None
