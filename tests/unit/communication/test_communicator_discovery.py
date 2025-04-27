@@ -445,3 +445,192 @@ def test_nonexistent_communicator_type_in_agent():
 
     # Verify the error message mentions the communicator type
     assert "nonexistent_type" in str(exc_info.value)
+
+
+def test_missing_mcp_sse_dependency(mocker):
+    """Test that DependencyError is raised when mcp-sse is requested but mcp is not installed."""
+
+    # Create a mock loader function that simulates the failure
+    def mock_mcp_sse_loader():
+        raise DependencyError(
+            "The MCP SSE communicator requires the 'mcp' package. " "Please install it using: pip install openmas[mcp]",
+            dependency="mcp",
+            extras="mcp",
+        )
+
+    # Store original loader
+    original_loader = COMMUNICATOR_LOADERS.get("mcp-sse")
+
+    try:
+        # Replace the loader with our mock
+        COMMUNICATOR_LOADERS["mcp-sse"] = mock_mcp_sse_loader
+
+        # Attempt to get the MCP SSE communicator
+        with pytest.raises(DependencyError) as exc_info:
+            get_communicator_by_type("mcp-sse")
+
+        # Verify error details
+        error = exc_info.value
+        assert "MCP SSE communicator requires the 'mcp' package" in str(error)
+        assert "pip install openmas[mcp]" in str(error)
+        assert error.dependency == "mcp"
+        assert error.extras == "mcp"
+    finally:
+        # Restore original loader if it existed
+        if original_loader:
+            COMMUNICATOR_LOADERS["mcp-sse"] = original_loader
+
+
+def test_missing_mcp_stdio_dependency(mocker):
+    """Test that DependencyError is raised when mcp-stdio is requested but mcp is not installed."""
+
+    # Create a mock loader function that simulates the failure
+    def mock_mcp_stdio_loader():
+        raise DependencyError(
+            "The MCP STDIO communicator requires the 'mcp' package. "
+            "Please install it using: pip install openmas[mcp]",
+            dependency="mcp",
+            extras="mcp",
+        )
+
+    # Store original loader
+    original_loader = COMMUNICATOR_LOADERS.get("mcp-stdio")
+
+    try:
+        # Replace the loader with our mock
+        COMMUNICATOR_LOADERS["mcp-stdio"] = mock_mcp_stdio_loader
+
+        # Attempt to get the MCP STDIO communicator
+        with pytest.raises(DependencyError) as exc_info:
+            get_communicator_by_type("mcp-stdio")
+
+        # Verify error details
+        error = exc_info.value
+        assert "MCP STDIO communicator requires the 'mcp' package" in str(error)
+        assert "pip install openmas[mcp]" in str(error)
+        assert error.dependency == "mcp"
+        assert error.extras == "mcp"
+    finally:
+        # Restore original loader if it existed
+        if original_loader:
+            COMMUNICATOR_LOADERS["mcp-stdio"] = original_loader
+
+
+def test_missing_grpc_dependency_lazy_loading(mocker):
+    """Test that DependencyError is raised when grpc is requested but grpcio is not installed."""
+
+    # Create a mock loader function that simulates the failure
+    def mock_grpc_loader():
+        raise DependencyError(
+            "The gRPC communicator requires the 'grpcio' and 'grpcio-tools' packages. "
+            "Please install them using: pip install openmas[grpc]",
+            dependency="grpcio",
+            extras="grpc",
+        )
+
+    # Store original loader
+    original_loader = COMMUNICATOR_LOADERS.get("grpc")
+
+    try:
+        # Replace the loader with our mock
+        COMMUNICATOR_LOADERS["grpc"] = mock_grpc_loader
+
+        # Attempt to get the gRPC communicator
+        with pytest.raises(DependencyError) as exc_info:
+            get_communicator_by_type("grpc")
+
+        # Verify error details
+        error = exc_info.value
+        assert "gRPC communicator requires" in str(error)
+        assert "pip install openmas[grpc]" in str(error)
+        assert error.dependency == "grpcio"
+        assert error.extras == "grpc"
+    finally:
+        # Restore original loader if it existed
+        if original_loader:
+            COMMUNICATOR_LOADERS["grpc"] = original_loader
+
+
+def test_missing_mqtt_dependency(mocker):
+    """Test that DependencyError is raised when mqtt is requested but paho.mqtt is not installed."""
+
+    # Create a mock loader function that simulates the failure
+    def mock_mqtt_loader():
+        raise DependencyError(
+            "The MQTT communicator requires the 'paho-mqtt' package. "
+            "Please install it using: pip install openmas[mqtt]",
+            dependency="paho-mqtt",
+            extras="mqtt",
+        )
+
+    # Store original loader
+    original_loader = COMMUNICATOR_LOADERS.get("mqtt")
+
+    try:
+        # Replace the loader with our mock
+        COMMUNICATOR_LOADERS["mqtt"] = mock_mqtt_loader
+
+        # Attempt to get the MQTT communicator
+        with pytest.raises(DependencyError) as exc_info:
+            get_communicator_by_type("mqtt")
+
+        # Verify error details
+        error = exc_info.value
+        assert "MQTT communicator requires the 'paho-mqtt' package" in str(error)
+        assert "pip install openmas[mqtt]" in str(error)
+        assert error.dependency == "paho-mqtt"
+        assert error.extras == "mqtt"
+    finally:
+        # Restore original loader if it existed
+        if original_loader:
+            COMMUNICATOR_LOADERS["mqtt"] = original_loader
+
+
+def test_communicator_type_with_missing_dependency_in_agent():
+    """Test that a DependencyError is correctly propagated when initializing an agent with a communicator that has missing dependencies."""
+
+    # Create a mock agent class
+    class MockAgent(BaseAgent):
+        async def setup(self):
+            pass
+
+        async def run(self):
+            pass
+
+        async def shutdown(self):
+            pass
+
+    # Create a mock loader function that simulates the failure
+    def mock_problematic_loader():
+        raise DependencyError(
+            "This communicator requires a package that is not installed. "
+            "Please install it using pip install openmas[extra]",
+            dependency="missing-package",
+            extras="extra",
+        )
+
+    # Store original loader if it exists
+    original_loader = COMMUNICATOR_LOADERS.get("problematic")
+
+    try:
+        # Add a problematic communicator type
+        COMMUNICATOR_LOADERS["problematic"] = mock_problematic_loader
+
+        # Try to initialize an agent with this communicator type
+        with pytest.raises(DependencyError) as exc_info:
+            MockAgent(name="test_agent", config={"name": "test_agent", "communicator_type": "problematic"})
+
+        # Verify the error message mentions installation instructions
+        assert "package that is not installed" in str(exc_info.value)
+        assert "pip install openmas[extra]" in str(exc_info.value)
+        # Check the dependency and extras attributes
+        assert exc_info.value.dependency == "missing-package"
+        assert exc_info.value.extras == "extra"
+    finally:
+        # Clean up: remove our test loader
+        if "problematic" in COMMUNICATOR_LOADERS:
+            del COMMUNICATOR_LOADERS["problematic"]
+
+        # Restore original if it existed
+        if original_loader:
+            COMMUNICATOR_LOADERS["problematic"] = original_loader
