@@ -248,35 +248,13 @@ class McpAgent(BaseAgent):
     """Base class for MCP-enabled agents.
 
     This agent class provides functionality for registering methods as MCP tools,
-    prompts, and resources, and exposing them through an MCP-compatible API.
+    prompts, and resources with an MCP communicator.
 
-    The agent operates in two modes depending on the communicator configuration:
+    It works together with @mcp_tool, @mcp_prompt, and @mcp_resource decorators
+    to expose functionality via MCP.
 
-    1. Server Mode: When using an MCP communicator with server_mode=True,
-       the agent automatically discovers methods decorated with @mcp_tool,
-       @mcp_prompt, and @mcp_resource and registers them with the MCP server
-       managed by the communicator. This exposes agent functionality to external
-       clients through the MCP protocol.
-
-    2. Client Mode: When using an MCP communicator with server_mode=False,
-       the agent acts as a client to other MCP services. It provides methods
-       to call remote tools, get prompts, read resources, and sample prompts
-       from other MCP services through the communicator.
-
-    Client Methods:
-        - call_tool: Call a tool on a remote MCP service
-        - get_prompt: Get a rendered prompt from a remote MCP service
-        - read_resource: Read a resource from a remote MCP service
-        - list_tools: List available tools on a remote MCP service
-        - sample_prompt: Request an LLM sampling from a remote MCP service
-
-    Server Registration:
-        - @mcp_tool: Decorator to expose a method as an MCP tool
-        - @mcp_prompt: Decorator to expose a method as an MCP prompt
-        - @mcp_resource: Decorator to expose a method as an MCP resource
-
-    The decorators support Pydantic models for input/output validation and
-    provide rich metadata for service documentation and discoverability.
+    It can be used as a standalone MCP-enabled agent or as a base class for more
+    specialized agents like McpServerAgent and McpClientAgent.
     """
 
     def __init__(
@@ -288,24 +266,35 @@ class McpAgent(BaseAgent):
         """Initialize the MCP agent.
 
         Args:
-            name: The name of the agent (overrides config)
-            config: The agent configuration
-            **kwargs: Additional arguments to pass to the parent class
+            name: Optional name for the agent
+            config: Optional configuration for the agent
+            **kwargs: Additional keyword arguments for the parent class
         """
-        if not HAS_MCP:
-            logger.warning("MCP package is not installed. MCP functionality will be limited.")
+        super().__init__(name, config, **kwargs)
 
-        super().__init__(name=name, config=config, **kwargs)
-
-        # Initialize collections for MCP methods
+        # Initialize attributes for discovered MCP methods
         self._tools: Dict[str, Dict[str, Any]] = {}
         self._prompts: Dict[str, Dict[str, Any]] = {}
         self._resources: Dict[str, Dict[str, Any]] = {}
 
-        # Flag indicating if this agent is running in server mode
+        # Flag for whether this is a server agent
         self._server_mode = False
 
-        # Discover decorated methods
+        # If config has COMMUNICATOR_TYPE, use that to set up communicator
+        if self.config and "COMMUNICATOR_TYPE" in self.config:
+            from openmas.communication import create_communicator
+
+            communicator = create_communicator(
+                communicator_type=self.config["COMMUNICATOR_TYPE"],
+                agent_name=self.name,
+                service_urls=self.config.get("SERVICE_URLS", {}),
+                server_mode=self.config.get("SERVER_MODE", False),
+                http_port=self.config.get("HTTP_PORT", 8000),
+                server_instructions=self.config.get("SERVER_INSTRUCTIONS", None),
+            )
+            self.set_communicator(communicator)
+
+        # Call method discovery on initialization
         self._discover_mcp_methods()
 
         self.logger.debug(
@@ -731,3 +720,48 @@ class McpAgent(BaseAgent):
 
         result = await self.communicator.list_tools(target_service=target_service)
         return cast(List[Dict[str, Any]], result)
+
+    async def add_tool(self, func: Callable, name: Optional[str] = None, description: Optional[str] = None) -> None:
+        """Add a tool function to the agent.
+
+        This method allows dynamically adding tool functions to the agent after initialization.
+        The function will be registered with the MCP communicator if available.
+
+        Args:
+            func: The function to add as a tool
+            name: Optional name for the tool (defaults to function name)
+            description: Optional description for the tool (defaults to function docstring)
+
+        Raises:
+            RuntimeError: If the function cannot be registered
+        """
+        tool_name = name or func.__name__
+        tool_desc = description or inspect.getdoc(func) or f"Tool: {tool_name}"
+
+        # Create parameter model from function signature
+        param_model = _create_pydantic_model_from_signature(func, f"{tool_name}Input")
+
+        # Add to tools dictionary
+        self._tools[tool_name] = {
+            "metadata": {
+                "name": tool_name,
+                "description": tool_desc,
+                "input_model": param_model,
+                "output_model": None,
+            },
+            "function": func,
+        }
+
+        self.logger.debug(f"Added tool: {tool_name}")
+
+        # If we have a communicator, register the tool with it
+        if self.communicator:
+            try:
+                await self._register_tool_with_communicator(
+                    name=tool_name,
+                    description=tool_desc,
+                    function=func,
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to register tool {tool_name} with communicator: {e}")
+                raise RuntimeError(f"Failed to register tool {tool_name}: {e}") from e

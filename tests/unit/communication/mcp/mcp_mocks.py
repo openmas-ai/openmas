@@ -5,7 +5,7 @@ without requiring the actual MCP package to be installed.
 """
 
 import sys
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
 from unittest import mock
 
 
@@ -125,13 +125,15 @@ class MockClientSession:
 class MockFastMCP:
     """Mock implementation of MCP FastMCP."""
 
-    def __init__(self, context: Optional[Context] = None) -> None:
+    def __init__(self, context: Optional[Context] = None, instructions: Optional[str] = None) -> None:
         """Initialize the mock FastMCP server.
 
         Args:
             context: MCP context
+            instructions: Server instructions (optional)
         """
         self.context = context or Context()
+        self.instructions = instructions
         self.prompts: Dict[str, Any] = {}
         self.tools: Dict[str, Tool] = {}
 
@@ -161,6 +163,20 @@ class MockSSEClient:
         """
         self.responses = responses
         self.current_index = 0
+
+    async def __aiter__(self) -> "MockSSEClient":
+        """Return self as an async iterator."""
+        return self
+
+    async def __anext__(self) -> Tuple[Any, Any]:
+        """Return a mock read/write stream tuple."""
+        # For the first call, return a tuple of mock read/write streams
+        if self.current_index == 0:
+            self.current_index += 1
+            mock_read = mock.AsyncMock()
+            mock_write = mock.AsyncMock()
+            return (mock_read, mock_write)
+        raise StopAsyncIteration
 
     async def __call__(self, *args, **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
         """Generate mock SSE responses."""
@@ -210,7 +226,61 @@ mock_mcp.types = mock_types
 mock_types.TextContent = TextContent
 mock_types.CallToolResult = CallToolResult
 
+# Add shared mock network for MockCommunicator
+_MOCK_NETWORK = {}
 
+
+class MockNetwork:
+    """Mock network for testing."""
+
+    def __init__(self):
+        """Initialize the mock network."""
+        self.servers = {}
+
+    def register_server(self, name: str, server: Any) -> None:
+        """Register a server in the network.
+
+        Args:
+            name: Name of the server
+            server: Server instance
+        """
+        self.servers[name] = server
+
+    def get_server(self, name: str) -> Optional[Any]:
+        """Get a server by name.
+
+        Args:
+            name: Name of the server
+
+        Returns:
+            Server instance or None if not found
+        """
+        return self.servers.get(name)
+
+
+# Add method to MockCommunicator class
+def add_to_mock_communicator():
+    """Add get_mock_network method to MockCommunicator class if imported."""
+    if "openmas.testing.mock_communicator" in sys.modules:
+        from openmas.testing.mock_communicator import MockCommunicator
+
+        @staticmethod
+        def get_mock_network():
+            """Get the shared mock network.
+
+            Returns:
+                Shared MockNetwork instance
+            """
+            global _MOCK_NETWORK
+            if not _MOCK_NETWORK:
+                _MOCK_NETWORK["network"] = MockNetwork()
+            return _MOCK_NETWORK["network"]
+
+        # Add the method to the class
+        setattr(MockCommunicator, "get_mock_network", get_mock_network)
+
+
+# Apply this after all mocks
 def apply_mcp_mocks() -> None:
     """Apply MCP mocks to sys.modules.
 
@@ -230,6 +300,9 @@ def apply_mcp_mocks() -> None:
 
     # Update sys.modules with our mocks
     sys.modules.update(mcp_modules)
+
+    # Add mock_network support to MockCommunicator if imported
+    add_to_mock_communicator()
 
 
 # Apply mocks when this module is imported

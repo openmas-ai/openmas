@@ -1,7 +1,10 @@
 """MCP Communicator using stdio for communication."""
 
 import asyncio
+import json
 import os
+import subprocess
+import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, cast
 
 import structlog
@@ -29,9 +32,6 @@ logger = structlog.get_logger(__name__)
 # Type variable for generic return types
 T = TypeVar("T")
 
-# Type annotation for the streams returned by the context manager
-StreamPair = Tuple[Any, Any]
-
 
 class McpStdioCommunicator(BaseCommunicator):
     """MCP communicator that uses stdio for communication.
@@ -53,6 +53,7 @@ class McpStdioCommunicator(BaseCommunicator):
         service_urls: Mapping of service names to URLs (commands or stdio:// URLs)
         server_mode: Whether to run in server mode (True) or client mode (False)
         server_instructions: Instructions for the server (in server mode)
+        service_args: Optional additional arguments for each service command
         subprocesses: Dictionary of subprocesses running for each service connection
         clients: Dictionary of client objects for each service
         sessions: Dictionary of ClientSession instances for each service
@@ -68,6 +69,7 @@ class McpStdioCommunicator(BaseCommunicator):
         service_urls: Dict[str, str],
         server_mode: bool = False,
         server_instructions: Optional[str] = None,
+        service_args: Optional[Dict[str, List[str]]] = None,
     ) -> None:
         """Initialize the communicator.
 
@@ -76,10 +78,12 @@ class McpStdioCommunicator(BaseCommunicator):
             service_urls: A mapping of service names to their URLs
             server_mode: Whether to operate in server mode
             server_instructions: Instructions for the server (in server mode)
+            service_args: Optional additional arguments for each service command
         """
         super().__init__(agent_name, service_urls)
         self.server_mode = server_mode
         self.server_instructions = server_instructions
+        self.service_args = service_args or {}
         self.subprocesses: Dict[str, asyncio.subprocess.Process] = {}
         self.clients: Dict[str, Any] = {}
         self.sessions: Dict[str, ClientSession] = {}
@@ -129,7 +133,7 @@ class McpStdioCommunicator(BaseCommunicator):
 
                 try:
                     # Create stdio client parameters
-                    params = StdioServerParameters(command=command)
+                    params = StdioServerParameters(command=command, args=self.service_args.get(service_name, []))
                     self._client_managers[service_name] = stdio_client(params)
                     logger.debug(f"Created stdio client manager for service: {service_name}")
                 except Exception as e:

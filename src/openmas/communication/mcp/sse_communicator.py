@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 from mcp.client import sse
 from mcp.client.session import ClientSession
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 
 # Import the types if available, otherwise use Any
 try:
@@ -96,6 +96,19 @@ class McpSseCommunicator(BaseCommunicator):
         self.server: Optional[FastMCP] = None
         self._server_task: Optional[asyncio.Task] = None
 
+    def _ensure_trailing_slash(self, url: str) -> str:
+        """Ensure that a URL has a trailing slash to avoid redirects.
+
+        Args:
+            url: The URL to check
+
+        Returns:
+            URL with trailing slash if needed
+        """
+        if not url.endswith("/"):
+            return f"{url}/"
+        return url
+
     async def _connect_to_service(self, service_name: str) -> None:
         """Connect to an MCP service.
 
@@ -114,7 +127,8 @@ class McpSseCommunicator(BaseCommunicator):
         if service_name not in self.service_urls:
             raise ServiceNotFoundError(f"Service '{service_name}' not found in service URLs", target=service_name)
 
-        service_url = self.service_urls[service_name]
+        # Ensure service URL has a trailing slash to avoid redirects
+        service_url = self._ensure_trailing_slash(self.service_urls[service_name])
         logger.debug(f"Connecting to MCP SSE service: {service_name} at {service_url}")
 
         try:
@@ -141,7 +155,8 @@ class McpSseCommunicator(BaseCommunicator):
 
             client_manager = self._client_managers[service_name]
             try:
-                # Access the internal __aenter__ method
+                # The sse_client returns an async context manager, not an async generator
+                # We need to use __aenter__ to get the streams
                 stream_ctx = await client_manager.__aenter__()
                 # Extract the streams
                 read_stream = stream_ctx[0]
@@ -188,9 +203,10 @@ class McpSseCommunicator(BaseCommunicator):
             service_name: The name of the service to clean up
         """
         if service_name in self._client_managers:
-            client_manager = self._client_managers[service_name]
             try:
-                await client_manager.__aexit__(None, None, None)
+                # We no longer need to call __aexit__ since we're using __aenter__
+                # Just remove the entry from the dictionary
+                pass
             except Exception as e:
                 logger.warning(f"Error while cleaning up client manager for {service_name}: {e}")
             del self._client_managers[service_name]
@@ -393,6 +409,39 @@ class McpSseCommunicator(BaseCommunicator):
         if self.server_mode and self.server:
             await self._register_tool(method, f"Handler for {method}", handler)
 
+    def _debug_mcp_server(self, server: Any) -> None:
+        """Print debug information about the MCP server.
+
+        Args:
+            server: The MCP server instance
+        """
+        # Log available methods and attributes
+        server_methods = [m for m in dir(server) if not m.startswith("_")]
+        logger.debug(f"MCP Server methods: {server_methods}")
+
+        # Check for key methods
+        mount_info = "Available" if hasattr(server, "mount_to_app") else "Not available"
+        logger.debug(f"mount_to_app: {mount_info}")
+
+        router_info = "Available" if hasattr(server, "router") else "Not available"
+        logger.debug(f"router: {router_info}")
+
+        run_sse_info = "Available" if hasattr(server, "run_sse_async") else "Not available"
+        logger.debug(f"run_sse_async: {run_sse_info}")
+
+        # Try to get more details about sse_app if it exists
+        if hasattr(server, "sse_app"):
+            try:
+                if callable(server.sse_app):
+                    import inspect
+
+                    sig = inspect.signature(server.sse_app)
+                    logger.debug(f"sse_app is callable with signature: {sig}")
+                else:
+                    logger.debug(f"sse_app is not callable: {type(server.sse_app)}")
+            except Exception as e:
+                logger.debug(f"Error inspecting sse_app: {e}")
+
     async def start(self) -> None:
         """Start the communicator.
 
@@ -405,25 +454,30 @@ class McpSseCommunicator(BaseCommunicator):
             # Define a function to run the server
             async def run_sse_server() -> None:
                 try:
-                    # Create a context for the server
-                    context: Context = Context()
-
                     # Create the server with the agent name in the instructions
                     instructions = self.server_instructions or f"Agent: {self.agent_name}"
                     server = FastMCP(
+                        name=self.agent_name,
                         instructions=instructions,
-                        context=context,
                     )
                     self.server = server
+
+                    # Print debug information about the server
+                    self._debug_mcp_server(server)
 
                     # Register handlers with the server context
                     for method_name, handler_func in self.handlers.items():
                         # Register the handler as a tool
                         await self._register_tool(method_name, f"Handler for {method_name}", handler_func)
 
-                    # Mount the server to the FastAPI app if the method exists
-                    if hasattr(server, "mount_to_app"):
-                        server.mount_to_app(self.app)  # type: ignore
+                    # Mount the server to the FastAPI app
+                    # In MCP 1.6, the SSE server is mounted using server.app at the specified path
+                    if hasattr(server, "router"):
+                        self.app.mount("/mcp", server.router)
+                        logger.info("Mounted MCP server using server.router")
+                    else:
+                        logger.error("Failed to mount MCP server: No router attribute found")
+                        raise RuntimeError("Failed to mount MCP server: No router attribute found")
 
                     # Run the HTTP server with uvicorn
                     config = uvicorn.Config(
@@ -715,15 +769,13 @@ class McpSseCommunicator(BaseCommunicator):
             return
 
         try:
-            # Try different ways to register tools based on the FastMCP version
-            if hasattr(self.server, "register_tool"):
-                await self.server.register_tool(  # type: ignore
-                    name=name,
-                    description=description,
-                    fn=function,
-                )
-            elif hasattr(self.server, "add_tool"):
-                self.server.add_tool(name=name, description=description, fn=function)  # type: ignore
+            # In MCP 1.6, tools are registered using the add_tool method
+            if hasattr(self.server, "add_tool"):
+                result = self.server.add_tool(name=name, description=description, fn=function)
+                # Check if the result is awaitable (coroutine)
+                if asyncio.iscoroutine(result):
+                    await result
+                logger.debug(f"Registered tool using server.add_tool: {name}")
             else:
                 logger.warning(f"Cannot register tool {name}: No suitable registration method found")
 
@@ -755,15 +807,13 @@ class McpSseCommunicator(BaseCommunicator):
             return
 
         try:
-            # Try different ways to register prompts based on the FastMCP version
-            if hasattr(self.server, "register_prompt"):
-                await self.server.register_prompt(  # type: ignore
-                    name=name,
-                    description=description,
-                    fn=function,
-                )
-            elif hasattr(self.server, "add_prompt"):
-                self.server.add_prompt(name=name, description=description, fn=function)  # type: ignore
+            # In MCP 1.6, prompts are registered using the add_prompt method
+            if hasattr(self.server, "add_prompt"):
+                result = self.server.add_prompt(name=name, description=description, fn=function)
+                # Check if the result is awaitable (coroutine)
+                if asyncio.iscoroutine(result):
+                    await result
+                logger.debug(f"Registered prompt using server.add_prompt: {name}")
             else:
                 logger.warning(f"Cannot register prompt {name}: No suitable registration method found")
 
@@ -788,21 +838,18 @@ class McpSseCommunicator(BaseCommunicator):
             return
 
         try:
-            # Try different ways to register resources based on the FastMCP version
-            if hasattr(self.server, "register_resource"):
-                await self.server.register_resource(  # type: ignore
+            # In MCP 1.6, resources are registered using the add_resource method
+            if hasattr(self.server, "add_resource"):
+                result = self.server.add_resource(
                     uri=name,
                     description=description,
                     fn=function,
                     mime_type=mime_type,
                 )
-            elif hasattr(self.server, "add_resource"):
-                self.server.add_resource(  # type: ignore
-                    uri=name,
-                    description=description,
-                    fn=function,
-                    mime_type=mime_type,
-                )
+                # Check if the result is awaitable (coroutine)
+                if asyncio.iscoroutine(result):
+                    await result
+                logger.debug(f"Registered resource using server.add_resource: {name}")
             else:
                 logger.warning(f"Cannot register resource {name}: No suitable registration method found")
 

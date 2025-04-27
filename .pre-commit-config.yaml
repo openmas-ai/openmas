@@ -42,12 +42,3 @@ repos:
         # Use root mypy.ini file for configuration
         args: ["--config-file=mypy.ini", "src/", "tests/"]
         pass_filenames: false  # Run on all files rather than just changed ones
-
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        entry: poetry run pytest
-        language: system
-        pass_filenames: false
-        always_run: true

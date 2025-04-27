@@ -137,3 +137,10 @@ async def agent_with_mock_communicator(real_mock_communicator: MockCommunicator)
     )
     agent.communicator = real_mock_communicator
     return agent
+
+
+def pytest_configure(config):
+    """Configure pytest with custom markers."""
+    config.addinivalue_line("markers", "mcp: mark tests that require the MCP library to be installed")
+    config.addinivalue_line("markers", "grpc: mark tests that require the gRPC library to be installed")
+    config.addinivalue_line("markers", "mqtt: mark tests that require the MQTT library to be installed")
