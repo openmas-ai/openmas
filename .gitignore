@@ -20,6 +20,10 @@ wheels/
 .installed.cfg
 *.egg
 
+# --- Tox ---
+# Ignore the directory where tox creates virtual environments and stores logs/data
+.tox/
+
 # Virtual environments
 .env
 .venv
