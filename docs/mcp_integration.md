@@ -4,11 +4,27 @@ OpenMAS provides seamless integration with the Model Context Protocol (MCP) thro
 
 ## Overview
 
-MCP (Model Context Protocol) is a protocol for building model-backed applications. It's particularly useful for integrating LLMs like Claude into your applications. OpenMAS provides a straightforward way to create MCP-compatible agents by:
+MCP (Model Context Protocol) is a protocol for building model-backed applications developed by Anthropic. It's particularly useful for integrating large language models like Claude into your applications. OpenMAS provides a straightforward way to create MCP-compatible agents by:
 
 1. Decorating methods with `@mcp_tool`, `@mcp_prompt`, or `@mcp_resource`
 2. Creating a subclass of `McpAgent`, `McpClientAgent`, or `McpServerAgent`
 3. Using an MCP-compatible communicator (such as `McpSseCommunicator` or `McpStdioCommunicator`)
+
+## Installation
+
+To use MCP functionality, install OpenMAS with the MCP extras:
+
+```bash
+pip install openmas[mcp]
+```
+
+Or with Poetry:
+
+```bash
+poetry add openmas[mcp]
+```
+
+This will install the MCP SDK (`mcp` package version 1.6.0) as a dependency.
 
 ## MCP Decorators
 
@@ -262,6 +278,62 @@ This design provides a clean separation of concerns:
 - The communicator handles the actual server setup and communication
 - The decorators provide a clear, declarative way to define MCP-compatible methods
 
+## Available Communicators
+
+OpenMAS offers two MCP communicators:
+
+- `McpSseCommunicator`: Uses HTTP/SSE for communication over a network (recommended for production)
+- `McpStdioCommunicator`: Uses stdin/stdout for communication (useful for local development or embedding)
+
+Both can be used in server mode by setting `server_mode=True` when initializing them.
+
+### McpSseCommunicator
+
+This communicator uses HTTP/SSE (Server-Sent Events) for communication. It's suitable for networked applications where the MCP server and clients communicate over HTTP:
+
+```python
+from openmas.communication.mcp import McpSseCommunicator
+
+# Server mode
+server_communicator = McpSseCommunicator(
+    agent_name="mcp-server",
+    server_mode=True,
+    http_port=8000,
+    service_urls={}
+)
+
+# Client mode
+client_communicator = McpSseCommunicator(
+    agent_name="mcp-client",
+    server_mode=False,
+    service_urls={
+        "mcp-server": "http://localhost:8000"
+    }
+)
+```
+
+### McpStdioCommunicator
+
+This communicator uses stdin/stdout for communication, making it ideal for embedding within another application or for local development:
+
+```python
+from openmas.communication.mcp import McpStdioCommunicator
+
+# Server mode (for receiving commands via stdin)
+stdio_server = McpStdioCommunicator(
+    agent_name="stdio-server",
+    server_mode=True,
+    service_urls={}
+)
+
+# Client mode (rarely used, as you typically use this as a server)
+stdio_client = McpStdioCommunicator(
+    agent_name="stdio-client",
+    server_mode=False,
+    service_urls={}
+)
+```
+
 ## Best Practices
 
 1. **Choose the right agent class for your needs**:
@@ -275,24 +347,6 @@ This design provides a clean separation of concerns:
 5. **Keep prompt templates simple** and avoid complex logic in prompt methods
 6. **Use resource URIs that follow RESTful conventions** - e.g., `/users/{id}` for resources that represent users
 
-## Communicators
-
-OpenMAS offers two MCP communicators:
-
-- `McpSseCommunicator`: Uses HTTP/SSE for communication (recommended for production)
-- `McpStdioCommunicator`: Uses stdin/stdout for communication (useful for development)
-
-Both can be used in server mode by setting `server_mode=True` when initializing them.
-
-## Advanced Usage
-
-For more advanced use cases, you can:
-
-- Directly interact with the underlying FastMCP instance through `agent.communicator.server`
-- Implement custom validation logic in your tool methods
-- Create dynamic resources that generate content on-the-fly
-- Use asynchronous processing for long-running operations
-
 ## Debugging
 
 If you're having issues with your MCP agent:
@@ -301,3 +355,34 @@ If you're having issues with your MCP agent:
 2. Check if your decorators are being discovered with `self.logger.debug(f"Tools: {self._tools}")`
 3. Ensure your communicator is set to server mode
 4. Verify that your methods have the correct signatures and return types
+
+## Testing MCP Agents
+
+OpenMAS provides testing utilities specifically for MCP agents:
+
+```python
+import pytest
+from openmas.testing import AgentTestHarness
+from openmas.agent import McpServerAgent
+
+class TestMcpAgent(McpServerAgent):
+    # Your test agent implementation
+    pass
+
+@pytest.fixture
+async def mcp_agent_harness():
+    # Create the test harness
+    harness = AgentTestHarness(TestMcpAgent)
+    yield harness
+
+@pytest.mark.asyncio
+async def test_mcp_tool_calls(mcp_agent_harness):
+    # Create and start the agent
+    agent = await mcp_agent_harness.create_agent()
+
+    async with mcp_agent_harness.running_agent(agent):
+        # Test MCP tool calls
+        pass
+```
+
+For more information on testing, see the [Testing](./testing.md) documentation.

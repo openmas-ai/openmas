@@ -2,6 +2,37 @@
 
 This document provides comprehensive guidance on testing multi-agent systems built with OpenMAS, focusing on robust testing practices using the provided test utilities.
 
+## Testing Philosophy
+
+OpenMAS follows a Test-Driven Development (TDD) approach:
+
+1. Write failing tests first
+2. Implement the minimum code required to make the tests pass
+3. Refactor the code while keeping the tests passing
+
+## Unit vs. Integration Tests
+
+OpenMAS distinguishes between two types of tests:
+
+### Unit Tests
+
+Unit tests verify isolated components with all external dependencies mocked:
+
+- Located in `tests/unit/`
+- Require complete isolation using mocks for all external dependencies
+- Must never be skipped due to unavailability of external dependencies
+- Examples: testing agent logic, communicator functionality, configuration parsing
+
+### Integration Tests
+
+Integration tests verify how components work together:
+
+- Located in `tests/integration/`
+- May use mocks where appropriate
+- May use actual dependencies if available
+- Should be skipped if required dependencies are unavailable
+- Examples: testing communication between actual agents, testing with real MCP, MQTT, or gRPC servers
+
 ## Testing Utilities
 
 OpenMAS provides two primary testing utilities:
@@ -195,29 +226,6 @@ async def test_error_conditions(mock_communicator):
     mock_communicator.verify()
 ```
 
-### Examining Call History
-
-```python
-@pytest.mark.asyncio
-async def test_call_history(mock_communicator):
-    # Set up expected request
-    mock_communicator.expect_request(
-        "service1", "method1", {"param": "value"}, {"result": "success"}
-    )
-
-    # Make the request
-    await mock_communicator.send_request(
-        "service1", "method1", {"param": "value"}
-    )
-
-    # Check the call history
-    assert len(mock_communicator.calls) == 1
-    assert mock_communicator.calls[0].method_name == "send_request"
-    assert mock_communicator.calls[0].args[0] == "service1"  # target_service
-    assert mock_communicator.calls[0].args[1] == "method1"   # method
-    assert mock_communicator.calls[0].args[2] == {"param": "value"}  # params
-```
-
 ## Using the AgentTestHarness
 
 The `AgentTestHarness` simplifies testing agent behavior by providing a structured way to create, start, stop, and interact with agent instances during tests.
@@ -314,41 +322,115 @@ async def test_multi_agent_interaction(agent_harness):
         agent_harness.verify_all_communicators()
 ```
 
-### Testing Asynchronous Operations
+## Test Organization and Structure
 
-The harness provides a utility for waiting for asynchronous conditions:
+OpenMAS tests are organized following this structure:
 
-```python
-@pytest.mark.asyncio
-async def test_async_operations(agent_harness):
-    agent = await agent_harness.create_agent()
-
-    # Add a flag to track async operations
-    agent.operation_complete = False
-
-    async def delayed_operation():
-        await asyncio.sleep(0.1)
-        agent.operation_complete = True
-
-    async with agent_harness.running_agent(agent):
-        # Start the async operation
-        asyncio.create_task(delayed_operation())
-
-        # Wait for the operation to complete
-        result = await agent_harness.wait_for(
-            lambda: agent.operation_complete,
-            timeout=0.5,
-            check_interval=0.01
-        )
-
-        # Verify the operation completed
-        assert result is True
-        assert agent.operation_complete is True
+```
+tests/
+  unit/
+    agent/        # Tests for agent classes
+    cli/          # Tests for CLI components
+    communication/ # Tests for communicators
+    deployment/   # Tests for deployment utilities
+    patterns/     # Tests for pattern implementations
+  integration/
+    core/         # Integration tests for core functionality
+    grpc/         # Integration tests for gRPC communication
+    mcp/          # Integration tests for MCP communication
+    mqtt/         # Integration tests for MQTT communication
 ```
 
-## Testing Patterns and Best Practices
+### File and Class Naming Conventions
 
-### Test Structure
+- Test files should be named `test_*.py`
+- Test classes should be named `Test*`
+- Test methods should be named `test_*`
+
+### Using pytest Marks for Test Categories
+
+OpenMAS uses pytest marks to categorize tests:
+
+```python
+import pytest
+
+@pytest.mark.unit
+def test_basic_function():
+    # Unit test implementation
+    pass
+
+@pytest.mark.integration
+def test_integration_case():
+    # Integration test implementation
+    pass
+
+@pytest.mark.mcp
+def test_mcp_integration():
+    # Test that requires MCP dependencies
+    pass
+
+@pytest.mark.grpc
+def test_grpc_feature():
+    # Test that requires gRPC dependencies
+    pass
+
+@pytest.mark.mqtt
+def test_mqtt_feature():
+    # Test that requires MQTT dependencies
+    pass
+```
+
+These marks can be used to select specific test categories when running tests:
+
+```bash
+# Run only unit tests
+pytest -m unit
+
+# Run integration tests that use MCP
+pytest -m "integration and mcp"
+
+# Run all tests except integration tests
+pytest -m "not integration"
+```
+
+## Running Tests
+
+Use tox to run the test suite:
+
+```bash
+# Run all tests
+tox
+
+# Run specific test environment
+tox -e py310-mcp
+
+# Run with specific Python version
+tox -e py310
+
+# Run linting checks
+tox -e lint
+```
+
+Available test environments:
+
+- `py310`: Basic tests with Python 3.10
+- `py310-grpc`: Tests that require gRPC
+- `py310-mcp`: Tests that require MCP
+- `py310-mqtt`: Tests that require MQTT
+- `lint`: Code quality checks
+- `coverage`: Test coverage reporting
+
+## Testing Best Practices
+
+### Writing Good Tests
+
+1. **Test in isolation**: Each test should be independent and not rely on the state from previous tests
+2. **Mock external dependencies**: Use `MockCommunicator` to avoid real network calls in unit tests
+3. **Be explicit about test categories**: Use appropriate pytest marks to indicate test requirements
+4. **Use descriptive names**: Test names should clearly describe what is being tested
+5. **Assert expected outcomes**: Make specific assertions about the expected behavior
+
+### Testing Patterns and Best Practices
 
 Follow this structure for agent tests:
 
@@ -402,6 +484,32 @@ async def test_agent_error_handling(agent_harness):
         assert "Service error" in result["message"]
 ```
 
+## Special Cases
+
+### Testing with Optional Dependencies
+
+When testing features that depend on optional dependencies, use the appropriate pytest marks:
+
+```python
+@pytest.mark.mcp
+def test_mcp_feature():
+    # This test will be skipped if MCP dependencies are not installed
+    from openmas.communication.mcp import McpSseCommunicator
+    # Test implementation...
+```
+
+### Testing Async Code
+
+Use `pytest-asyncio` for testing asynchronous code:
+
+```python
+@pytest.mark.asyncio
+async def test_async_function():
+    # Test async functionality
+    result = await some_async_function()
+    assert result == expected_value
+```
+
 ### Testing Timeouts
 
 Test how your agent behaves when services are slow:
@@ -425,84 +533,4 @@ async def test_agent_timeout_handling(agent_harness):
 
         assert result["status"] == "timeout"
         assert result["fallback_data"] is not None
-```
-
-## Integration Testing
-
-For testing complete agent systems with real communication:
-
-```python
-@pytest.mark.asyncio
-async def test_full_agent_system():
-    # Create harnesses for different agent types
-    agent1_harness = AgentTestHarness(AgentType1)
-    agent2_harness = AgentTestHarness(AgentType2)
-    agent3_harness = AgentTestHarness(AgentType3)
-
-    # Create the agents
-    agent1 = await agent1_harness.create_agent(name="agent1")
-    agent2 = await agent2_harness.create_agent(name="agent2")
-    agent3 = await agent3_harness.create_agent(name="agent3")
-
-    # Set up real in-memory connections between agents
-    await agent1_harness.link_agents(agent1, agent2, agent3)
-
-    # Start all agents
-    async with agent1_harness.running_agent(agent1):
-        async with agent2_harness.running_agent(agent2):
-            async with agent3_harness.running_agent(agent3):
-                # Trigger the system behavior
-                result = await agent1_harness.trigger_handler(
-                    agent1, "start_workflow", {"data": "test"}
-                )
-
-                # Wait for the workflow to complete
-                success = await agent1_harness.wait_for(
-                    lambda: getattr(agent1, "workflow_complete", False),
-                    timeout=2.0
-                )
-
-                assert success
-                assert result["status"] == "success"
-```
-
-## Performance Testing
-
-For performance testing, measure response times and throughput:
-
-```python
-import time
-import statistics
-import pytest
-
-@pytest.mark.asyncio
-async def test_agent_performance(agent_harness):
-    agent = await agent_harness.create_agent()
-
-    # Configure expected responses
-    for i in range(100):
-        agent_harness.communicator.expect_request(
-            "data-service", "get_item", {"id": str(i)},
-            {"item": f"Item {i}", "value": i}
-        )
-
-    # Measure response times
-    response_times = []
-
-    async with agent_harness.running_agent(agent):
-        for i in range(100):
-            start_time = time.time()
-            await agent_harness.trigger_handler(
-                agent, "process_item", {"id": str(i)}
-            )
-            end_time = time.time()
-            response_times.append(end_time - start_time)
-
-    # Analyze performance
-    avg_time = statistics.mean(response_times)
-    p95_time = statistics.quantiles(response_times, n=20)[18]  # 95th percentile
-
-    # Assert performance meets requirements
-    assert avg_time < 0.01  # Average response time under 10ms
-    assert p95_time < 0.02  # 95% of responses under 20ms
 ```

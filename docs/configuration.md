@@ -28,8 +28,8 @@ agents:
   worker: "agents/worker"
 shared_paths:
   - "shared"
-extension_paths:
-  - "extensions/custom_communicators"
+plugin_paths:
+  - "plugins/custom_communicators"
 default_config:
   log_level: "INFO"
   communicator_type: "http"
@@ -37,7 +37,7 @@ default_config:
     timeout: 30
 ```
 
-The `default_config` section provides base configuration values for all agents in the project.
+The `default_config` section provides base configuration values for all agents in the project. The `plugin_paths` section defines paths where OpenMAS will look for plugin modules (such as custom communicators).
 
 ### Environment Configuration Files
 
@@ -83,7 +83,7 @@ Environment variables have the highest precedence and can override any configura
 
 - `AGENT_NAME`: Name of the agent
 - `LOG_LEVEL`: Logging level (e.g., "DEBUG", "INFO", "WARNING")
-- `COMMUNICATOR_TYPE`: Type of communicator to use (e.g., "http", "mcp_stdio")
+- `COMMUNICATOR_TYPE`: Type of communicator to use (e.g., "http", "mcp_sse", "mcp_stdio")
 
 ### Configuring Service URLs
 
@@ -118,6 +118,18 @@ export COMMUNICATOR_OPTIONS='{"timeout": 60, "retries": 5}'
 export COMMUNICATOR_OPTION_TIMEOUT=60
 export COMMUNICATOR_OPTION_RETRIES=5
 ```
+
+## Plugin Configuration
+
+In the `openmas_project.yml` file, you can specify paths to plugin directories:
+
+```yaml
+plugin_paths:
+  - "plugins/communicators"
+  - "plugins/agents"
+```
+
+OpenMAS will automatically discover and load plugins from these directories. For custom communicators, they will be available for use by specifying the communicator type in your configuration.
 
 ## Configuration in Code
 
@@ -182,3 +194,18 @@ export LOG_LEVEL=DEBUG
 ```
 
 This will show detailed logs about configuration loading, including which files are being read and what values are being applied from each source.
+
+## Configuration Keys Reference
+
+Here are the commonly used configuration keys in OpenMAS:
+
+| Key | Description | Default |
+| --- | --- | --- |
+| `name` | Agent name | `"agent"` |
+| `log_level` | Logging level | `"INFO"` |
+| `communicator_type` | Type of communicator | `"http"` |
+| `service_urls` | Dictionary of service URLs | `{}` |
+| `communicator_options` | Dictionary of options for the communicator | `{}` |
+| `plugin_paths` | List of paths to look for plugins | `[]` |
+
+For communicator-specific options, refer to the documentation for each communicator type.

@@ -1,69 +1,10 @@
 # Getting Started with OpenMAS
 
-This guide will help you get started with OpenMAS, the Python SDK for building Multi-Agent Systems.
-
-## Installation
-
-Install OpenMAS using poetry:
-
-```bash
-poetry add openmas
-```
-
-Or using pip:
-
-```bash
-pip install openmas
-```
-
-## Quick Start
-
-```python
-from openmas import Agent
-from openmas.communication import HTTPCommunicator
-
-# Create an agent with HTTP communication
-agent = Agent(
-    name="my_agent",
-    communicator=HTTPCommunicator(
-        agent_name="my_agent",
-        service_urls={"target_service": "http://localhost:8000/service"}
-    )
-)
-
-# Define a handler for incoming messages
-@agent.handler("greet")
-async def handle_greet(params):
-    return {"message": f"Hello from {agent.name}!"}
-
-# Start the agent
-await agent.start()
-
-# Send a request to another service
-response = await agent.send_request(
-    target_service="target_service",
-    method="get_data",
-    params={"query": "example"}
-)
-
-# Stop the agent when done
-await agent.stop()
-```
-
-## Next Steps
-
-- Learn about [OpenMAS Architecture](architecture.md)
-- Explore [Communication Protocols](communication.md)
-- See [Common Patterns](patterns.md) for multi-agent systems
-
-
-
-
-# Getting Started with OpenMAS
-
 This guide will help you get started with OpenMAS, a lightweight SDK for building Multi-Agent Systems.
 
 ## Installation
+
+### Basic Installation
 
 Install OpenMAS using pip:
 
@@ -75,6 +16,66 @@ Or with Poetry:
 
 ```bash
 poetry add openmas
+```
+
+### Installing with Optional Dependencies
+
+OpenMAS supports various communication protocols through optional dependencies. You can install them using "extras":
+
+#### Model Context Protocol (MCP)
+
+For integration with Anthropic's MCP:
+
+```bash
+pip install openmas[mcp]
+```
+
+With Poetry:
+
+```bash
+poetry add "openmas[mcp]"
+```
+
+#### gRPC Support
+
+For agents that communicate via gRPC:
+
+```bash
+pip install openmas[grpc]
+```
+
+With Poetry:
+
+```bash
+poetry add "openmas[grpc]"
+```
+
+#### MQTT Support
+
+For agents that communicate via MQTT:
+
+```bash
+pip install openmas[mqtt]
+```
+
+With Poetry:
+
+```bash
+poetry add "openmas[mqtt]"
+```
+
+#### All Optional Dependencies
+
+To install all optional dependencies at once:
+
+```bash
+pip install openmas[all]
+```
+
+With Poetry:
+
+```bash
+poetry add "openmas[all]"
 ```
 
 ## Creating Your First Agent
@@ -189,18 +190,42 @@ agent = MyAgent(communicator_class=HttpCommunicator)
 
 ### MCP SSE Communicator
 
+Requires the MCP extra: `pip install openmas[mcp]`
+
 ```python
-from openmas.communication import McpSseCommunicator
+from openmas.communication.mcp import McpSseCommunicator
 
 agent = MyAgent(communicator_class=McpSseCommunicator)
 ```
 
 ### MCP Stdio Communicator
 
+Requires the MCP extra: `pip install openmas[mcp]`
+
 ```python
-from openmas.communication import McpStdioCommunicator
+from openmas.communication.mcp import McpStdioCommunicator
 
 agent = MyAgent(communicator_class=McpStdioCommunicator)
+```
+
+### gRPC Communicator
+
+Requires the gRPC extra: `pip install openmas[grpc]`
+
+```python
+from openmas.communication.grpc import GrpcCommunicator
+
+agent = MyAgent(communicator_class=GrpcCommunicator)
+```
+
+### MQTT Communicator
+
+Requires the MQTT extra: `pip install openmas[mqtt]`
+
+```python
+from openmas.communication.mqtt import MqttCommunicator
+
+agent = MyAgent(communicator_class=MqttCommunicator)
 ```
 
 ## Extending BaseAgent
@@ -231,7 +256,7 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-RUN pip install openmas
+RUN pip install openmas[mcp]  # Include any extras you need
 
 COPY my_first_agent.py .
 
@@ -245,9 +270,27 @@ docker build -t my-agent .
 docker run -p 8000:8000 -e AGENT_NAME=my-agent my-agent
 ```
 
+## Using the CLI
+
+OpenMAS provides a command-line interface for managing projects:
+
+```bash
+# Initialize a new project
+openmas init my_project
+
+# Run an agent from a project
+openmas run my_agent
+
+# Validate a project configuration
+openmas validate
+```
+
+See the [CLI documentation](./cli/index.md) for more details.
+
 ## Next Steps
 
 1. Check out the example agents in the `examples/` directory
-2. Read the Architecture document for a deeper understanding
-3. Explore the MCP communication examples
-4. Try creating agents that communicate with each other
+2. Read the [Architecture](./architecture.md) document for a deeper understanding
+3. Explore the [MCP Integration](./mcp_integration.md) documentation
+4. Learn about [Testing](./testing.md) your agents
+5. Understand the [Configuration](./configuration.md) system
