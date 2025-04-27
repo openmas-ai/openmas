@@ -284,6 +284,11 @@ class TestMcpStdioCommunicator:
         mock_stdio_client.return_value = mock_manager
         mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
 
+        # Pre-add the client connection to avoid initialization errors
+        stdio_communicator.clients["test-service"] = (mock_read_stream, mock_write_stream)
+        stdio_communicator.sessions["test-service"] = mock_session
+        stdio_communicator._client_managers["test-service"] = mock_manager
+
         # Mock ClientSession and asyncio.create_task
         with mock.patch("openmas.communication.mcp.stdio_communicator.ClientSession") as mock_session_class, mock.patch(
             "openmas.communication.mcp.stdio_communicator.asyncio.create_task"

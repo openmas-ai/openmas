@@ -9,6 +9,7 @@ import asyncio
 import logging
 import os
 import sys
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -19,14 +20,14 @@ logging.basicConfig(level=logging.INFO)
 
 # Use a simple test to check that the pytest-asyncio setup is working
 @pytest.mark.asyncio
-async def test_basic_async_functionality():
+async def test_basic_async_functionality() -> None:
     """Basic test to verify pytest-asyncio is working."""
     await asyncio.sleep(0.1)
     assert True
 
 
 @pytest.mark.asyncio
-async def test_hello_agent():
+async def test_hello_agent() -> None:
     """
     Test using the HelloAgent implementation.
 
@@ -49,9 +50,9 @@ async def test_hello_agent():
     original_sleep = asyncio.sleep
 
     # Patch asyncio.sleep to make the test run faster
-    async def fast_sleep(seconds, *args, **kwargs):
+    async def fast_sleep(seconds: float, *args: Any, **kwargs: Any) -> None:
         # Make all sleeps very short
-        return await original_sleep(0.01, *args, **kwargs)
+        await original_sleep(0.01, *args, **kwargs)
 
     with patch("asyncio.sleep", fast_sleep):
         run_task = asyncio.create_task(agent.run(), name="HelloAgentRun")

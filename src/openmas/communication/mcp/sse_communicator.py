@@ -771,10 +771,7 @@ class McpSseCommunicator(BaseCommunicator):
         try:
             # In MCP 1.6, tools are registered using the add_tool method
             if hasattr(self.server, "add_tool"):
-                result = self.server.add_tool(name=name, description=description, fn=function)
-                # Check if the result is awaitable (coroutine)
-                if asyncio.iscoroutine(result):
-                    await result
+                self.server.add_tool(name=name, description=description, fn=function)
                 logger.debug(f"Registered tool using server.add_tool: {name}")
             else:
                 logger.warning(f"Cannot register tool {name}: No suitable registration method found")
@@ -807,13 +804,12 @@ class McpSseCommunicator(BaseCommunicator):
             return
 
         try:
-            # In MCP 1.6, prompts are registered using the add_prompt method
-            if hasattr(self.server, "add_prompt"):
-                result = self.server.add_prompt(name=name, description=description, fn=function)
-                # Check if the result is awaitable (coroutine)
-                if asyncio.iscoroutine(result):
-                    await result
-                logger.debug(f"Registered prompt using server.add_prompt: {name}")
+            # In MCP 1.6, we should use the prompt decorator instead of direct registration
+            if hasattr(self.server, "prompt"):
+                # Decorate the function
+                self.server.prompt()(function)
+                # No need to call add_prompt explicitly - the decorator handles it
+                logger.debug(f"Registered prompt using server.prompt decorator: {name}")
             else:
                 logger.warning(f"Cannot register prompt {name}: No suitable registration method found")
 
@@ -838,18 +834,12 @@ class McpSseCommunicator(BaseCommunicator):
             return
 
         try:
-            # In MCP 1.6, resources are registered using the add_resource method
-            if hasattr(self.server, "add_resource"):
-                result = self.server.add_resource(
-                    uri=name,
-                    description=description,
-                    fn=function,
-                    mime_type=mime_type,
-                )
-                # Check if the result is awaitable (coroutine)
-                if asyncio.iscoroutine(result):
-                    await result
-                logger.debug(f"Registered resource using server.add_resource: {name}")
+            # In MCP 1.6, we should use the resource decorator instead of direct registration
+            if hasattr(self.server, "resource"):
+                # Decorate the function
+                self.server.resource(name)(function)
+                # No need to call add_resource explicitly - the decorator handles it
+                logger.debug(f"Registered resource using server.resource decorator: {name}")
             else:
                 logger.warning(f"Cannot register resource {name}: No suitable registration method found")
 

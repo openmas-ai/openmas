@@ -11,9 +11,15 @@ from typing import Any, Callable, Dict, List, Optional, Protocol, Type, TypeVar,
 from pydantic import BaseModel, Field, create_model
 
 from openmas.agent.base import BaseAgent
-from openmas.communication import BaseCommunicator
+from openmas.communication.base import BaseCommunicator
 from openmas.logging import get_logger
 
+# Constants for decorator attribute names
+MCP_TOOL_ATTR = "__mcp_tool__"
+MCP_PROMPT_ATTR = "__mcp_prompt__"
+MCP_RESOURCE_ATTR = "__mcp_resource__"
+
+# Configure logging
 logger = get_logger(__name__)
 
 # Check if MCP is installed
@@ -41,11 +47,6 @@ except ImportError:
 
 T = TypeVar("T", bound=BaseModel)
 F = TypeVar("F", bound=Callable[..., Any])
-
-# Decorator attribute names for storing metadata
-MCP_TOOL_ATTR = "_mcp_tool_metadata"
-MCP_PROMPT_ATTR = "_mcp_prompt_metadata"
-MCP_RESOURCE_ATTR = "_mcp_resource_metadata"
 
 
 def _create_pydantic_model_from_signature(func: Callable, model_name: Optional[str] = None) -> Type[BaseModel]:
@@ -281,24 +282,57 @@ class McpAgent(BaseAgent):
         self._server_mode = False
 
         # If config has COMMUNICATOR_TYPE, use that to set up communicator
-        if self.config and "COMMUNICATOR_TYPE" in self.config:
-            from openmas.communication import create_communicator
-            
-            # Add debug logging
-            self.logger.debug(
-                f"Creating communicator of type: {self.config['COMMUNICATOR_TYPE']}, "
-                f"using create_communicator function: {create_communicator.__module__}.{create_communicator.__name__}"
-            )
+        if self.config:
+            communicator_type = None
+            if hasattr(self.config, "model_dump"):
+                # Handle AgentConfig (Pydantic model)
+                config_dict = self.config.model_dump()
+                if "COMMUNICATOR_TYPE" in config_dict:
+                    communicator_type = config_dict["COMMUNICATOR_TYPE"]
+            elif isinstance(self.config, dict) and "COMMUNICATOR_TYPE" in self.config:
+                # Handle dict configuration
+                communicator_type = self.config["COMMUNICATOR_TYPE"]
 
-            communicator = create_communicator(
-                communicator_type=self.config["COMMUNICATOR_TYPE"],
-                agent_name=self.name,
-                service_urls=self.config.get("SERVICE_URLS", {}),
-                server_mode=self.config.get("SERVER_MODE", False),
-                http_port=self.config.get("HTTP_PORT", 8000),
-                server_instructions=self.config.get("SERVER_INSTRUCTIONS", None),
-            )
-            self.set_communicator(communicator)
+            if communicator_type:
+                from openmas.communication import create_communicator
+
+                # Add debug logging
+                module_name = create_communicator.__module__
+                func_name = create_communicator.__name__
+                self.logger.debug(
+                    f"Creating communicator of type: {communicator_type}, "
+                    f"using create_communicator function: {module_name}.{func_name}"
+                )
+
+                # Extract parameters based on config type
+                service_urls = {}
+                server_mode = False
+                http_port = 8000
+                server_instructions = None
+
+                if hasattr(self.config, "model_dump"):
+                    # Handle AgentConfig (Pydantic model)
+                    config_dict = self.config.model_dump()
+                    service_urls = config_dict.get("SERVICE_URLS", {})
+                    server_mode = config_dict.get("SERVER_MODE", False)
+                    http_port = config_dict.get("HTTP_PORT", 8000)
+                    server_instructions = config_dict.get("SERVER_INSTRUCTIONS", None)
+                elif isinstance(self.config, dict):
+                    # Handle dict configuration
+                    service_urls = self.config.get("SERVICE_URLS", {})
+                    server_mode = self.config.get("SERVER_MODE", False)
+                    http_port = self.config.get("HTTP_PORT", 8000)
+                    server_instructions = self.config.get("SERVER_INSTRUCTIONS", None)
+
+                communicator = create_communicator(
+                    communicator_type=communicator_type,
+                    agent_name=self.name,
+                    service_urls=service_urls,
+                    server_mode=server_mode,
+                    http_port=http_port,
+                    server_instructions=server_instructions,
+                )
+                self.set_communicator(communicator)
 
         # Call method discovery on initialization
         self._discover_mcp_methods()
@@ -386,9 +420,11 @@ class McpAgent(BaseAgent):
                 missing_methods.append(method)
 
         if missing_methods:
+            class_name = communicator.__class__.__name__
+            methods_str = ", ".join(missing_methods)
             self.logger.warning(
-                f"Communicator {communicator.__class__.__name__} is missing required methods "
-                f"for server mode: {', '.join(missing_methods)}. "
+                f"Communicator {class_name} is missing required methods "
+                f"for server mode: {methods_str}. "
                 f"MCP registration may not work properly."
             )
 

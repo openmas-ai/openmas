@@ -36,21 +36,21 @@ class MockMcpSseCommunicator:
         """Initialize the mock communicator.
 
         Args:
-            agent_name: The name of the agent
-            service_urls: Dictionary of service URLs
-            server_mode: Whether to run in server mode
-            **kwargs: Additional configuration options
+            agent_name: Agent name
+            service_urls: Service URLs
+            server_mode: Server mode flag
+            **kwargs: Additional arguments
         """
         self.agent_name = agent_name
         self.service_urls = service_urls
         self.server_mode = server_mode
         self.agent = None
-        self.registered_tools = {}
-        self.registered_prompts = {}
-        self.registered_resources = {}
-        self.tools_to_register = {}
-        self.prompts_to_register = {}
-        self.resources_to_register = {}
+        self.registered_tools: Dict[str, Dict[str, Any]] = {}
+        self.registered_prompts: Dict[str, Dict[str, Any]] = {}
+        self.registered_resources: Dict[str, Dict[str, Any]] = {}
+        self.tools_to_register: Dict[str, Dict[str, Any]] = {}
+        self.prompts_to_register: Dict[str, Dict[str, Any]] = {}
+        self.resources_to_register: Dict[str, Dict[str, Any]] = {}
 
     async def start(self) -> None:
         """Start the communicator."""

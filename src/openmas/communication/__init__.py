@@ -1,11 +1,12 @@
-"""Communication module for OpenMAS."""
+"""Communication package for OpenMAS."""
 
 from __future__ import annotations
 
 import importlib
-from typing import TYPE_CHECKING, Any, Dict, List, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from openmas.communication.base import (
+    _COMMUNICATOR_REGISTRY,
     BaseCommunicator,
     discover_communicator_extensions,
     discover_local_communicators,
@@ -141,18 +142,18 @@ COMMUNICATOR_LOADERS = {
 def create_communicator(
     communicator_type: str,
     agent_name: str,
-    service_urls: Dict[str, str] = None,
+    service_urls: Optional[Dict[str, str]] = None,
     server_mode: bool = False,
     http_port: int = 8000,
-    server_instructions: str = None,
-    service_args: Dict[str, List[str]] = None,
+    server_instructions: Optional[str] = None,
+    service_args: Optional[Dict[str, List[str]]] = None,
     **kwargs: Any,
 ) -> BaseCommunicator:
     """Create a communicator instance based on the specified type.
-    
+
     This function creates and initializes a communicator of the specified type with
     the given configuration parameters.
-    
+
     Args:
         communicator_type: The type of communicator to create
         agent_name: The name of the agent using the communicator
@@ -162,20 +163,20 @@ def create_communicator(
         server_instructions: Instructions for the server (for MCP communicators)
         service_args: Additional arguments for each service command (for stdio communicators)
         **kwargs: Additional keyword arguments to pass to the communicator
-        
+
     Returns:
         An initialized communicator instance
-        
+
     Raises:
         ValueError: If the communicator type is not found
         DependencyError: If the communicator requires dependencies that are not installed
     """
     service_urls = service_urls or {}
     service_args = service_args or {}
-    
+
     # Get the communicator class
     communicator_class = get_communicator_by_type(communicator_type)
-    
+
     # Initialize the appropriate communicator based on its type
     if communicator_type.startswith("mcp-"):
         # MCP communicators have a special init signature
@@ -188,11 +189,10 @@ def create_communicator(
             **kwargs,
         )
     elif communicator_type == "http":
-        # HTTP communicator takes a port parameter
+        # HTTP communicator doesn't accept these additional parameters
         return communicator_class(
             agent_name=agent_name,
             service_urls=service_urls,
-            port=http_port,
             **kwargs,
         )
     else:
@@ -223,8 +223,6 @@ def get_communicator_by_type(communicator_type: str) -> Type[BaseCommunicator]:
         ValueError: If the communicator type is not found
         DependencyError: If the communicator requires an optional dependency that is not installed
     """
-    from openmas.communication.base import _COMMUNICATOR_REGISTRY
-
     # Step 1: Check built-in types (highest precedence)
     if communicator_type in COMMUNICATOR_TYPES:
         return COMMUNICATOR_TYPES[communicator_type]

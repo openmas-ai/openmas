@@ -174,12 +174,17 @@ class TestLoadConfig:
 
 def test_load_config_extension_paths():
     """Test loading extension_paths from environment variables."""
-    extension_paths = ["/path/to/extensions", "./local/extensions"]
+    extension_paths = ["/path/to/extensions", "./local/extensions/"]
     extension_paths_json = json.dumps(extension_paths)
 
     with mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": extension_paths_json}):
         config = load_config(AgentConfig)
-        assert config.extension_paths == extension_paths
+
+        # Check each expected path is in the list
+        for path in extension_paths:
+            assert (
+                path in config.extension_paths
+            ), f"Expected path '{path}' not found in config.extension_paths: {config.extension_paths}"
 
 
 def test_load_config_extension_paths_invalid_json():

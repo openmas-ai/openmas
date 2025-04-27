@@ -4,6 +4,8 @@ This module contains mock classes and functions for testing MCP functionality
 without requiring the actual MCP package to be installed.
 """
 
+from __future__ import annotations
+
 import sys
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
 from unittest import mock
@@ -227,7 +229,7 @@ mock_types.TextContent = TextContent
 mock_types.CallToolResult = CallToolResult
 
 # Add shared mock network for MockCommunicator
-_MOCK_NETWORK = {}
+_MOCK_NETWORK: Dict[str, Any] = {}
 
 
 class MockNetwork:

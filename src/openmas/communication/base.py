@@ -2,7 +2,7 @@
 # mypy: disable-error-code="assignment"
 
 import abc
-from typing import Any, Callable, Dict, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
 from pydantic import BaseModel
 
@@ -292,15 +292,33 @@ class BaseCommunicator(abc.ABC):
     Communicators handle the communication between agents and services.
     """
 
-    def __init__(self, agent_name: str, service_urls: Dict[str, str]):
+    def __init__(
+        self,
+        agent_name: str,
+        service_urls: Dict[str, str],
+        server_mode: bool = False,
+        server_instructions: Optional[str] = None,
+        service_args: Optional[Dict[str, List[str]]] = None,
+        port: Optional[int] = None,
+    ):
         """Initialize the communicator.
 
         Args:
             agent_name: The name of the agent using this communicator
             service_urls: Mapping of service names to URLs
+            server_mode: Whether to run in server mode
+            server_instructions: Instructions for the server
+            service_args: Additional arguments for each service
+            port: Port for HTTP-based communicators
         """
         self.agent_name = agent_name
         self.service_urls = service_urls
+        # These parameters are used by specific communicator implementations
+        # and can be safely ignored by base implementations
+        self._server_mode = server_mode
+        self._server_instructions = server_instructions
+        self._service_args = service_args or {}
+        self._port = port
         logger.debug(
             "Initialized communicator",
             communicator_type=self.__class__.__name__,

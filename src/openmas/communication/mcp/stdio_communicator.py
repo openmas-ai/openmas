@@ -127,18 +127,20 @@ class McpStdioCommunicator(BaseCommunicator):
             logger.debug(f"Creating stdio client for service: {service_name}")
             # Create stdio client parameters
             params = StdioServerParameters(command=command, args=self.service_args.get(service_name, []))
-            
+
             try:
                 # Create and store the client manager
                 client_manager = stdio_client(params)
                 self._client_managers[service_name] = client_manager
-                
+
                 # Access the internal __aenter__ method to get the streams
                 try:
                     logger.debug(f"Opening streams for service: {service_name}")
                     stream_ctx = await client_manager.__aenter__()
-                    read_stream, write_stream = stream_ctx if isinstance(stream_ctx, tuple) else (stream_ctx, stream_ctx)
-                    
+                    read_stream, write_stream = (
+                        stream_ctx if isinstance(stream_ctx, tuple) else (stream_ctx, stream_ctx)
+                    )
+
                     # Store the streams
                     self.clients[service_name] = (read_stream, write_stream)
                     logger.debug(f"Created client for service: {service_name}")
@@ -148,52 +150,57 @@ class McpStdioCommunicator(BaseCommunicator):
                     raise CommunicationError(
                         f"Failed to establish connection with service '{service_name}': {e}", target=service_name
                     ) from e
-                
+
                 # Create the MCP session
                 try:
                     logger.debug(f"Creating MCP session for {service_name}")
                     session = ClientSession(read_stream, write_stream)
                     await session.__aenter__()
-                    
+
                     # CRITICAL: Explicitly initialize the session before any tool calls
                     # This is required due to a synchronization issue in the MCP library
                     logger.debug(f"Explicitly calling session.initialize() for {service_name}")
-                    
+
                     # Enhanced initialization with retries
                     max_retries = 2
                     retry_count = 0
                     last_error = None
-                    
+
                     while retry_count <= max_retries:
                         try:
                             # If not the first attempt, add a delay before retrying
                             if retry_count > 0:
                                 delay = 1.0 + (retry_count * 0.5)  # Increasing backoff
-                                logger.warning(f"Retry {retry_count}/{max_retries} for {service_name}, waiting {delay}s")
+                                logger.warning(
+                                    f"Retry {retry_count}/{max_retries} for {service_name}, waiting {delay}s"
+                                )
                                 try:
                                     # Use shield to protect the sleep from cancellation
                                     await asyncio.shield(asyncio.sleep(delay))
                                 except asyncio.CancelledError:
-                                    logger.warning(f"Sleep was cancelled during retry {retry_count}/{max_retries} for {service_name}")
+                                    logger.warning(
+                                        f"Sleep was cancelled during retry "
+                                        f"{retry_count}/{max_retries} for {service_name}"
+                                    )
                                     # Continue with initialization despite the sleep being cancelled
                                     pass
-                                
+
                             # Attempt initialization
                             logger.debug(f"Starting initialization with timeout for {service_name}")
                             try:
                                 # Add a reasonable timeout to prevent hanging
                                 # Use shield to prevent initialization from being cancelled
                                 init_task = asyncio.create_task(session.initialize())
-                                
+
                                 # Triple protection: create task, shield it, and use wait_for with timeout
-                                await asyncio.wait_for(
-                                    asyncio.shield(init_task),
-                                    timeout=5.0
-                                )
-                                
+                                await asyncio.wait_for(asyncio.shield(init_task), timeout=5.0)
+
                                 # Add a delay after successful initialization to ensure proper synchronization
-                                # This is a workaround for the "Received request before initialization was complete" error
-                                logger.debug(f"Initialization successful for {service_name}, waiting for server to fully process...")
+                                # This prevents the common "Received request before initialization" error
+                                logger.debug(
+                                    f"Initialization successful for {service_name}, "
+                                    f"waiting for server to fully process..."
+                                )
                                 try:
                                     # Use shield to protect the sleep from cancellation
                                     await asyncio.shield(asyncio.sleep(1.0))
@@ -201,60 +208,66 @@ class McpStdioCommunicator(BaseCommunicator):
                                     logger.warning(f"Post-initialization sleep was cancelled for {service_name}")
                                     # Continue despite the sleep being cancelled
                                     pass
-                                    
+
                                 logger.debug(f"Session initialization completed for {service_name}")
-                                
+
                                 # Store the session if initialization succeeds
                                 self.sessions[service_name] = session
                                 logger.info(f"Successfully connected to service {service_name}")
                                 return
                             except asyncio.TimeoutError:
-                                logger.warning(f"Initialization timed out for {service_name} after 5 seconds (retry {retry_count}/{max_retries})")
+                                logger.warning(
+                                    f"Initialization timed out for {service_name} after 5 seconds "
+                                    f"(retry {retry_count}/{max_retries})"
+                                )
                                 retry_count += 1
                                 continue
                             except asyncio.CancelledError:
                                 logger.warning(f"Initialization was cancelled for {service_name}, will attempt retry")
                                 retry_count += 1
                                 continue
-                            
+
                         except Exception as init_error:
                             last_error = init_error
                             error_msg = str(init_error)
-                            
+
                             # Check if this is the specific initialization error we want to retry
                             if isinstance(init_error, RuntimeError) and "initialization was complete" in error_msg:
                                 logger.warning(f"Initialization timing issue for {service_name}: {error_msg}")
                                 retry_count += 1
                             else:
                                 # For other errors, don't retry
-                                logger.error(f"Non-retryable error during initialization for {service_name}: {error_msg}")
+                                logger.error(
+                                    f"Non-retryable error during initialization for {service_name}: {error_msg}"
+                                )
                                 if hasattr(init_error, "__cause__") and init_error.__cause__:
                                     logger.error(f"Caused by: {init_error.__cause__}")
                                 break
-                    
+
                     # If we get here, all retries failed
                     if last_error:
                         logger.error(f"Failed to initialize session after {max_retries} retries: {last_error}")
                         await self._cleanup_client_manager(service_name)
                         raise CommunicationError(
-                            f"Failed to initialize MCP session with service '{service_name}' after retries: {last_error}",
+                            f"Failed to initialize MCP session with service '{service_name}' "
+                            f"after retries: {last_error}",
                             target=service_name,
                         ) from last_error
-                        
+
                 except Exception as e:
                     logger.exception(f"Failed to initialize MCP session for service: {service_name}", error=str(e))
                     await self._cleanup_client_manager(service_name)
                     raise CommunicationError(
                         f"Failed to initialize MCP session with service '{service_name}': {e}", target=service_name
                     ) from e
-                    
+
             except Exception as e:
                 logger.exception(f"Failed to create stdio client for service: {service_name}", error=str(e))
                 await self._cleanup_client_manager(service_name)
                 raise CommunicationError(
                     f"Failed to create stdio client for service '{service_name}': {e}", target=service_name
                 ) from e
-                
+
         except Exception as e:
             if not isinstance(e, (CommunicationError, ServiceNotFoundError)):
                 logger.exception(f"Failed to connect to service: {service_name}", error=str(e))

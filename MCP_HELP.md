@@ -154,7 +154,7 @@ tools = await session.list_tools()
 
 # Call a tool
 result = await session.call_tool(
-    "tool_name", 
+    "tool_name",
     arguments={"param1": "value1", "param2": 42}
 )
 ```
@@ -170,7 +170,7 @@ result = await session.call_tool(
    ```python
    max_retries = 2
    retry_count = 0
-   
+
    while retry_count <= max_retries:
        try:
            await session.initialize()
@@ -186,7 +186,7 @@ result = await session.call_tool(
 3. **Separate protocol communication from application logic**:
    - Keep protocol messages on stdout/stdin
    - Send logs/debug info only to stderr
-   
+
 4. **Implement robust cleanup to prevent resource leaks**:
    - Use `try/finally` blocks to ensure cleanup
    - Implement timeouts for operations
@@ -253,7 +253,7 @@ Always check the MCP library version you're using to ensure correct method calls
    - Create tests specific to stdio, SSE, etc.
 
 2. **Implement integration tests with actual server processes**:
-   - Test full communication cycle 
+   - Test full communication cycle
    - Verify proper initialization and tool calls
 
 3. **Use timeouts for all asynchronous operations**:
@@ -270,7 +270,7 @@ Always check the MCP library version you're using to ensure correct method calls
 - [MCP Official Documentation](https://modelcontextprotocol.io/docs/concepts/architecture)
 - [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python)
 - [FastMCP on GitHub](https://github.com/modelcontextprotocol/fastmcp)
-- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) 
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 
 ## Common Issues
 Just wanted to confirm that I was also encountering the exact same RuntimeError: Received request before initialization was complete error on the server side when using a Python client based on mcp.client.sse.sse_client and mcp.client.session.ClientSession to connect to a FastMCP server over SSE.
@@ -279,7 +279,7 @@ Similar to others, the error occurred when the client attempted its first sessio
 
 Debugging attempts like adding asyncio.sleep() delays (even up to 10 seconds) after creating the ClientSession did not resolve the issue. For reasons that now are obvious (we need to smash the supergateway bug)
 
-Following the suggestion from @altmind 's experience, adding an explicit await session.initialize() call immediately after the ClientSession is created solved the problem reliably.  
+Following the suggestion from @altmind 's experience, adding an explicit await session.initialize() call immediately after the ClientSession is created solved the problem reliably.
 
 Here's the structure that worked for my client script:
 

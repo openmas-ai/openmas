@@ -6,7 +6,7 @@ This file uses mock implementations without real dependencies.
 """
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import pytest
 from pydantic import BaseModel
@@ -154,7 +154,7 @@ class TestClientAgent(McpClientAgent):
                 "data": {"type": "calculation", "numbers": numbers, "operation": operation},
             },
         )
-        return result
+        return cast(Dict[str, Any], result)
 
     async def submit_text_task(self, service_name: str, task_id: str, text: str, operation: str) -> Dict[str, Any]:
         """Submit a text processing task to the server.
@@ -177,7 +177,7 @@ class TestClientAgent(McpClientAgent):
                 "data": {"type": "text_processing", "text": text, "operation": operation},
             },
         )
-        return result
+        return cast(Dict[str, Any], result)
 
     async def log_client_event(self, service_name: str, event_type: str, message: str) -> Dict[str, Any]:
         """Log an event on the server.
@@ -199,7 +199,7 @@ class TestClientAgent(McpClientAgent):
                 "metadata": {"client_id": self.name, "timestamp": "2023-07-11T14:30:00Z"},
             },
         )
-        return result
+        return cast(Dict[str, Any], result)
 
     async def get_task_summary(self, service_name: str, task_id: str, priority: int, status: str) -> str:
         """Get a task summary from the server.
@@ -218,7 +218,7 @@ class TestClientAgent(McpClientAgent):
             prompt_name="task_summary",
             arguments={"task_id": task_id, "priority": priority, "status": status},
         )
-        return result
+        return cast(str, result)
 
     async def get_tasks(self, service_name: str) -> bytes:
         """Get tasks resource from the server.
@@ -230,7 +230,7 @@ class TestClientAgent(McpClientAgent):
             Tasks resource data
         """
         result = await self.read_resource(target_service=service_name, uri="/api/tasks")
-        return result
+        return cast(bytes, result)
 
 
 @pytest.mark.mcp

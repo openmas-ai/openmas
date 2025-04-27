@@ -14,18 +14,16 @@ try:
 except ImportError:
     pytest.skip("MCP dependencies not installed", allow_module_level=True)
 
+
 # Define markers for the module
 def pytest_configure(config):
     """Configure custom pytest markers."""
-    config.addinivalue_line(
-        "markers", "mcp: mark a test as requiring MCP dependencies"
-    )
+    config.addinivalue_line("markers", "mcp: mark a test as requiring MCP dependencies")
     config.addinivalue_line(
         "markers", "real_process: mark a test as requiring real process execution with actual dependencies"
     )
-    config.addinivalue_line(
-        "markers", "mock: mark a test as using mock implementations without real dependencies"
-    )
+    config.addinivalue_line("markers", "mock: mark a test as using mock implementations without real dependencies")
+
 
 pytestmark = pytest.mark.mcp
 
