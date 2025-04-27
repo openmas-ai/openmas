@@ -11,7 +11,7 @@ import pytest
 
 from openmas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
 from openmas.exceptions import CommunicationError, ServiceNotFoundError
-from tests.unit.communication.mcp.mcp_mocks import MockClientSession, apply_mcp_mocks
+from tests.unit.communication.mcp.mcp_mocks import apply_mcp_mocks
 
 # Apply MCP mocks before imports
 apply_mcp_mocks()

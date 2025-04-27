@@ -1,10 +1,9 @@
-"""Unit tests for integration between MCP SSE and STDIO communicators.
+"""Unit tests for MCP communicator integration.
 
-These tests verify the interactions between McpSseCommunicator and McpStdioCommunicator
-using mocks to avoid real network connections.
+This module tests the integration between different MCP communicator implementations
+such as SSE and STDIO, as well as error handling scenarios.
 """
 
-import os
 from unittest import mock
 
 import pytest
@@ -232,9 +231,10 @@ class TestMcpCommunicatorIntegration:
             mock_session = MockClientSession()
             mock_stdio_communicator.sessions["test_service"] = mock_session
 
-            # Store the original side effects for restoration
-            original_sse_call_tool = mock_sse_communicator.call_tool.side_effect
-            original_stdio_call_tool = mock_stdio_communicator.call_tool.side_effect
+            # Store the original side effects for later restoration if needed (not used in this test)
+            # Commented out to avoid flake8 warnings
+            # original_sse_call_tool = mock_sse_communicator.call_tool.side_effect
+            # original_stdio_call_tool = mock_stdio_communicator.call_tool.side_effect
 
             # Configure forwarding
             async def forward_to_sse_call_tool(target_service, tool_name, arguments=None, timeout=None):
@@ -246,7 +246,7 @@ class TestMcpCommunicatorIntegration:
                 else:
                     # Handle with original method
                     mock_stdio_communicator.call_tool.side_effect = None  # Prevent recursion
-                    result = await original_stdio_call_tool(target_service, tool_name, arguments, timeout)
+                    result = await mock_stdio_communicator.call_tool(target_service, tool_name, arguments, timeout)
                     mock_stdio_communicator.call_tool.side_effect = forward_to_sse_call_tool
                     return result
 
@@ -341,9 +341,10 @@ class TestMcpCommunicatorIntegration:
             mock_sse_communicator.service_urls["stdio_service"] = "python -m stdio_service.py"
             mock_stdio_communicator.service_urls["sse_service"] = "http://localhost:8765/mcp"
 
-            # Store original implementations
-            original_sse_call_tool = mock_sse_communicator.call_tool.side_effect
-            original_stdio_call_tool = mock_stdio_communicator.call_tool.side_effect
+            # Store original implementations (not used in this test)
+            # Commented out to avoid flake8 warnings
+            # original_sse_call_tool = mock_sse_communicator.call_tool.side_effect
+            # original_stdio_call_tool = mock_stdio_communicator.call_tool.side_effect
 
             # Create direct implementation functions to avoid recursion issues
             async def direct_sse_call_tool(target_service, tool_name, arguments=None, timeout=None):

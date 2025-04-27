@@ -1,11 +1,8 @@
 """MCP Communicator using stdio for communication."""
 
 import asyncio
-import json
 import os
-import subprocess
-import sys
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, cast
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, cast
 
 import structlog
 from mcp.client.session import ClientSession
