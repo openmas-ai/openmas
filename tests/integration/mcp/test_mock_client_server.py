@@ -1,7 +1,8 @@
-"""Integration tests for MCP Client-Server interaction.
+"""Integration tests for MCP Client-Server interaction using mocks.
 
 This module tests the interaction between McpClientAgent and McpServerAgent
 using MockCommunicator instances linked via AgentTestHarness.
+This file uses mock implementations without real dependencies.
 """
 
 import json
@@ -233,6 +234,7 @@ class TestClientAgent(McpClientAgent):
 
 
 @pytest.mark.mcp
+@pytest.mark.mock
 class TestMcpClientServerIntegration:
     """Integration tests for MCP client-server interaction."""
 

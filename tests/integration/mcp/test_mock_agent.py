@@ -1,6 +1,7 @@
 """Integration tests for MCP mock agent interactions.
 
 Tests the interaction between MCP agents using linked mock communicators.
+This file uses mock implementations without real dependencies.
 """
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
@@ -12,6 +13,12 @@ from openmas.agent import McpClientAgent, McpServerAgent
 from openmas.agent.mcp import mcp_prompt, mcp_resource, mcp_tool
 from openmas.config import AgentConfig
 from openmas.testing.mock_communicator import MockCommunicator
+
+# Mark all tests in this module as using mocks
+pytestmark = [
+    pytest.mark.mcp,
+    pytest.mark.mock,
+]
 
 
 class MockMcpCommunicator(MockCommunicator):

@@ -283,6 +283,12 @@ class McpAgent(BaseAgent):
         # If config has COMMUNICATOR_TYPE, use that to set up communicator
         if self.config and "COMMUNICATOR_TYPE" in self.config:
             from openmas.communication import create_communicator
+            
+            # Add debug logging
+            self.logger.debug(
+                f"Creating communicator of type: {self.config['COMMUNICATOR_TYPE']}, "
+                f"using create_communicator function: {create_communicator.__module__}.{create_communicator.__name__}"
+            )
 
             communicator = create_communicator(
                 communicator_type=self.config["COMMUNICATOR_TYPE"],

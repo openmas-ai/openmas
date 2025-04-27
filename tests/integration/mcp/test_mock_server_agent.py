@@ -1,7 +1,8 @@
-"""Integration tests for MCP Server Agent interaction with MCP Communicator.
+"""Integration tests for MCP Server Agent interaction with MCP Communicator using mocks.
 
 This module tests the integration between McpServerAgent and McpSseCommunicator
 in server mode, verifying that decorated methods are properly registered.
+This file uses mock implementations without real dependencies.
 """
 
 from typing import Any, Dict
@@ -208,6 +209,7 @@ class TestMcpServerAgent(McpServerAgent):
 
 
 @pytest.mark.mcp
+@pytest.mark.mock
 class TestMcpServerAgentIntegration:
     """Integration tests for McpServerAgent with communicator."""
 

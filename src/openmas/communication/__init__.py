@@ -138,6 +138,72 @@ COMMUNICATOR_LOADERS = {
 }
 
 
+def create_communicator(
+    communicator_type: str,
+    agent_name: str,
+    service_urls: Dict[str, str] = None,
+    server_mode: bool = False,
+    http_port: int = 8000,
+    server_instructions: str = None,
+    service_args: Dict[str, List[str]] = None,
+    **kwargs: Any,
+) -> BaseCommunicator:
+    """Create a communicator instance based on the specified type.
+    
+    This function creates and initializes a communicator of the specified type with
+    the given configuration parameters.
+    
+    Args:
+        communicator_type: The type of communicator to create
+        agent_name: The name of the agent using the communicator
+        service_urls: A mapping of service names to their URLs
+        server_mode: Whether to operate in server mode
+        http_port: The HTTP port to use (for HTTP-based communicators)
+        server_instructions: Instructions for the server (for MCP communicators)
+        service_args: Additional arguments for each service command (for stdio communicators)
+        **kwargs: Additional keyword arguments to pass to the communicator
+        
+    Returns:
+        An initialized communicator instance
+        
+    Raises:
+        ValueError: If the communicator type is not found
+        DependencyError: If the communicator requires dependencies that are not installed
+    """
+    service_urls = service_urls or {}
+    service_args = service_args or {}
+    
+    # Get the communicator class
+    communicator_class = get_communicator_by_type(communicator_type)
+    
+    # Initialize the appropriate communicator based on its type
+    if communicator_type.startswith("mcp-"):
+        # MCP communicators have a special init signature
+        return communicator_class(
+            agent_name=agent_name,
+            service_urls=service_urls,
+            server_mode=server_mode,
+            server_instructions=server_instructions,
+            service_args=service_args,
+            **kwargs,
+        )
+    elif communicator_type == "http":
+        # HTTP communicator takes a port parameter
+        return communicator_class(
+            agent_name=agent_name,
+            service_urls=service_urls,
+            port=http_port,
+            **kwargs,
+        )
+    else:
+        # Default case for other communicator types
+        return communicator_class(
+            agent_name=agent_name,
+            service_urls=service_urls,
+            **kwargs,
+        )
+
+
 def get_communicator_by_type(communicator_type: str) -> Type[BaseCommunicator]:
     """Get a communicator class by type with lazy loading.
 
@@ -201,6 +267,7 @@ __all__ = [
     "load_local_communicator",
     "COMMUNICATOR_TYPES",
     "get_communicator_by_type",
+    "create_communicator",
 ]
 
 # Discover and register communicator extensions from installed packages
