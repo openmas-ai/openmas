@@ -73,6 +73,12 @@ testpaths = ["tests"]
 norecursedirs = ["tests/backup"]
 python_files = "test_*.py"
 asyncio_mode = "auto"
+markers = [
+    "grpc: marks tests that require grpc dependencies",
+    "mqtt: marks tests that require mqtt dependencies",
+    "mcp: marks tests that require mcp dependencies",
+    "integration: marks integration tests"
+]
 
 [tool.pre_commit]
 hooks = [
