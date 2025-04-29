@@ -60,10 +60,24 @@ build-backend = "poetry.core.masonry.api"
 [tool.black]
 line-length = 120
 target-version = ["py310"]
+exclude = '''
+/( \
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
 
 [tool.isort]
 profile = "black"
 line_length = 120
+skip_glob = ["*/.tox/*"] # Exclude .tox directory
 
 [tool.mypy]
 python_version = "3.10"
