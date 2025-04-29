@@ -16,6 +16,7 @@ from pytest import MonkeyPatch
 
 from openmas.config import (
     AgentConfig,
+    ProjectConfig,
     _coerce_env_value,
     _deep_merge_dicts,
     _get_env_var_with_type,
@@ -177,19 +178,24 @@ def test_load_config_extension_paths():
     extension_paths = ["/path/to/extensions", "./local/extensions/"]
     extension_paths_json = json.dumps(extension_paths)
 
-    with mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": extension_paths_json}):
-        config = load_config(AgentConfig)
+    # Mock the project config to ensure we have a valid config with all required fields
+    mock_project_data = {"name": "test-project", "version": "0.1.0", "agents": {"agent1": "agents/agent1"}}
 
-        # Check each expected path is in the list
-        for path in extension_paths:
-            assert (
-                path in config.extension_paths
-            ), f"Expected path '{path}' not found in config.extension_paths: {config.extension_paths}"
+    with patch("openmas.config._load_project_config", return_value=mock_project_data), mock.patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": extension_paths_json}
+    ):
+        config = load_config(AgentConfig)
+        assert config.extension_paths == extension_paths
 
 
 def test_load_config_extension_paths_invalid_json():
     """Test handling invalid JSON in EXTENSION_PATHS."""
-    with mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": "not-json"}):
+    # Mock the project config to ensure we have a valid config with all required fields
+    mock_project_data = {"name": "test-project", "version": "0.1.0", "agents": {"agent1": "agents/agent1"}}
+
+    with patch("openmas.config._load_project_config", return_value=mock_project_data), mock.patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": "not-json"}
+    ):
         with pytest.raises(ConfigurationError) as exc_info:
             load_config(AgentConfig)
         assert "Invalid JSON in EXTENSION_PATHS" in str(exc_info.value)
@@ -197,7 +203,12 @@ def test_load_config_extension_paths_invalid_json():
 
 def test_load_config_extension_paths_not_list():
     """Test handling non-list value in EXTENSION_PATHS."""
-    with mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": '{"not": "list"}'}):
+    # Mock the project config to ensure we have a valid config with all required fields
+    mock_project_data = {"name": "test-project", "version": "0.1.0", "agents": {"agent1": "agents/agent1"}}
+
+    with patch("openmas.config._load_project_config", return_value=mock_project_data), mock.patch.dict(
+        os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": '{"not": "list"}'}
+    ):
         with pytest.raises(ConfigurationError) as exc_info:
             load_config(AgentConfig)
         assert "EXTENSION_PATHS must be a JSON array" in str(exc_info.value)
@@ -209,7 +220,7 @@ def mock_project_config():
     return {
         "name": "test_project",
         "version": "0.1.0",
-        "agents": {"agent1": "agents/agent1"},
+        "agents": {"agent1": {"module": "agents.agent1", "class": "Agent1"}},
         "shared_paths": ["shared"],
         "extension_paths": ["extensions/custom"],
         "default_config": {"log_level": "DEBUG", "communicator_type": "http", "communicator_options": {"timeout": 30}},
@@ -218,7 +229,13 @@ def mock_project_config():
 
 def test_load_project_config_from_env():
     """Test loading project config from environment variable."""
-    mock_config = {"name": "env_project", "default_config": {"log_level": "DEBUG"}}
+    # Make sure we include all required fields
+    mock_config = {
+        "name": "env_project",
+        "version": "0.1.0",
+        "agents": {"agent1": "agents/agent1"},
+        "default_config": {"log_level": "DEBUG"},
+    }
 
     with patch.dict(os.environ, {"OPENMAS_PROJECT_CONFIG": yaml.dump(mock_config)}):
         config = _load_project_config()
@@ -926,3 +943,102 @@ def test_load_config_extension_paths_from_env():
     ):
         config = load_config(AgentConfig)
         assert config.extension_paths == extension_paths
+
+
+class TestProjectConfig:
+    """Tests for the ProjectConfig model."""
+
+    def test_valid_config(self) -> None:
+        """Test that a valid configuration passes validation."""
+        config_data = {
+            "name": "test-project",
+            "version": "0.1.0",
+            "agents": {
+                "agent1": {
+                    "module": "agents.agent1",
+                    "class": "Agent1",
+                }
+            },
+        }
+        config = ProjectConfig(**config_data)
+        assert config.name == "test-project"
+        assert config.version == "0.1.0"
+        assert "agent1" in config.agents
+        assert config.agents["agent1"].module == "agents.agent1"
+        assert config.agents["agent1"].class_ == "Agent1"
+
+    def test_missing_required_fields(self) -> None:
+        """Test that missing required fields raise a validation error."""
+        # Missing name
+        with pytest.raises(ValidationError):
+            ProjectConfig(version="0.1.0", agents={})
+
+        # Missing version
+        with pytest.raises(ValidationError):
+            ProjectConfig(name="test-project", agents={})
+
+    def test_incorrect_types(self) -> None:
+        """Test that incorrect types raise a validation error."""
+        # Agents should be a dict, not a list
+        with pytest.raises(ValidationError):
+            ProjectConfig(name="test-project", version="0.1.0", agents=["agent1", "agent2"])
+
+        # Non-string value should raise error
+        with pytest.raises(ValidationError):
+            ProjectConfig(
+                name="test-project",
+                version="0.1.0",
+                agents={"agent1": {"module": "test", "class": 12345}},  # Integer for class instead of string
+            )
+
+    def test_agent_config_validation(self) -> None:
+        """Test validation of agent configurations."""
+        # Missing required field 'module'
+        with pytest.raises(ValidationError):
+            ProjectConfig(
+                name="test-project",
+                version="0.1.0",
+                agents={
+                    "agent1": {
+                        "class": "Agent1",
+                    }
+                },
+            )
+
+    def test_default_values(self) -> None:
+        """Test default values."""
+        config = ProjectConfig(
+            name="test-project",
+            version="0.1.0",
+            agents={
+                "agent1": {
+                    "module": "agents.agent1",
+                    "class": "Agent1",
+                }
+            },
+        )
+        assert config.shared_paths == []
+        assert config.extension_paths == []
+        assert config.default_config == {}
+        assert config.dependencies == []
+
+    def test_agent_defaults(self) -> None:
+        """Test agent default values."""
+        config = ProjectConfig(
+            name="test-project",
+            version="0.1.0",
+            agents={
+                "agent1": {
+                    "module": "agents.agent1",
+                    "class": "Agent1",
+                }
+            },
+            agent_defaults={"communicator": "http"},
+        )
+        # The agent_defaults is stored but not applied directly to agents
+        assert config.agent_defaults == {"communicator": "http"}
+
+        # Agent fields remain as specified
+        assert config.agents["agent1"].module == "agents.agent1"
+        assert config.agents["agent1"].class_ == "Agent1"
+        assert config.agents["agent1"].communicator is None  # Default not applied yet

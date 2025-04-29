@@ -147,7 +147,8 @@ def test_validate_non_dict_dependency(mock_project_dir):
     with patch("pathlib.Path.exists", return_value=True):
         with patch("builtins.open", mock_open(read_data=yaml.dump(config))):
             result = runner.invoke(cli, ["validate"])
-            assert "Dependency #1 is not a dictionary" in result.stdout
+            # The validation error now uses Pydantic's error message format
+            assert "Input should be a valid dictionary" in result.stdout
 
 
 def test_validate_invalid_local_path(mock_project_dir):

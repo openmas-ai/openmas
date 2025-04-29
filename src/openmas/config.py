@@ -3,7 +3,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Type, TypeVar, cast
+from typing import Any, Dict, List, Mapping, Optional, Type, TypeVar, Union, cast
 
 import yaml
 from dotenv import load_dotenv  # type: ignore
@@ -31,6 +31,59 @@ class AgentConfig(BaseModel):
         default_factory=list, description="List of paths to search for project-local extensions"
     )
     shared_paths: list[str] = Field(default_factory=list, description="List of paths to search for shared code")
+
+
+class AgentConfigEntry(BaseModel):
+    """Configuration for an agent in the project configuration."""
+
+    module: str = Field(..., description="Module path for the agent")
+    class_: str = Field(..., alias="class", description="Agent class name")
+    communicator: Optional[str] = Field(None, description="Communicator type to use for this agent")
+    options: Dict[str, Any] = Field(default_factory=dict, description="Additional options for the agent")
+    deploy_config_path: Optional[str] = Field(None, description="Path to deployment configuration for the agent")
+
+    model_config = {"populate_by_name": True}  # Allow using class_ without alias
+
+
+class ProjectConfig(BaseModel):
+    """Project configuration model."""
+
+    name: str = Field(..., description="The name of the project")
+    version: str = Field(..., description="The version of the project")
+    agents: Mapping[str, Union[str, dict, AgentConfigEntry]] = Field(
+        ..., description="Mapping of agent names to configurations"
+    )
+    shared_paths: List[str] = Field(default_factory=list, description="List of paths to shared code")
+    extension_paths: List[str] = Field(default_factory=list, description="List of paths to extensions")
+    default_config: Dict[str, Any] = Field(default_factory=dict, description="Default configuration for all agents")
+    agent_defaults: Dict[str, Any] = Field(default_factory=dict, description="Default values for agent configurations")
+    communicator_defaults: Dict[str, Any] = Field(
+        default_factory=dict, description="Default communicator configuration"
+    )
+    dependencies: List[Dict[str, Any]] = Field(default_factory=list, description="External dependencies")
+
+    def model_post_init(self, __context: Any) -> None:
+        """Process agents after initialization."""
+        # Convert all agent entries to AgentConfigEntry
+        processed_agents: Dict[str, AgentConfigEntry] = {}
+        for name, config in self.agents.items():
+            if isinstance(config, str):
+                # Convert string path to module path (replace slashes with dots, strip .py extension)
+                path = config.replace("/", ".")
+                if path.endswith(".py"):
+                    path = path[:-3]
+
+                # Create an AgentConfigEntry
+                processed_agents[name] = AgentConfigEntry.model_validate({"module": path, "class": "Agent"})
+            elif isinstance(config, dict):
+                processed_agents[name] = AgentConfigEntry.model_validate(config)
+            elif isinstance(config, AgentConfigEntry):
+                processed_agents[name] = config
+            else:
+                raise ValueError(f"Invalid agent configuration for '{name}': {config}")
+
+        # Cast to correct type to satisfy mypy
+        self.agents = cast(Mapping[str, Union[str, dict, AgentConfigEntry]], processed_agents)
 
 
 def _find_project_root(project_dir: Optional[Path] = None) -> Optional[Path]:
@@ -148,7 +201,28 @@ def _load_project_config(project_dir: Optional[Path] = None) -> Dict[str, Any]:
                 logger.warning("Project config from environment is not a dictionary")
                 return {}
             logger.debug("Loaded project config from OPENMAS_PROJECT_CONFIG environment variable")
-            return cast(Dict[str, Any], result)
+
+            # Validate the config with the ProjectConfig model
+            try:
+                # Pre-process agents to proper format if they are strings
+                if "agents" in result and isinstance(result["agents"], dict):
+                    processed_agents = {}
+                    for name, config in result["agents"].items():
+                        if isinstance(config, str):
+                            path = config.replace("/", ".")
+                            if path.endswith(".py"):
+                                path = path[:-3]
+                            processed_agents[name] = {"module": path, "class": "Agent"}
+                        else:
+                            processed_agents[name] = config
+                    result["agents"] = processed_agents
+
+                project_config = ProjectConfig(**result)
+                return dict(project_config.model_dump())
+            except ValidationError as e:
+                message = f"Invalid project configuration in OPENMAS_PROJECT_CONFIG: {e}"
+                logger.error(message)
+                raise ConfigurationError(message)
         except yaml.YAMLError as e:
             message = f"Failed to parse YAML in OPENMAS_PROJECT_CONFIG: {e}"
             logger.error(message)
@@ -162,9 +236,31 @@ def _load_project_config(project_dir: Optional[Path] = None) -> Dict[str, Any]:
     if project_root:
         try:
             config_path = project_root / "openmas_project.yml"
-            config = _load_yaml_config(config_path)
-            if config:
+            config_dict = _load_yaml_config(config_path)
+            if config_dict:
                 logger.info(f"Loaded project config from {config_path}")
+
+                # Validate the config with the ProjectConfig model
+                try:
+                    # Pre-process agents to proper format if they are strings
+                    if "agents" in config_dict and isinstance(config_dict["agents"], dict):
+                        processed_agents = {}
+                        for name, config in config_dict["agents"].items():
+                            if isinstance(config, str):
+                                path = config.replace("/", ".")
+                                if path.endswith(".py"):
+                                    path = path[:-3]
+                                processed_agents[name] = {"module": path, "class": "Agent"}
+                            else:
+                                processed_agents[name] = config
+                        config_dict["agents"] = processed_agents
+
+                    project_config = ProjectConfig(**config_dict)
+                    config = dict(project_config.model_dump())
+                except ValidationError as e:
+                    message = f"Invalid project configuration in {config_path}: {e}"
+                    logger.error(message)
+                    raise ConfigurationError(message)
         except ConfigurationError as e:
             # Re-raise with clearer message
             raise ConfigurationError(f"Error in project config file (openmas_project.yml): {e}")
