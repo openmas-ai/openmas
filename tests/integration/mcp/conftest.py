@@ -6,13 +6,16 @@ import pytest
 
 from openmas.agent import McpClientAgent, McpServerAgent
 
-# Try importing necessary MCP dependencies, and skip the tests if they're not available
+# Check for MCP dependencies
 try:
     import mcp  # noqa: F401 - Import to ensure package is available
 
-    # Imports actually used by test files, but imported here for module-level skip logic
+    HAS_MCP = True
 except ImportError:
-    pytest.skip("MCP dependencies not installed", allow_module_level=True)
+    HAS_MCP = False
+
+# Skip all tests in this module if MCP is not available
+pytestmark = pytest.mark.skipif(not HAS_MCP, reason="MCP dependencies not installed")
 
 
 # Define markers for the module
@@ -23,9 +26,6 @@ def pytest_configure(config):
         "markers", "real_process: mark a test as requiring real process execution with actual dependencies"
     )
     config.addinivalue_line("markers", "mock: mark a test as using mock implementations without real dependencies")
-
-
-pytestmark = pytest.mark.mcp
 
 
 @pytest.fixture
