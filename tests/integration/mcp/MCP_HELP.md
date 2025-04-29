@@ -565,3 +565,255 @@ tox -e py310-mcp -- tests/integration/mcp/test_sse_tool_calls.py::test_sse_echo_
 *   **Stdio Logging:** Server logs *must* go to `stderr`. Any output to `stdout` other than MCP JSON messages will break communication.
 
 ---
+
+## 9. Advanced Topics & Lessons from Integration Testing
+
+### 9.1 Managing Concurrent Connections
+
+When deploying an MCP server in a multi-agent system, you must ensure it can handle multiple client connections simultaneously. Our integration tests revealed several important considerations:
+
+#### 9.1.1. Server-Side Considerations for Concurrent Clients
+
+* **Statelessness:** Keep tool implementations stateless or use proper locking mechanisms. Tools may be called by different clients concurrently.
+* **Resource Management:** Monitor and limit resource usage (memory, file handles, database connections) as each client connection consumes resources.
+* **Connection Limits:** Consider implementing connection limits if your server might be overwhelmed by too many simultaneous clients.
+* **Per-Client Tracking:** In complex scenarios, you might need to track client state (e.g., using client identifiers from the connection context).
+
+#### 9.1.2. Best Practices for SSE Transport with Concurrent Clients
+
+```python
+# In FastAPI setup for MCP server:
+
+# Configure FastAPI with proper concurrency settings
+app = FastAPI(
+    title="MCP Server with Concurrency Support",
+    version="1.0"
+)
+
+# Configure Uvicorn with appropriate worker settings
+config = uvicorn.Config(
+    app=app,
+    host=host,
+    port=port,
+    log_level="info",
+    # Consider these settings for production:
+    workers=4,     # Multiple workers for concurrent load
+    limit_concurrency=100,  # Max concurrent connections
+)
+```
+
+#### 9.1.3. Client-Side Concurrency Considerations
+
+* **Connection Pooling:** For clients making multiple connections, consider implementing connection pooling.
+* **Timeouts:** Always use timeouts with `asyncio.wait_for()` for client operations to prevent hanging.
+* **Retry Logic:** Implement exponential backoff retry logic for transient connection issues.
+
+### 9.2 Connection Resilience
+
+Our integration tests demonstrated that proper handling of abrupt client disconnections is essential for robust MCP servers. The following patterns help ensure your server remains stable:
+
+#### 9.2.1. Handling Client Disconnections
+
+* **Proper Exception Handling:** The server must catch and log exceptions from broken connections without crashing.
+* **Resource Cleanup:** Ensure all resources (streams, sessions, file handles) are properly cleaned up when a client disconnects.
+* **Graceful Degradation:** The server should continue operating for other clients even if one client disconnects unexpectedly.
+
+```python
+# Example: Robust SSE endpoint handling in FastAPI
+@app.get("/sse", tags=["MCP"])
+async def handle_sse_connection(request: Request):
+    """
+    Handles incoming SSE connection requests with robust error handling.
+    """
+    client_id = request.client.host if request.client else "unknown"
+    logger.info(f"Incoming SSE connection request from {client_id}")
+    try:
+        async with sse_transport.connect_sse(request.scope, request.receive, request._send) as (
+            read_stream,
+            write_stream,
+        ):
+            logger.info(f"SSE connection established for {client_id}")
+            try:
+                await mcp_server._mcp_server.run(
+                    read_stream,
+                    write_stream,
+                    mcp_server._mcp_server.create_initialization_options(),
+                )
+                logger.info(f"MCP server loop completed normally for {client_id}")
+            except asyncio.CancelledError:
+                logger.info(f"Connection cancelled for {client_id}")
+                raise
+            except Exception as run_err:
+                logger.error(f"Error in MCP server loop for {client_id}: {run_err}", exc_info=True)
+                # Don't re-raise - let this client's connection terminate but keep server running
+    except asyncio.CancelledError:
+        logger.info(f"SSE connection setup cancelled for {client_id}")
+        raise
+    except Exception as e:
+        logger.error(f"Error during SSE connection setup for {client_id}: {e}", exc_info=True)
+        # Return appropriate HTTP error if response hasn't been sent yet
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal server error during connection setup"}
+        )
+```
+
+#### 9.2.2. Client-Side Connection Management
+
+* **Context Managers:** Always use `async with` context managers for both transport clients and `ClientSession` to ensure proper cleanup.
+* **Explicit Initialization:** Always call and await `session.initialize()` after creating a `ClientSession`.
+* **Proper Shutdown:** Let context managers handle the cleanup; avoid manually calling `__aenter__` or `__aexit__` methods.
+
+```python
+# Recommended pattern for robust client connections
+async def connect_to_mcp_server(server_url: str):
+    """Connects to an MCP server with proper error handling."""
+    sse_endpoint_url = f"{server_url}/sse"
+    logger.info(f"Connecting to MCP server at {sse_endpoint_url}")
+
+    try:
+        # Use async with to ensure proper cleanup even if exceptions occur
+        async with sse_client(sse_endpoint_url) as streams:
+            read_stream, write_stream = streams
+            logger.info("SSE streams established")
+
+            async with ClientSession(read_stream, write_stream) as session:
+                logger.info("MCP session created")
+
+                # Always initialize with a timeout
+                await asyncio.wait_for(session.initialize(), timeout=10.0)
+                logger.info("MCP session initialized")
+
+                # Now the session is ready to use
+                result = await asyncio.wait_for(
+                    session.call_tool("echo", {"message": "Test message"}),
+                    timeout=5.0
+                )
+
+                # Process result...
+
+    except asyncio.TimeoutError:
+        logger.error("Timeout connecting to MCP server")
+    except asyncio.CancelledError:
+        logger.info("Connection attempt cancelled")
+        raise
+    except Exception as e:
+        logger.error(f"Error connecting to MCP server: {e}", exc_info=True)
+```
+
+### 9.3 Testing Connection Resilience
+
+Our integration tests for connection resilience reveal important testing patterns:
+
+#### 9.3.1. Testing Normal Disconnections
+
+Verify that the server properly handles clients that disconnect cleanly by using context managers:
+
+```python
+async with sse_client(endpoint_url) as streams:
+    async with ClientSession(*streams) as session:
+        await session.initialize()
+        # Make test calls...
+# Connection will be closed properly when exiting context managers
+```
+
+#### 9.3.2. Testing Abrupt Disconnections
+
+For testing abrupt disconnections, use a task cancellation approach rather than manually closing streams:
+
+```python
+async def client_task():
+    async with sse_client(endpoint_url) as streams:
+        async with ClientSession(*streams) as session:
+            await session.initialize()
+            await session.call_tool("echo", {"message": "test"})
+            # Wait indefinitely (will be cancelled)
+            await asyncio.Event().wait()
+
+# Start client in a separate task
+client = asyncio.create_task(client_task())
+
+# Wait for client to connect and make initial call
+await asyncio.sleep(1.0)
+
+# Simulate crash by cancelling the task
+client.cancel()
+await asyncio.gather(client, return_exceptions=True)
+
+# Test that server is still operational by connecting a new client
+async with sse_client(endpoint_url) as streams:
+    # ...and so on
+```
+
+#### 9.3.3. Testing Concurrent Clients
+
+When testing multiple concurrent clients, use `asyncio.gather()` to run them simultaneously:
+
+```python
+async def run_client(client_id):
+    async with sse_client(endpoint_url) as streams:
+        async with ClientSession(*streams) as session:
+            await session.initialize()
+            result = await session.call_tool("echo", {"message": f"client {client_id}"})
+            return client_id, result
+
+# Start multiple clients concurrently
+clients = [run_client(i) for i in range(10)]
+results = await asyncio.gather(*clients, return_exceptions=True)
+
+# Verify all clients succeeded
+for client_id, result in results:
+    assert not result.isError, f"Client {client_id} failed"
+```
+
+### 9.4 Resource Management & Cleanup
+
+Our testing revealed several key considerations for proper resource management:
+
+#### 9.4.1. Server-Side Resource Management
+
+* **Connection Tracking:** Consider implementing a mechanism to track active connections and their resource usage.
+* **Timeouts:** Add timeouts to all I/O operations to prevent resource exhaustion from stalled connections.
+* **Graceful Shutdown:** Implement a graceful shutdown mechanism that waits for active operations to complete but has a timeout.
+
+#### 9.4.2. Timeout Patterns
+
+Always use timeouts with I/O operations, especially in servers handling multiple clients:
+
+```python
+# Server-side timeout example
+@app.get("/sse", tags=["MCP"])
+async def handle_sse_connection(request: Request):
+    # Use a server-side timeout for the entire connection lifetime
+    connection_timeout = 3600  # 1 hour max per connection
+    try:
+        async with sse_transport.connect_sse(...) as streams:
+            # Run with timeout
+            await asyncio.wait_for(
+                mcp_server._mcp_server.run(*streams, mcp_server._mcp_server.create_initialization_options()),
+                timeout=connection_timeout
+            )
+    except asyncio.TimeoutError:
+        logger.warning(f"Connection timed out after {connection_timeout}s")
+    except Exception as e:
+        logger.error(f"Error during connection: {e}")
+```
+
+#### 9.4.3. Cleanup During Test Harness Shutdown
+
+When writing integration tests, ensure proper cleanup with timeouts to avoid hanging tests:
+
+```python
+# Clean up test resources with timeout
+try:
+    cleanup_task = asyncio.create_task(harness.cleanup())
+    await asyncio.wait_for(cleanup_task, timeout=5.0)
+    logger.info("Test harness cleaned up")
+except asyncio.TimeoutError:
+    logger.warning("Cleanup timed out - resources may still be active")
+    # Force terminate if needed
+    if harness.process and harness.process.returncode is None:
+        harness.process.kill()
+```
+
+---
