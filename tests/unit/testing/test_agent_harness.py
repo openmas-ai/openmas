@@ -501,3 +501,282 @@ class TestAgentHarness:
 
         # Verify all expectations were met
         test_agent_harness.verify_all_communicators()
+
+    @pytest.mark.asyncio
+    async def test_link_agents_enables_communication(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that link_agents enables direct message communication between agents."""
+        # Create two agents
+        agent1 = await test_agent_harness.create_agent(name="sender")
+        agent2 = await test_agent_harness.create_agent(name="receiver")
+
+        # Create a handler function with tracking attributes
+        async def receiver_handler(message: Dict[str, Any]) -> Dict[str, Any]:
+            receiver_handler.called = True
+            receiver_handler.payload = message["content"]
+            receiver_handler.sender_id = message["sender_id"]
+            return {"status": "received"}
+
+        # Initialize tracking attributes
+        receiver_handler.called = False
+        receiver_handler.payload = None
+        receiver_handler.sender_id = None
+
+        # Register the handler on agent2's communicator
+        await agent2.communicator.register_handler("test_message", receiver_handler)
+
+        # Link the agents
+        await test_agent_harness.link_agents(agent1, agent2)
+
+        # Verify service URLs were updated
+        assert agent1.config.service_urls["receiver"] == "mock://receiver"
+        assert agent2.config.service_urls["sender"] == "mock://sender"
+
+        # Send a notification from agent1 to agent2
+        test_payload = {"data": "test_value"}
+        await agent1.communicator.send_notification("receiver", "test_message", test_payload)
+
+        # Allow a short time for async processing
+        await asyncio.sleep(0.1)
+
+        # Verify the handler was called with the correct payload
+        assert receiver_handler.called is True
+        assert receiver_handler.payload == test_payload
+        assert receiver_handler.sender_id == "sender"
+
+    @pytest.mark.asyncio
+    async def test_verify_all_communicators_aggregates_errors(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that verify_all_communicators correctly aggregates errors from all communicators."""
+        # Create two agents with unique communicators
+        agent1 = await test_agent_harness.create_agent(name="agent1")
+        agent2 = await test_agent_harness.create_agent(name="agent2")
+
+        # Get the communicators
+        comm1 = agent1.communicator
+        comm2 = agent2.communicator
+
+        # Set expectations on both communicators
+        comm1.expect_request("service", "method1", {}, {"result": "success"})
+        comm2.expect_notification("service", "event1", {})
+
+        # Fulfill only the expectation on comm1
+        await comm1.send_request("service", "method1", {})
+
+        # Verify that verify_all_communicators raises an AssertionError mentioning agent2's unmet expectation
+        with pytest.raises(AssertionError) as excinfo:
+            test_agent_harness.verify_all_communicators()
+
+        # Check that the error message contains information about the unmet expectation on agent2
+        error_msg = str(excinfo.value)
+        assert "agent2" in error_msg
+        assert "event1" in error_msg
+        assert "agent1" not in error_msg  # agent1's expectation was met, so it shouldn't be in the error
+
+    @pytest.mark.asyncio
+    async def test_verify_all_communicators_success_case(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that verify_all_communicators succeeds when all expectations are met."""
+        # Create two agents with unique communicators
+        agent1 = await test_agent_harness.create_agent(name="agent1")
+        agent2 = await test_agent_harness.create_agent(name="agent2")
+
+        # Get the communicators
+        comm1 = agent1.communicator
+        comm2 = agent2.communicator
+
+        # Set expectations on both communicators
+        comm1.expect_request("service", "method1", {}, {"result": "success"})
+        comm2.expect_notification("service", "event1", {})
+
+        # Fulfill both expectations
+        await comm1.send_request("service", "method1", {})
+        await comm2.send_notification("service", "event1", {})
+
+        # Verify that verify_all_communicators does not raise an AssertionError
+        test_agent_harness.verify_all_communicators()  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_link_agents_with_single_agent(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that link_agents raises a ValueError when called with only one agent."""
+        # Create a single agent
+        agent = await test_agent_harness.create_agent(name="lone-agent")
+
+        # Attempt to link a single agent, which should raise ValueError
+        with pytest.raises(ValueError) as excinfo:
+            await test_agent_harness.link_agents(agent)
+
+        # Verify the error message
+        assert "At least two agents are required for linking" in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_link_agents_multiple_times(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that link_agents can be called multiple times without issues."""
+        # Create agents
+        agent1 = await test_agent_harness.create_agent(name="agent1")
+        agent2 = await test_agent_harness.create_agent(name="agent2")
+        agent3 = await test_agent_harness.create_agent(name="agent3")
+
+        # Link first two agents
+        await test_agent_harness.link_agents(agent1, agent2)
+
+        # Verify the link was established
+        assert agent1.communicator.service_urls["agent2"] == "mock://agent2"
+        assert agent2.communicator.service_urls["agent1"] == "mock://agent1"
+
+        # Link the third agent with the first
+        await test_agent_harness.link_agents(agent1, agent3)
+
+        # Verify the new link was established without breaking the first link
+        assert agent1.communicator.service_urls["agent2"] == "mock://agent2"
+        assert agent1.communicator.service_urls["agent3"] == "mock://agent3"
+        assert agent3.communicator.service_urls["agent1"] == "mock://agent1"
+
+        # Ensure agent2 is still only linked to agent1
+        assert "agent3" not in agent2.communicator.service_urls
+
+        # Start the agents to register the handlers
+        async with test_agent_harness.running_agents(agent1, agent2, agent3):
+            # Now we can safely trigger handlers
+            await test_agent_harness.trigger_handler(agent1, "store_data", {"key": "test", "value": "from-agent1"})
+            await test_agent_harness.trigger_handler(agent2, "store_data", {"key": "test", "value": "from-agent2"})
+            await test_agent_harness.trigger_handler(agent3, "store_data", {"key": "test", "value": "from-agent3"})
+
+            # Send requests between agents to test the links
+            result1 = await test_agent_harness.send_request(agent1, "agent2", "get_data", {"key": "test"})
+            assert result1["value"] == "from-agent2"
+
+            result2 = await test_agent_harness.send_request(agent1, "agent3", "get_data", {"key": "test"})
+            assert result2["value"] == "from-agent3"
+
+    @pytest.mark.asyncio
+    async def test_reset_method(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that the reset method clears all tracked agents and communicators."""
+        # Create some agents
+        agent1 = await test_agent_harness.create_agent(name="agent1")
+        agent2 = await test_agent_harness.create_agent(name="agent2")
+
+        # Link the agents
+        await test_agent_harness.link_agents(agent1, agent2)
+
+        # Verify agents and communicators are tracked
+        assert len(test_agent_harness.agents) == 2
+        assert len(test_agent_harness.communicators) == 2
+        assert "agent1" in test_agent_harness.communicators
+        assert "agent2" in test_agent_harness.communicators
+
+        # Reset the harness
+        test_agent_harness.reset()
+
+        # Verify all tracking is cleared
+        assert len(test_agent_harness.agents) == 0
+        assert len(test_agent_harness.communicators) == 0
+
+        # Verify we can create new agents after reset
+        _ = await test_agent_harness.create_agent(name="new-agent")
+        assert len(test_agent_harness.agents) == 1
+        assert len(test_agent_harness.communicators) == 1
+        assert "new-agent" in test_agent_harness.communicators
+
+    @pytest.mark.asyncio
+    async def test_verify_empty_communicators(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that verify_all_communicators works correctly with no tracked communicators."""
+        # Verify with no agents created
+        test_agent_harness.verify_all_communicators()  # Should not raise any exceptions
+
+        # Create an agent but don't track it
+        agent = await test_agent_harness.create_agent(name="untracked", track=False)
+
+        # Verify still works with untracked agents
+        test_agent_harness.verify_all_communicators()  # Should not raise any exceptions
+
+        # Add an expectation to the untracked agent's communicator
+        agent.communicator.expect_request("some-agent", "some-handler", {"key": "value"})
+
+        # This should not be verified by verify_all_communicators since it's not tracked
+        test_agent_harness.verify_all_communicators()  # Should still pass
+
+    @pytest.mark.asyncio
+    async def test_link_agents_with_non_mock_communicator(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that link_agents raises TypeError when an agent doesn't use MockCommunicator."""
+        # Create a standard agent
+        agent1 = await test_agent_harness.create_agent(name="agent1")
+        agent2 = await test_agent_harness.create_agent(name="agent2")
+
+        # Replace the communicator with a non-MockCommunicator instance
+        class DummyCommunicator:
+            def __init__(self, agent_name: str):
+                self.agent_name = agent_name
+
+        agent1.communicator = DummyCommunicator(agent_name=agent1.name)
+
+        # Attempt to link agents with different communicator types, which should raise TypeError
+        with pytest.raises(TypeError) as excinfo:
+            await test_agent_harness.link_agents(agent1, agent2)
+
+        # Verify the error message
+        assert "Both agents must use MockCommunicator for linking" in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_trigger_handler_with_non_mock_communicator(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that trigger_handler raises TypeError when agent doesn't use MockCommunicator."""
+        # Create a standard agent
+        agent = await test_agent_harness.create_agent(name="agent1")
+
+        # Replace the communicator with a non-MockCommunicator instance
+        class DummyCommunicator:
+            def __init__(self, agent_name: str):
+                self.agent_name = agent_name
+
+        agent.communicator = DummyCommunicator(agent_name=agent.name)
+
+        # Attempt to trigger a handler, which should raise TypeError
+        with pytest.raises(TypeError) as excinfo:
+            await test_agent_harness.trigger_handler(agent, "store_data", {"key": "test", "value": "test"})
+
+        # Verify the error message
+        assert "does not have a MockCommunicator" in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_untracked_agent_creation(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test creating an agent without tracking it in the harness."""
+        # Create an agent with track=False
+        agent = await test_agent_harness.create_agent(name="untracked-agent", track=False)
+
+        # Verify the agent exists but is not tracked
+        assert agent.name == "untracked-agent"
+        assert len(test_agent_harness.agents) == 0
+        assert len(test_agent_harness.communicators) == 0
+        assert "untracked-agent" not in test_agent_harness.communicators
+
+        # The agent should still have a communicator
+        assert agent.communicator is not None
+        assert isinstance(agent.communicator, MockCommunicator)
+
+        # We should be able to use the agent with the test harness
+        async with test_agent_harness.running_agent(agent):
+            await test_agent_harness.trigger_handler(agent, "store_data", {"key": "test", "value": "data"})
+
+            # But it won't be included in verify_all_communicators
+            test_agent_harness.verify_all_communicators()  # Should pass, no tracked agents
+
+    @pytest.mark.asyncio
+    async def test_create_agent_with_custom_config_model(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test creating an agent with a custom configuration model."""
+
+        # Define a custom config model that extends AgentConfig
+        class CustomAgentConfig(AgentConfig):
+            custom_option: str = "default"
+
+        # Create a new harness with the custom config model
+        custom_harness = AgentTestHarness(
+            SimpleTestAgent,
+            default_config={"name": "custom-agent", "custom_option": "test-value"},
+            config_model=CustomAgentConfig,
+        )
+
+        # Create an agent with the custom harness
+        agent = await custom_harness.create_agent()
+
+        # Verify the agent was created with the custom config
+        assert agent.name == "custom-agent"
+        assert agent.config.__class__.__name__ == "CustomAgentConfig"
+        # Note: We can't directly access custom_option since the agent's config is cast to AgentConfig
+        # but the custom config is used during initialization

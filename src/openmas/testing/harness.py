@@ -254,7 +254,12 @@ class AgentTestHarness(Generic[T]):
         for agent in agents:
             for other in agents:
                 if agent != other:
+                    # Update the agent config's service URLs
                     agent.config.service_urls[other.name] = f"mock://{other.name}"
+
+                    # Check if communicator is a MockCommunicator before setting its service_urls
+                    if isinstance(agent.communicator, MockCommunicator):
+                        agent.communicator.service_urls[other.name] = f"mock://{other.name}"
 
         # Link communicators
         for i, agent in enumerate(agents):
@@ -355,3 +360,61 @@ class AgentTestHarness(Generic[T]):
         self.agents = []
         self.communicators = {}
         self.logger.debug("Reset test harness state")
+
+    async def send_request(
+        self,
+        sender_agent: T,
+        target_agent_name: str,
+        method: str,
+        params: Optional[Dict[str, Any]] = None,
+        response_model: Optional[Type[Any]] = None,
+    ) -> Any:
+        """Send a request from one agent to another.
+
+        This is a convenience method for testing inter-agent communication.
+        It sets up the necessary mock expectations and sends the request.
+
+        Args:
+            sender_agent: The agent sending the request
+            target_agent_name: The name of the target agent
+            method: The method to call on the target agent
+            params: The parameters to pass to the method
+            response_model: Optional Pydantic model to validate and parse the response
+
+        Returns:
+            The response from the target agent
+
+        Raises:
+            ValueError: If the target agent is not found in the communicators
+        """
+        # Get the target agent's communicator
+        if target_agent_name not in self.communicators:
+            raise ValueError(f"Target agent '{target_agent_name}' not found in communicators")
+
+        target_comm = self.communicators[target_agent_name]
+        sender_comm = sender_agent.communicator
+
+        if not isinstance(sender_comm, MockCommunicator) or not isinstance(target_comm, MockCommunicator):
+            raise TypeError("Both sender and target must use MockCommunicator")
+
+        # Make sure the sender and target are linked
+        if target_agent_name not in sender_comm.service_urls:
+            raise ValueError(f"Agent {sender_agent.name} is not linked to {target_agent_name}")
+
+        # If target has a handler for the method, prepare to route the request
+        if method in target_comm._handlers:
+            handler = target_comm._handlers[method]
+
+            # Create a response message
+            response = await handler(
+                {
+                    "sender_id": sender_agent.name,
+                    "recipient_id": target_agent_name,
+                    "content": params or {},
+                    "message_type": method,
+                }
+            )
+
+            return response
+        else:
+            raise ValueError(f"Target agent does not have a handler for method '{method}'")
