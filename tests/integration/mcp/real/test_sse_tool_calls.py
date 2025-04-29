@@ -1,3 +1,5 @@
+"""Integration tests for SSE transport with MCP tool calls."""
+
 # openmas/tests/integration/mcp/test_sse_tool_calls.py
 
 import asyncio
@@ -19,20 +21,20 @@ HAS_MCP = True
 HAS_AIOHTTP = True
 try:
     # Fix F401: Comment out direct aiohttp import as it's only used in utils.py
-    import aiohttp # noqa: F401
+    import aiohttp  # type: ignore # noqa: F401
 except ImportError:
     HAS_AIOHTTP = False
     SKIP_REASON += " (aiohttp)"
 
 try:
     # Check for MCP installation
-    import mcp # noqa: F401
+    import mcp  # noqa: F401
 except ImportError:
     HAS_MCP = False
     SKIP_REASON += " (mcp)"
 
 # Ensure this import is AFTER the dependency checks
-from tests.integration.mcp.real.utils import McpTestHarness, TransportType
+from tests.integration.mcp.real.utils import McpTestHarness, TransportType  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -248,13 +250,13 @@ async def test_sse_multiple_sequential_calls() -> None:
     try:
         process = await harness.start_server(additional_args=["--host", "127.0.0.1", "--port", str(test_port)])
         if process.returncode is not None:
-            pytest.fail(f"Process failed start")
+            pytest.fail("Process failed start")
 
         startup_ok = await harness.verify_server_startup(timeout=15.0)
         assert startup_ok, "Server startup verification failed"
         assert harness.server_url, "Server URL not found"
         sse_endpoint_url = f"{harness.server_url}/sse"
-        logger.info(f"Sequential calls test: Server ready at {sse_endpoint_url}")
+        logger.info(f"Sequential calls test: Server ready at {sse_endpoint_url}")  # noqa: F541
 
         async with sse_client(sse_endpoint_url) as streams:
             read_stream, write_stream = streams
@@ -299,13 +301,13 @@ async def test_sse_list_tools() -> None:
     try:
         process = await harness.start_server(additional_args=["--host", "127.0.0.1", "--port", str(test_port)])
         if process.returncode is not None:
-            pytest.fail(f"Process failed start")
+            pytest.fail("Process failed start")
 
         startup_ok = await harness.verify_server_startup(timeout=15.0)
         assert startup_ok, "Server startup verification failed"
         assert harness.server_url, "Server URL not found"
         sse_endpoint_url = f"{harness.server_url}/sse"
-        logger.info(f"List tools test: Server ready at {sse_endpoint_url}")
+        logger.info(f"List tools test: Server ready at {sse_endpoint_url}")  # noqa: F541
 
         async with sse_client(sse_endpoint_url) as streams:
             read_stream, write_stream = streams

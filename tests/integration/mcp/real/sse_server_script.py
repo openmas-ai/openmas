@@ -6,12 +6,13 @@ import asyncio
 import json
 import logging
 import sys
+from typing import Any  # Import Any
 
 import uvicorn
 from fastapi import FastAPI, Request  # Import FastAPI
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.sse import SseServerTransport  # Import SSE Transport
-from starlette.routing import Mount
+from starlette.routing import Mount  # type: ignore
 
 # Set up logging
 logging.basicConfig(
@@ -42,7 +43,7 @@ app.router.routes.append(Mount("/messages", app=sse_transport.handle_post_messag
 
 # Define the echo tool on the MCP server instance
 @mcp_server.tool(name="echo", description="Echo back the input message")
-async def echo(ctx: Context, message: any) -> str:
+async def echo(ctx: Context, message: Any) -> str:
     logger.debug(f"Echo tool called with message: {message!r} (type: {type(message)})")
     try:
         # Return the message wrapped in a standard JSON structure

@@ -222,7 +222,11 @@ class McpTestHarness:
             connection_timeout = timeout - (asyncio.get_event_loop().time() - start_time)
             http_check_start_time = asyncio.get_event_loop().time()
 
+            attempt = 0
+            max_attempts = 10
+
             while (asyncio.get_event_loop().time() - http_check_start_time) < connection_timeout:
+                attempt += 1
                 try:
                     async with aiohttp.ClientSession() as session:
                         # Use a short timeout for individual GET attempts
@@ -232,7 +236,8 @@ class McpTestHarness:
                             # but that still means the server and endpoint are alive.
                             if response.status < 500:
                                 logger.info(
-                                    f"HTTP check to {sse_check_url} successful (status: {response.status}). Server likely ready."
+                                    f"HTTP check to {sse_check_url} successful (status: {response.status}). "
+                                    "Server likely ready."
                                 )
                                 connection_verified = True
                                 break
@@ -240,8 +245,15 @@ class McpTestHarness:
                                 logger.warning(
                                     f"HTTP check to {sse_check_url} failed (status: {response.status}), retrying..."
                                 )
-                except (aiohttp.ClientConnectorError, asyncio.TimeoutError, aiohttp.ClientOSError) as e:
-                    logger.warning(f"HTTP check to {sse_check_url} failed ({type(e).__name__}), retrying...")
+                except (
+                    aiohttp.ClientConnectorError,
+                    asyncio.TimeoutError,
+                    aiohttp.ClientOSError,
+                    ConnectionRefusedError,
+                ) as e:
+                    logger.warning(
+                        f"HTTP check attempt {attempt}/{max_attempts} failed ({type(e).__name__}), retrying..."
+                    )
                 except Exception as e:
                     logger.error(f"Unexpected error during HTTP check to {sse_check_url}: {e}", exc_info=True)
                     break  # Exit retry loop on unexpected errors

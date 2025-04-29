@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, AsyncGenerator
 
 import pytest
-import pytest_asyncio
+import pytest_asyncio  # type: ignore
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.types import TextContent

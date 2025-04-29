@@ -1,3 +1,5 @@
+"""Integration tests for SSE client error handling with MCP."""
+
 import logging
 import random
 
@@ -16,8 +18,8 @@ logger = logging.getLogger(__name__)
 @pytest.mark.mcp
 @pytest.mark.integration
 async def test_server_not_available_sse() -> None:
-    """
-    Tests that connecting to a non-existent SSE server URL raises an appropriate error.
+    """Tests that connecting to a non-existent SSE server URL raises an appropriate error.
+
     Uses httpx directly as sse_client might wrap errors.
     """
     # Use a random port that should not be in use
