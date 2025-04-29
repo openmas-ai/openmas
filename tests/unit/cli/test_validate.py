@@ -50,7 +50,7 @@ def test_validate_valid_config(valid_config):
 
     assert result.exit_code == 0
     assert "✅ Project configuration schema is valid" in result.output
-    assert "✅ Project configuration is valid" in result.output
+    assert "✅ Project configuration 'openmas_project.yml' is valid" in result.output
     assert f"Project: {valid_config['name']} v{valid_config['version']}" in result.output
     assert f"Agents defined: {len(valid_config['agents'])}" in result.output
 
@@ -204,4 +204,4 @@ def test_validate_yaml_error():
         result = runner.invoke(validate)
 
     assert result.exit_code == 1
-    assert "❌ Error parsing YAML in project configuration" in result.output
+    assert "❌ Error parsing YAML file 'openmas_project.yml'" in result.output

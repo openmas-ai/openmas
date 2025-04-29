@@ -175,7 +175,7 @@ def test_validate_command(cli_runner, temp_project_dir):
         result = cli_runner.invoke(cli, ["validate"])
 
         # When the project is valid, we should see these messages
-        assert "Project configuration is valid" in result.output
+        assert "Project configuration 'openmas_project.yml' is valid" in result.output
         assert "Project: test_project" in result.output
         assert "Agents defined: 2" in result.output
 
