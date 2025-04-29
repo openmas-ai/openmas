@@ -423,8 +423,7 @@ def test_find_project_root():
 
     # Test with explicit directory
     explicit_dir = Path("/explicit/directory")
-    with patch("pathlib.Path.resolve", return_value=explicit_dir), patch("pathlib.Path.exists") as mock_exists:
-        mock_exists.return_value = True
+    with patch("pathlib.Path.resolve", return_value=explicit_dir), patch("pathlib.Path.exists", return_value=True):
         result = _find_project_root(explicit_dir)
         assert result == explicit_dir
 
@@ -1042,3 +1041,21 @@ class TestProjectConfig:
         assert config.agents["agent1"].module == "agents.agent1"
         assert config.agents["agent1"].class_ == "Agent1"
         assert config.agents["agent1"].communicator is None  # Default not applied yet
+
+    def test_project_config_agent_name_validation(self):
+        """Test that ProjectConfig validates agent names against the specified pattern."""
+        # Valid agent names should be accepted
+        valid_names = ["agent1", "test-agent", "my_agent", "Agent123"]
+        for name in valid_names:
+            config = ProjectConfig(
+                name="test-project", version="0.1.0", agents={name: {"module": "agents.test", "class": "TestAgent"}}
+            )
+            assert name in config.agents
+
+        # Invalid agent names should raise a validation error
+        invalid_names = ["agent@123", "test.agent", "my agent", "agent/123", "agent$"]
+        for name in invalid_names:
+            with pytest.raises(ValidationError, match="Invalid agent name"):
+                ProjectConfig(
+                    name="test-project", version="0.1.0", agents={name: {"module": "agents.test", "class": "TestAgent"}}
+                )

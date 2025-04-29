@@ -2,12 +2,13 @@
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Type, TypeVar, Union, cast
 
 import yaml
 from dotenv import load_dotenv  # type: ignore
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from openmas.exceptions import ConfigurationError
 from openmas.logging import get_logger
@@ -61,6 +62,20 @@ class ProjectConfig(BaseModel):
         default_factory=dict, description="Default communicator configuration"
     )
     dependencies: List[Dict[str, Any]] = Field(default_factory=list, description="External dependencies")
+
+    @field_validator("agents")
+    def validate_agent_names(cls, agents: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Validate agent names to ensure they contain only alphanumeric characters, underscores, and hyphens."""
+        agent_name_pattern = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+        for agent_name in agents.keys():
+            if not agent_name_pattern.match(agent_name):
+                raise ValueError(
+                    f"Invalid agent name '{agent_name}'. Agent names must contain only alphanumeric characters, "
+                    "underscores, and hyphens (matching pattern ^[a-zA-Z0-9_-]+$)."
+                )
+
+        return agents
 
     def model_post_init(self, __context: Any) -> None:
         """Process agents after initialization."""
