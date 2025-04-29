@@ -352,6 +352,44 @@ class MockCommunicator(BaseCommunicator):
         """
         self._record_call("send_request", target_service, method, params, response_model, timeout)
 
+        # Store the message for inspection in tests
+        message = {
+            "sender_id": self.agent_name,
+            "recipient_id": target_service,
+            "content": params or {},
+            "message_type": method,
+        }
+        self._sent_messages.append(message)
+
+        # Check if we should forward this message to linked communicators
+        for linked_comm in self._linked_communicators:
+            if linked_comm.agent_name == target_service:
+                # Found a linked communicator that matches the target service
+                # Check if it has an expectation for this request
+                key = f"{target_service}:{method}"
+                if key in linked_comm._request_responses and linked_comm._request_responses[key]:
+                    # Get the next expectation
+                    expectation = linked_comm._request_responses[key][0]
+
+                    # Check if parameters match using the matcher
+                    expected_params = expectation["params"]
+                    match_result, _ = ParamsMatcher.match(expected_params, params)
+
+                    if match_result:
+                        # Remove this expectation since it's being used
+                        linked_comm._request_responses[key].pop(0)
+
+                        # If an exception was set, raise it
+                        if expectation["exception"]:
+                            raise expectation["exception"]
+
+                        # Return the response (validating if a model was provided)
+                        response = expectation["response"]
+                        if response_model is not None and response is not None:
+                            return response_model.parse_obj(response)
+                        return response
+
+        # If we didn't find a response from linked communicators, check local expectations
         key = f"{target_service}:{method}"
 
         if key not in self._request_responses or not self._request_responses[key]:

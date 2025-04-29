@@ -146,6 +146,44 @@ class TestAgentHarness:
     """Tests for the AgentTestHarness."""
 
     @pytest.mark.asyncio
+    async def test_harness_communicator_attribute(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that each agent gets a unique communicator instance."""
+        # Create first agent
+        agent1 = await test_agent_harness.create_agent(name="agent1")
+        first_agent_communicator = agent1.communicator
+
+        # Create second agent
+        agent2 = await test_agent_harness.create_agent(name="agent2")
+        second_agent_communicator = agent2.communicator
+
+        # Verify that each agent has a unique communicator
+        assert first_agent_communicator is not None
+        assert second_agent_communicator is not None
+        assert first_agent_communicator is not second_agent_communicator
+
+        # Verify that communicators are correctly tracked
+        assert test_agent_harness.communicators["agent1"] is first_agent_communicator
+        assert test_agent_harness.communicators["agent2"] is second_agent_communicator
+
+    @pytest.mark.asyncio
+    async def test_create_agent_assigns_unique_communicators(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that each agent gets a unique MockCommunicator instance."""
+        # Create two agents
+        agent1 = await test_agent_harness.create_agent(name="agent1")
+        agent2 = await test_agent_harness.create_agent(name="agent2")
+
+        # Verify that each agent has a communicator
+        assert agent1.communicator is not None
+        assert agent2.communicator is not None
+
+        # Verify that the agents have different communicator instances
+        assert agent1.communicator is not agent2.communicator
+
+        # Verify that the communicators are properly tracked in the harness
+        assert test_agent_harness.communicators["agent1"] is agent1.communicator
+        assert test_agent_harness.communicators["agent2"] is agent2.communicator
+
+    @pytest.mark.asyncio
     async def test_basic_agent_functionality(self, test_agent_harness: AgentTestHarness) -> None:
         """Test basic agent functionality with the harness."""
         # Create an agent with the harness
@@ -170,7 +208,7 @@ class TestAgentHarness:
         agent = await test_agent_harness.create_agent()
 
         # Set up the expected external service request/response
-        test_agent_harness.communicator.expect_request(
+        agent.communicator.expect_request(
             "enrichment-service", "enrich_data", {"input": "test_data"}, {"enriched": "ENRICHED_TEST_DATA"}
         )
 
@@ -186,7 +224,7 @@ class TestAgentHarness:
             assert "ENRICHED_TEST_DATA" in agent.processing_history
 
             # Verify that all expected communications occurred
-            test_agent_harness.communicator.verify()
+            agent.communicator.verify()
 
     @pytest.mark.asyncio
     async def test_wait_for_condition(self, test_agent_harness: AgentTestHarness) -> None:
@@ -372,9 +410,7 @@ class TestAgentHarness:
 
         # Set up a service error
         error = ServiceNotFoundError("enrichment-service not found")
-        test_agent_harness.communicator.expect_request_exception(
-            "enrichment-service", "enrich_data", {"input": "test_data"}, error
-        )
+        agent.communicator.expect_request_exception("enrichment-service", "enrich_data", {"input": "test_data"}, error)
 
         # Test that the agent handles the error properly
         async with test_agent_harness.running_agent(agent):
@@ -412,3 +448,56 @@ class TestAgentHarness:
             # the event was recorded
             assert any("update" in callback for callback in agent2.callbacks_received)
             assert any("update" in callback for callback in agent3.callbacks_received)
+
+    @pytest.mark.asyncio
+    async def test_linked_agents_direct_communication(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that linked agents can directly communicate with each other."""
+        # Create multiple agents
+        agent1 = await test_agent_harness.create_agent(name="agent1")
+        agent2 = await test_agent_harness.create_agent(name="agent2")
+
+        # Link them
+        await test_agent_harness.link_agents(agent1, agent2)
+
+        # Start both agents
+        async with test_agent_harness.running_agents(agent1, agent2):
+            # Set up expected request/response
+            agent2.communicator.expect_request(
+                "agent2", "get_data", {"key": "test-key"}, {"key": "test-key", "value": "test-value"}
+            )
+
+            # Store data in agent2
+            await test_agent_harness.trigger_handler(agent2, "store_data", {"key": "test-key", "value": "test-value"})
+
+            # Agent1 sends a request to agent2
+            response = await agent1.communicator.send_request("agent2", "get_data", {"key": "test-key"})
+
+            # Verify the response
+            assert response == {"key": "test-key", "value": "test-value"}
+
+            # Verify expectations were met
+            test_agent_harness.verify_all_communicators()
+
+    @pytest.mark.asyncio
+    async def test_mock_expectations_propagation(self, test_agent_harness: AgentTestHarness) -> None:
+        """Test that expectations from one agent are visible to linked agents."""
+        # Create two agents
+        agent1 = await test_agent_harness.create_agent(name="agent1")
+        agent2 = await test_agent_harness.create_agent(name="agent2")
+
+        # Link them
+        await test_agent_harness.link_agents(agent1, agent2)
+
+        # Set up expectations on agent2's communicator
+        agent2.communicator.expect_request(
+            "agent2", "get_data", {"key": "test-key"}, {"key": "test-key", "value": "test-value"}
+        )
+
+        # Agent1 should be able to send a request to agent2 using the linked communicator
+        response = await agent1.communicator.send_request("agent2", "get_data", {"key": "test-key"})
+
+        # The response should match what we set up in the expectation
+        assert response == {"key": "test-key", "value": "test-value"}
+
+        # Verify all expectations were met
+        test_agent_harness.verify_all_communicators()

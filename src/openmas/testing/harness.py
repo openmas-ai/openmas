@@ -82,7 +82,6 @@ class AgentTestHarness(Generic[T]):
         self.agent_class = agent_class
         self.default_config = default_config or {}
         self.config_model = config_model
-        self.communicator = MockCommunicator(agent_name="test-agent")
 
         # For multi-agent testing
         self.agents: List[T] = []
@@ -141,14 +140,14 @@ class AgentTestHarness(Generic[T]):
             env_prefix=env_prefix,
         )
 
-        # Replace the agent's communicator with our mock
-        self.communicator = MockCommunicator(agent_name=agent.name)
-        agent.communicator = self.communicator
+        # Create and assign a unique MockCommunicator for this agent
+        agent_communicator = MockCommunicator(agent_name=agent.name)
+        agent.communicator = agent_communicator
 
         # Store references for multi-agent testing
         if track:
             self.agents.append(agent)
-            self.communicators[agent.name] = self.communicator
+            self.communicators[agent.name] = agent_communicator
 
         self.logger.debug("Created test agent", agent_name=agent.name)
         return agent
@@ -355,5 +354,4 @@ class AgentTestHarness(Generic[T]):
 
         self.agents = []
         self.communicators = {}
-        self.communicator = MockCommunicator(agent_name="test-agent")
         self.logger.debug("Reset test harness state")
