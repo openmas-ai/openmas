@@ -435,9 +435,6 @@ class McpAgent(BaseAgent):
         If the agent has an MCP communicator in server mode, it registers
         its decorated methods as MCP tools, prompts, and resources.
         """
-        # NOTE: Not calling super().setup() because BaseAgent's setup is abstract
-        # and we're providing a concrete implementation here
-
         # Refresh MCP method discovery
         self._discover_mcp_methods()
 

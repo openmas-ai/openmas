@@ -303,7 +303,6 @@ class McpSseCommunicator(BaseCommunicator):
             elif method.startswith("prompt/get/"):
                 # Get a prompt
                 prompt_name = method[11:]  # Remove 'prompt/get/' prefix
-                # Note: using result_var to avoid mypy error about incompatible types
                 result_var = await session.get_prompt(prompt_name, arguments=params)
                 # Convert result to dict if possible
                 if hasattr(result_var, "__dict__"):
@@ -859,7 +858,6 @@ class McpSseCommunicator(BaseCommunicator):
         Returns:
             The result of the method call
         """
-        # This is a bridge between MCP tools and our handler methods
         if method not in self.handlers:
             raise ValueError(f"Method '{method}' not registered")
 

@@ -123,7 +123,6 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
     try:
         # Load agent-specific configuration using the agent name as the prefix
         config_loader = ConfigLoader()
-        # TODO: Implement agent-specific config loading based on agent_name
         # For now, just create a basic AgentConfig
         # Keeping this variable definition commented out to avoid linting errors until we use it
         # agent_config = AgentConfig(name=agent_name)

@@ -19,13 +19,10 @@ from openmas.logging import get_logger
 logger = get_logger(__name__)
 
 # Import the generated protobuf modules
-# Note: These will be generated from the proto file using protoc
-# For production, you'd run protoc to generate these files
 try:
     from openmas.communication.grpc import openmas_pb2 as pb2  # type: ignore[attr-defined]
     from openmas.communication.grpc import openmas_pb2_grpc as pb2_grpc  # type: ignore[attr-defined]
 except ImportError:
-    # This is just to provide linting support while developing
     # In a real installation, these modules will be properly generated
     # by setup.py or a build script
     print("Warning: openmas_pb2 modules not found - they should be generated from proto files.", file=sys.stderr)

@@ -847,7 +847,6 @@ class McpStdioCommunicator(BaseCommunicator):
         Returns:
             The result of the method call
         """
-        # This is a bridge between MCP tools and our handler methods
         if method not in self.handlers:
             raise ValueError(f"Method '{method}' not registered")
 

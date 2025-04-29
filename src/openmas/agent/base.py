@@ -113,8 +113,6 @@ class BaseAgent(abc.ABC):
 
             return get_communicator_by_type(communicator_type)
         except DependencyError as e:
-            # This is a special error case for missing optional dependencies - propagate it
-            # with the helpful installation instructions already included
             self.logger.error(f"Missing dependency for communicator type '{communicator_type}': {str(e)}")
             raise
         except ValueError:
@@ -127,7 +125,6 @@ class BaseAgent(abc.ABC):
 
                     return get_communicator_by_type(communicator_type)
                 except DependencyError as e:
-                    # This is a special error case for missing optional dependencies
                     self.logger.error(f"Missing dependency for communicator type '{communicator_type}': {str(e)}")
                     raise
                 except ValueError:
