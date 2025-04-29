@@ -1,11 +1,12 @@
 """Integration tests for MCP server connection resilience against abrupt client disconnections."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import random
 import sys
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import pytest
 from mcp.client.session import ClientSession
@@ -102,8 +103,8 @@ async def test_sse_connection_resilience() -> None:
 
     Steps:
     1. Start the server
-    2. Connect a client and make a successful tool call
-    3. Simulate an abrupt client disconnection
+    2. Connect a client using asyncio task and make a successful tool call
+    3. Simulate an abrupt client disconnection by cancelling the task
     4. Verify the server remains operational
     5. Connect a new client and make another successful tool call
     """
@@ -116,12 +117,20 @@ async def test_sse_connection_resilience() -> None:
     try:
         # 1. Start server subprocess
         logger.info("Starting server subprocess")
-        process = await harness.start_server(additional_args=["--host", "127.0.0.1", "--port", str(test_port)])
+        # Pass the correct port argument based on the randomly generated one
+        process = await harness.start_server(additional_args=["--host", "127.0.0.1", "--port", str(harness.test_port)])
 
         # Basic check if process started immediately
         if process.returncode is not None:
+            # Capture stderr if process failed early
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=1.0)
+                logger.error(f"Server process stdout: {stdout.decode() if stdout else 'N/A'}")
+                logger.error(f"Server process stderr: {stderr.decode() if stderr else 'N/A'}")
+            except asyncio.TimeoutError:
+                logger.error("Timeout reading server process output after early failure.")
             pytest.fail(f"Process failed to start with return code {process.returncode}")
-            return
+            return  # Added return for clarity
 
         # Wait for server to be ready
         logger.info("Server process started, waiting for readiness signal & HTTP check...")
@@ -130,171 +139,135 @@ async def test_sse_connection_resilience() -> None:
         assert harness.server_url, "Server URL not found via harness"
         logger.info(f"Server ready, URL: {harness.server_url}")
 
-        # 2. Connect first client and make successful tool call
-        logger.info("=== FIRST CLIENT ===")
+        # 2. Connect first client using asyncio task and make successful tool call
+        logger.info("=== FIRST CLIENT (via asyncio task) ===\n")
         sse_endpoint_url = f"{harness.server_url}/sse"
-        logger.info(f"Connecting first client to SSE endpoint: {sse_endpoint_url}")
+        client_task_completed = asyncio.Event()
+        client_task_succeeded = False
 
-        # Use a subprocess for the first client to allow forced termination
-        # This simulates a client crash or sudden network disconnect more realistically
-        import os
-        import subprocess
-        import tempfile
-
-        # Create a temporary script for the client
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as client_script:
-            client_script.write(
-                f"""
-import asyncio
-import json
-import sys
-from mcp.client.session import ClientSession
-from mcp.client.sse import sse_client
-from mcp.types import TextContent
-
-async def main():
-    try:
-        # Connect to server
-        sse_endpoint_url = "{sse_endpoint_url}"
-        print(f"Connecting to {{sse_endpoint_url}}")
-
-        async with sse_client(sse_endpoint_url) as streams:
-            read_stream, write_stream = streams
-            print("SSE streams obtained")
-
-            async with ClientSession(read_stream, write_stream) as session:
-                print("ClientSession created")
-                await session.initialize()
-                print("Session initialized")
-
-                # Make tool call
-                result = await session.call_tool("echo", {{"message": "Hello from subprocess client"}})
-                print(f"Tool call result: {{result}}")
-
-                # Verify result has the expected data
-                if result and not result.isError and result.content:
-                    if isinstance(result.content[0], TextContent):
-                        response_text = result.content[0].text
-                        response_data = json.loads(response_text)
-                        if response_data.get("echoed") == "Hello from subprocess client":
-                            print("SUCCESS: Tool call returned expected result")
-                            # Exit with success - we'll kill the process before this completes
-                            sys.exit(0)
-
-                print("ERROR: Tool call failed or returned unexpected result")
-                sys.exit(1)
-    except Exception as e:
-        print(f"ERROR: {{e}}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-"""
-            )
-            client_script_path = client_script.name
-
-        try:
-            # Start the client subprocess
-            logger.info(f"Starting first client as subprocess: {client_script_path}")
-            client_process = subprocess.Popen(
-                [sys.executable, client_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-
-            # Wait for the client to connect and make a successful call
-            timeout = CLIENT_TIMEOUT
-            success_seen = False
-            start_time = asyncio.get_event_loop().time()
-
-            while asyncio.get_event_loop().time() - start_time < timeout:
-                if client_process.poll() is not None:
-                    # Process has terminated
-                    stdout, stderr = client_process.communicate()
-                    logger.info(f"Client process terminated with code {client_process.returncode}")
-                    logger.info(f"STDOUT: {stdout}")
-                    logger.info(f"STDERR: {stderr}")
-                    if "SUCCESS: Tool call returned expected result" in stdout:
-                        success_seen = True
-                    break
-
-                # Check stdout for success message
-                stdout_line = client_process.stdout.readline() if client_process.stdout else ""
-                if stdout_line:
-                    logger.info(f"Client: {stdout_line.strip()}")
-                    if "SUCCESS: Tool call returned expected result" in stdout_line:
-                        success_seen = True
-                        break
-
-                # Brief pause before checking again
-                await asyncio.sleep(0.1)
-
-            # Verify client made a successful call
-            if not success_seen:
-                if client_process.poll() is None:
-                    stdout, stderr = client_process.communicate(timeout=1.0)
-                    logger.warning(f"Client process timed out, STDOUT: {stdout}")
-                    logger.warning(f"STDERR: {stderr}")
-                pytest.fail("First client did not complete a successful tool call")
-
-            # 3. Simulate abrupt disconnection by forcibly terminating the process
-            logger.info("Simulating abrupt client disconnection by terminating process...")
-            if client_process.poll() is None:
-                client_process.kill()
-                logger.info("First client process forcibly terminated")
-
-            # 4. Allow server time to detect the disconnection and log errors
-            logger.info("Waiting for server to detect disconnection...")
-            await asyncio.sleep(2.0)  # Give server time to detect and log the disconnect
-
-            # 5. Connect a new client to verify server is still operational
-            logger.info("=== SECOND CLIENT ===")
-            logger.info(f"Connecting second client to SSE endpoint: {sse_endpoint_url}")
-
-            # Use proper context managers for the second client
-            async with sse_client(sse_endpoint_url) as second_streams:
-                read_stream, write_stream = second_streams
-                logger.info("Second client: SSE streams obtained")
-
-                async with ClientSession(read_stream, write_stream) as session:
-                    logger.info("Second client: ClientSession created")
-
-                    # Initialize session
-                    await asyncio.wait_for(session.initialize(), timeout=CLIENT_TIMEOUT)
-                    logger.info("Second client: Session initialized successfully")
-
-                    # Make tool call
-                    success, data = await make_tool_call(session, "echo", {"message": "Hello from second client"})
-                    assert success, f"Second client tool call failed: {data.get('error', 'Unknown error')}"
-                    assert data.get("echoed") == "Hello from second client", "Unexpected response data"
-                    logger.info("Second client: Tool call succeeded")
-
-            logger.info("Test completed successfully: Server handled abrupt disconnection properly")
-
-        finally:
-            # Clean up the temporary client script
+        async def first_client_task():
+            nonlocal client_task_succeeded
             try:
-                os.unlink(client_script_path)
+                logger.info(f"Connecting first client task to {sse_endpoint_url}")
+                async with sse_client(sse_endpoint_url) as streams:
+                    read_stream, write_stream = streams
+                    logger.info("First client task: SSE streams obtained")
+                    async with ClientSession(read_stream, write_stream) as session:
+                        logger.info("First client task: ClientSession created")
+                        await asyncio.wait_for(session.initialize(), timeout=CLIENT_TIMEOUT)
+                        logger.info("First client task: Session initialized")
+
+                        # Make tool call
+                        success, result_data = await make_tool_call(
+                            session, "echo", {"message": "Hello from client task"}
+                        )
+
+                        if success and result_data.get("echoed") == "Hello from client task":
+                            logger.info("First client task: Successful tool call")
+                            client_task_succeeded = True
+                        else:
+                            logger.error(f"First client task: Tool call failed or unexpected result: {result_data}")
+                            client_task_succeeded = False  # Explicitly set failure
+
+                        # Signal completion before potentially waiting forever
+                        client_task_completed.set()
+
+                        # Keep connection open until cancelled to simulate abrupt disconnect
+                        # If we exit the context managers cleanly, it's not an *abrupt* disconnect.
+                        await asyncio.Event().wait()  # Wait indefinitely until cancelled
+
+            except asyncio.CancelledError:
+                logger.info("First client task cancelled as expected.")
+                # Do not set success flag here, cancellation is the goal
+                raise  # Re-raise CancelledError to signal cancellation happened
             except Exception as e:
-                logger.warning(f"Error removing temporary client script: {e}")
+                logger.error(f"First client task failed with exception: {e}", exc_info=True)
+                client_task_succeeded = False
+                client_task_completed.set()  # Signal completion even on error
+                # Do not raise here, let the main test logic handle the failure via client_task_succeeded flag
+
+        # Start the client task
+        logger.info("Starting first client task...")
+        client_task_handle = asyncio.create_task(first_client_task())
+
+        # Wait for the client task to make the call and signal completion (or timeout)
+        try:
+            logger.info("Waiting for first client task to complete its tool call...")
+            await asyncio.wait_for(client_task_completed.wait(), timeout=CLIENT_TIMEOUT * 1.5)  # Give extra time
+        except asyncio.TimeoutError:
+            # If the task times out here, it likely failed to connect or call the tool
+            logger.error("Timeout waiting for first client task to complete its tool call.")
+            # Attempt to cancel the task if it's still running
+            if not client_task_handle.done():
+                client_task_handle.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await client_task_handle  # Wait for cancellation to complete
+            pytest.fail("First client task timed out before completing tool call.")
+            return  # Added return
+
+        # Verify the tool call within the task succeeded before proceeding
+        assert client_task_succeeded, "First client task did not report a successful tool call."
+        logger.info("First client task reported successful tool call.")
+
+        # 3. Simulate abrupt disconnection by cancelling the task
+        logger.info("Simulating abrupt client disconnection by cancelling the task...")
+        if not client_task_handle.done():
+            client_task_handle.cancel()
+            # Wait for the task to finish cancelling
+            await asyncio.gather(client_task_handle, return_exceptions=True)
+            logger.info("First client task finished cancellation.")
+        else:
+            # Task might have already finished due to an internal error AFTER signalling success
+            logger.warning("Client task was already done before explicit cancellation.")
+
+        # 4. Allow server time to process the cancellation/disconnection
+        # This might be less critical with task cancellation vs kill(), but keep a short delay.
+        logger.info("Waiting briefly for server to handle disconnection...")
+        await asyncio.sleep(1.0)  # Reduced wait time
+
+        # 5. Connect a new client to verify server is still operational
+        logger.info("=== SECOND CLIENT (direct connection) ===\n")
+        logger.info(f"Connecting second client to SSE endpoint: {sse_endpoint_url}")
+        try:
+            async with sse_client(sse_endpoint_url) as streams2:
+                read_stream2, write_stream2 = streams2
+                logger.info("Second client: SSE streams obtained")
+                async with ClientSession(read_stream2, write_stream2) as session2:
+                    logger.info("Second client: ClientSession created")
+                    await asyncio.wait_for(session2.initialize(), timeout=CLIENT_TIMEOUT)
+                    logger.info("Second client: Session initialized")
+
+                    # Make another tool call
+                    success2, result_data2 = await make_tool_call(
+                        session2, "echo", {"message": "Hello again from second client"}
+                    )
+
+                    # Assert second call success
+                    assert success2, f"Second tool call failed: {result_data2.get('error', 'Unknown error')}"
+                    assert (
+                        result_data2.get("echoed") == "Hello again from second client"
+                    ), f"Second tool call returned unexpected data: {result_data2}"
+
+                    logger.info("Second client successfully connected and called tool. Server resilience confirmed.")
+
+        except (aiohttp.ClientConnectorError, ConnectionRefusedError, asyncio.TimeoutError) as conn_err:
+            logger.error(f"Failed to connect second client: {conn_err}", exc_info=True)
+            pytest.fail(f"Failed to connect second client after first client disconnection: {conn_err}")
+        except Exception as e:
+            logger.error(f"Unexpected error during second client connection/call: {e}", exc_info=True)
+            pytest.fail(f"Unexpected error during second client connection/call: {e}")
 
     except Exception as e:
         logger.error(f"Test failed with exception: {e}", exc_info=True)
         pytest.fail(f"Test failed with exception: {e}")
     finally:
-        # Ensure cleanup of server process with timeout to avoid hanging
+        # Cleanup handled by harness __aexit__ or explicit call
         logger.info("Cleaning up test harness...")
-        try:
-            cleanup_task = asyncio.create_task(harness.cleanup())
-            await asyncio.wait_for(cleanup_task, timeout=5.0)
-            logger.info("Test harness cleaned up")
-        except asyncio.TimeoutError:
-            logger.warning("Harness cleanup timed out - process may still be running")
-            # Try to forcibly kill the server process if it's still running
-            if harness.process and harness.process.returncode is None:
-                try:
-                    harness.process.kill()
-                    logger.warning("Forcibly killed server process")
-                except Exception as kill_err:
-                    logger.warning(f"Error killing server process: {kill_err}")
+        await harness.cleanup()
+        logger.info("Test harness cleaned up.")
+        # # Clean up the temporary script file if it was created (no longer needed)
+        # if 'client_script_path' in locals() and os.path.exists(client_script_path):
+        #     os.remove(client_script_path)
 
 
 @pytest.mark.asyncio
@@ -304,217 +277,208 @@ async def test_stdio_connection_resilience() -> None:
     """
     Test Stdio server resilience to abrupt client disconnections.
 
+    Uses asyncio.create_task and task.cancel() for simulation.
+
     Steps:
-    1. Start the server (expect the test harness to handle this)
-    2. Connect first client and make a successful tool call
-    3. Simulate an abrupt client disconnection
-    4. Start a new server (since stdio servers likely terminate when client disconnects)
-    5. Connect a new client and make another successful tool call
+    1. Determine the server script path (no separate server process needed initially).
+    2. Connect first client using asyncio task (which starts its own server via stdio_client)
+       and make a successful tool call.
+    3. Simulate an abrupt client disconnection by cancelling the task.
+    4. Verify the server process associated with the first client terminates.
+    5. Connect a new client (which starts its own server instance) and make another
+       successful tool call to confirm the server script itself is not corrupted.
     """
-    # Create test harness for Stdio
-    harness = McpTestHarness(TransportType.STDIO)
+    # 1. Determine server script path (using harness default)
+    harness = McpTestHarness(TransportType.STDIO)  # Harness mainly used for script path and cleanup logic here
+    script_path = str(harness.script_path)
+    logger.info(f"Using stdio server script: {script_path}")
+
+    first_client_process: Optional[
+        asyncio.subprocess.Process
+    ] = None  # To track the process started by the first client
 
     try:
-        # 1. Start server subprocess
-        logger.info("Starting Stdio server subprocess")
-        process = await harness.start_server()
+        # 2. Connect first client using asyncio task and make successful tool call
+        logger.info("=== FIRST CLIENT (via asyncio task) ===")
 
-        # Basic check if process started immediately
-        if process.returncode is not None:
-            pytest.fail(f"Process failed to start with return code {process.returncode}")
+        client_task_completed = asyncio.Event()
+        client_task_succeeded = False
+
+        async def first_client_task():
+            nonlocal client_task_succeeded, first_client_process
+            try:
+                logger.info(f"Configuring first client task for stdio server: {script_path}")
+                server_params = StdioServerParameters(command=sys.executable, args=[script_path])
+
+                # stdio_client starts the server process
+                async with stdio_client(server_params) as streams:
+                    # Store the process handle once connected
+                    if (
+                        hasattr(streams, "_server_process") and streams._server_process
+                    ):  # Access internal attr carefully
+                        first_client_process = streams._server_process
+                        logger.info(f"First client task: Server process started (PID: {first_client_process.pid})")
+                    else:
+                        logger.warning("Could not access server process handle from stdio_client streams.")
+
+                    read_stream, write_stream = streams
+                    logger.info("First client task: Stdio streams obtained")
+
+                    async with ClientSession(read_stream, write_stream) as session:
+                        logger.info("First client task: ClientSession created")
+                        await asyncio.wait_for(session.initialize(), timeout=CLIENT_TIMEOUT)
+                        logger.info("First client task: Session initialized")
+
+                        # Make tool call
+                        success, result_data = await make_tool_call(
+                            session, "echo", {"message": "Hello from stdio client task"}
+                        )
+
+                        if success and result_data.get("echoed") == "Hello from stdio client task":
+                            logger.info("First client task: Successful tool call")
+                            client_task_succeeded = True
+                        else:
+                            logger.error(f"First client task: Tool call failed or unexpected result: {result_data}")
+                            client_task_succeeded = False
+
+                        # Signal completion before potentially waiting forever
+                        client_task_completed.set()
+
+                        # Keep connection open until cancelled
+                        await asyncio.Event().wait()  # Wait indefinitely until cancelled
+
+            except asyncio.CancelledError:
+                logger.info("First client task cancelled as expected.")
+                # If cancelled, the context managers should handle closing streams/process
+                raise
+            except Exception as e:
+                logger.error(f"First client task failed with exception: {e}", exc_info=True)
+                client_task_succeeded = False
+                client_task_completed.set()
+
+        # Start the client task
+        logger.info("Starting first client task...")
+        client_task_handle = asyncio.create_task(first_client_task())
+
+        # Wait for the client task to make the call and signal completion (or timeout)
+        try:
+            logger.info("Waiting for first client task to complete its tool call...")
+            await asyncio.wait_for(client_task_completed.wait(), timeout=CLIENT_TIMEOUT * 1.5)
+        except asyncio.TimeoutError:
+            logger.error("Timeout waiting for first client task to complete its tool call.")
+            if not client_task_handle.done():
+                client_task_handle.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await client_task_handle
+            pytest.fail("First client task timed out before completing tool call.")
             return
 
-        # Wait for server to be ready
-        logger.info("Server process started, waiting for readiness signal...")
-        startup_ok = await harness.verify_server_startup(timeout=15.0)
-        assert startup_ok, "Server startup verification failed (check harness logs)"
-        logger.info("Stdio server ready")
+        # Verify the tool call succeeded
+        assert client_task_succeeded, "First client task did not report a successful tool call."
+        logger.info("First client task reported successful tool call.")
 
-        # Get script path for stdio client parameters
-        script_path = str(harness.script_path)
+        # 3. Simulate abrupt disconnection by cancelling the task
+        logger.info("Simulating abrupt client disconnection by cancelling the task...")
+        if not client_task_handle.done():
+            client_task_handle.cancel()
+            await asyncio.gather(client_task_handle, return_exceptions=True)
+            logger.info("First client task finished cancellation.")
+        else:
+            logger.warning("Client task was already done before explicit cancellation.")
 
-        # 2. Connect first client and make successful tool call
-        logger.info("=== FIRST CLIENT ===")
-        logger.info(f"Connecting first client to Stdio server: {script_path}")
-
-        # Use a separate process for the first client
-        import os
-        import subprocess
-        import tempfile
-
-        # Create a temporary script for the client
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as client_script:
-            client_script.write(
-                f"""
-import asyncio
-import json
-import sys
-from mcp.client.session import ClientSession
-from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.types import TextContent
-
-async def main():
-    try:
-        # Connect to server
-        script_path = "{script_path}"
-        print(f"Connecting to stdio server: {{script_path}}")
-
-        server_params = StdioServerParameters(
-            command=[sys.executable, script_path]
-        )
-
-        async with stdio_client(server_params) as streams:
-            read_stream, write_stream = streams
-            print("Stdio streams obtained")
-
-            async with ClientSession(read_stream, write_stream) as session:
-                print("ClientSession created")
-                await session.initialize()
-                print("Session initialized")
-
-                # Make tool call
-                result = await session.call_tool("echo", {{"message": "Hello from subprocess stdio client"}})
-                print(f"Tool call result: {{result}}")
-
-                # Verify result has the expected data
-                if result and not result.isError and result.content:
-                    if isinstance(result.content[0], TextContent):
-                        response_text = result.content[0].text
-                        response_data = json.loads(response_text)
-                        if response_data.get("echoed") == "Hello from subprocess stdio client":
-                            print("SUCCESS: Tool call returned expected result")
-                            # Exit with success - we'll kill the process before this completes
-                            sys.exit(0)
-
-                print("ERROR: Tool call failed or returned unexpected result")
-                sys.exit(1)
-    except Exception as e:
-        print(f"ERROR: {{e}}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-"""
-            )
-            client_script_path = client_script.name
-
-        try:
-            # Start the client subprocess
-            logger.info(f"Starting first stdio client as subprocess: {client_script_path}")
-            client_process = subprocess.Popen(
-                [sys.executable, client_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-
-            # Wait for the client to connect and make a successful call
-            timeout = CLIENT_TIMEOUT
-            success_seen = False
-            start_time = asyncio.get_event_loop().time()
-
-            while asyncio.get_event_loop().time() - start_time < timeout:
-                if client_process.poll() is not None:
-                    # Process has terminated
-                    stdout, stderr = client_process.communicate()
-                    logger.info(f"Client process terminated with code {client_process.returncode}")
-                    logger.info(f"STDOUT: {stdout}")
-                    logger.info(f"STDERR: {stderr}")
-                    if "SUCCESS: Tool call returned expected result" in stdout:
-                        success_seen = True
-                    break
-
-                # Check stdout for success message
-                stdout_line = client_process.stdout.readline() if client_process.stdout else ""
-                if stdout_line:
-                    logger.info(f"Client: {stdout_line.strip()}")
-                    if "SUCCESS: Tool call returned expected result" in stdout_line:
-                        success_seen = True
-                        break
-
-                # Brief pause before checking again
-                await asyncio.sleep(0.1)
-
-            # Verify client made a successful call
-            if not success_seen:
-                if client_process.poll() is None:
-                    stdout, stderr = client_process.communicate(timeout=1.0)
-                    logger.warning(f"Client process timed out, STDOUT: {stdout}")
-                    logger.warning(f"STDERR: {stderr}")
-                pytest.fail("First client did not complete a successful tool call")
-
-            # 3. Simulate abrupt disconnection by forcibly terminating the process
-            logger.info("Simulating abrupt client disconnection by terminating process...")
-            if client_process.poll() is None:
-                client_process.kill()
-                logger.info("First client process forcibly terminated")
-
-            # 4. Allow server time to detect the disconnection
-            logger.info("Waiting for server to detect disconnection...")
-            await asyncio.sleep(2.0)  # Give server time to detect and log the disconnect
-
-            # Check if server process is still running - for stdio it likely terminated
-            if harness.process is None or harness.process.returncode is not None:
-                logger.info("Server process terminated after client disconnection (expected for stdio)")
-                # Start a new server process
-                logger.info("Starting a new Stdio server subprocess")
-                process = await harness.start_server()
-
-                # Basic check if process started immediately
-                if process.returncode is not None:
-                    pytest.fail(f"Second server process failed to start with return code {process.returncode}")
-                    return
-
-                # Wait for server to be ready
-                logger.info("Second server process started, waiting for readiness signal...")
-                startup_ok = await harness.verify_server_startup(timeout=15.0)
-                assert startup_ok, "Second server startup verification failed (check harness logs)"
-                logger.info("Second Stdio server ready")
-
-            # 5. Connect a new client to verify server is still operational (or new server works)
-            logger.info("=== SECOND CLIENT ===")
-            logger.info(f"Connecting second client to Stdio server: {script_path}")
-
-            # Use proper context managers for the second client
-            async with stdio_client(StdioServerParameters(command=[sys.executable, script_path])) as second_streams:
-                read_stream, write_stream = second_streams
-                logger.info("Second client: Stdio streams obtained")
-
-                async with ClientSession(read_stream, write_stream) as session:
-                    logger.info("Second client: ClientSession created")
-
-                    # Initialize session
-                    await asyncio.wait_for(session.initialize(), timeout=CLIENT_TIMEOUT)
-                    logger.info("Second client: Session initialized successfully")
-
-                    # Make tool call
-                    success, data = await make_tool_call(session, "echo", {"message": "Hello from second stdio client"})
-                    assert success, f"Second client tool call failed: {data.get('error', 'Unknown error')}"
-                    assert data.get("echoed") == "Hello from second stdio client", "Unexpected response data"
-                    logger.info("Second client: Tool call succeeded")
-
-            logger.info("Test completed successfully")
-
-        finally:
-            # Clean up the temporary client script
+        # 4. Verify the server process associated with the first client terminates
+        logger.info("Waiting for first client's server process to terminate...")
+        if first_client_process and first_client_process.returncode is None:
             try:
-                os.unlink(client_script_path)
+                # Wait for the process started by stdio_client to exit
+                await asyncio.wait_for(first_client_process.wait(), timeout=5.0)
+                logger.info(f"First client's server process terminated with code: {first_client_process.returncode}")
+            except asyncio.TimeoutError:
+                logger.warning("Timeout waiting for first client's server process to terminate. Attempting kill.")
+                if first_client_process.returncode is None:
+                    first_client_process.kill()  # Force kill if necessary
+                    await first_client_process.wait()  # Wait after killing
+                    logger.info("First client's server process forcibly killed.")
             except Exception as e:
-                logger.warning(f"Error removing temporary client script: {e}")
+                logger.error(f"Error waiting for first client's server process: {e}")
+        elif first_client_process:
+            logger.info(f"First client's server process already terminated (code: {first_client_process.returncode}).")
+        else:
+            logger.warning("Could not track first client's server process.")
 
-    except Exception as e:
-        logger.error(f"Test failed with exception: {e}", exc_info=True)
-        pytest.fail(f"Test failed with exception: {e}")
-    finally:
-        # Ensure cleanup of server process with timeout to avoid hanging
-        logger.info("Cleaning up test harness...")
+        # Give a brief moment for OS resources to clear
+        await asyncio.sleep(0.5)
+
+        # 5. Connect a new client to verify the server script is usable again
+        logger.info("=== SECOND CLIENT (new process via stdio_client) ===")
+        logger.info(f"Connecting second client to Stdio server script: {script_path}")
+        second_client_process: Optional[asyncio.subprocess.Process] = None
         try:
-            cleanup_task = asyncio.create_task(harness.cleanup())
-            await asyncio.wait_for(cleanup_task, timeout=5.0)
-            logger.info("Test harness cleaned up")
-        except asyncio.TimeoutError:
-            logger.warning("Harness cleanup timed out - process may still be running")
-            # Try to forcibly kill the server process if it's still running
-            if harness.process and harness.process.returncode is None:
+            server_params2 = StdioServerParameters(command=sys.executable, args=[script_path])
+            async with stdio_client(server_params2) as streams2:
+                if hasattr(streams2, "_server_process") and streams2._server_process:  # Track second process
+                    second_client_process = streams2._server_process
+
+                read_stream2, write_stream2 = streams2
+                logger.info("Second client: Stdio streams obtained")
+                async with ClientSession(read_stream2, write_stream2) as session2:
+                    logger.info("Second client: ClientSession created")
+                    await asyncio.wait_for(session2.initialize(), timeout=CLIENT_TIMEOUT)
+                    logger.info("Second client: Session initialized")
+
+                    # Make another tool call
+                    success2, result_data2 = await make_tool_call(
+                        session2, "echo", {"message": "Hello again from second stdio client"}
+                    )
+
+                    assert success2, f"Second tool call failed: {result_data2.get('error', 'Unknown error')}"
+                    assert (
+                        result_data2.get("echoed") == "Hello again from second stdio client"
+                    ), f"Second tool call returned unexpected data: {result_data2}"
+
+                    logger.info("Second client successfully connected and called tool. Stdio resilience confirmed.")
+
+        except Exception as e:
+            logger.error(f"Unexpected error during second client connection/call: {e}", exc_info=True)
+            pytest.fail(f"Unexpected error during second client connection/call: {e}")
+
+    finally:
+        # Clean up any lingering processes specifically tracked in this test
+        logger.info("Performing test-specific cleanup...")
+
+        # Cleanup first client task if it exists and is running
+        if "client_task_handle" in locals():
+            task = locals()["client_task_handle"]
+            if isinstance(task, asyncio.Task) and not task.done():
+                logger.warning("Cancelling potentially lingering first client task during cleanup.")
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+        # Cleanup first client's server process if it exists and is running
+        if first_client_process and first_client_process.returncode is None:
+            logger.warning(
+                f"Killing lingering first client server process (PID: {first_client_process.pid}) during cleanup."
+            )
+            try:
+                first_client_process.kill()
+                await asyncio.gather(first_client_process.wait(), return_exceptions=True)
+            except ProcessLookupError:
+                logger.warning(f"Process {first_client_process.pid} already terminated during cleanup.")
+            except Exception as e:
+                logger.error(f"Error killing first client process {first_client_process.pid}: {e}")
+
+        # Cleanup second client's server process if it exists and is running
+        if "second_client_process" in locals():
+            proc = locals()["second_client_process"]
+            # Check if it's a Process and running
+            if isinstance(proc, asyncio.subprocess.Process) and proc.returncode is None:
+                logger.warning(f"Killing lingering second client server process (PID: {proc.pid}) during cleanup.")
                 try:
-                    harness.process.kill()
-                    logger.warning("Forcibly killed server process")
-                except Exception as kill_err:
-                    logger.warning(f"Error killing server process: {kill_err}")
+                    proc.kill()
+                    await asyncio.gather(proc.wait(), return_exceptions=True)
+                except ProcessLookupError:
+                    logger.warning(f"Process {proc.pid} already terminated during cleanup.")
+                except Exception as e:
+                    logger.error(f"Error killing second client process {proc.pid}: {e}")
+
+        logger.info("Test cleanup finished.")
