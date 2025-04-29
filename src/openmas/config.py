@@ -18,6 +18,42 @@ logger = get_logger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 
+class ConfigLoader:
+    """Handles loading and parsing configuration files."""
+
+    def load_yaml_file(self, file_path: Path) -> Dict[str, Any]:
+        """Load and parse a YAML configuration file.
+
+        Args:
+            file_path: Path to the YAML configuration file
+
+        Returns:
+            Dictionary containing the parsed YAML or empty dict if file doesn't exist
+
+        Raises:
+            ConfigurationError: If the file exists but parsing fails
+        """
+        if not file_path.exists():
+            logger.debug(f"Config file not found: {file_path}")
+            return {}
+
+        try:
+            with open(file_path, "r") as f:
+                result = yaml.safe_load(f)
+                if result is None or not isinstance(result, dict):
+                    logger.warning(f"Config file {file_path} does not contain a dictionary")
+                    return {}
+                return cast(Dict[str, Any], result)
+        except yaml.YAMLError as e:
+            message = f"Error parsing YAML file '{file_path}': {e}"
+            logger.error(message)
+            raise ConfigurationError(message)
+        except Exception as e:
+            message = f"Failed to load config file {file_path}: {e}"
+            logger.error(message)
+            raise ConfigurationError(message)
+
+
 class AgentConfig(BaseModel):
     """Base configuration model for agents."""
 

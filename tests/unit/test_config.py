@@ -1059,3 +1059,23 @@ class TestProjectConfig:
                 ProjectConfig(
                     name="test-project", version="0.1.0", agents={name: {"module": "agents.test", "class": "TestAgent"}}
                 )
+
+
+class TestConfigLoader:
+    """Tests for the ConfigLoader class."""
+
+    def test_load_yaml_file_invalid_yaml(self):
+        """Test that loading a file with invalid YAML syntax raises a ConfigurationError."""
+        from openmas.config import ConfigLoader
+
+        # Create a temporary file with invalid YAML
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "builtins.open", mock_open(read_data="invalid: : yaml")
+        ), patch("yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")):
+            loader = ConfigLoader()
+
+            with pytest.raises(ConfigurationError) as exc_info:
+                loader.load_yaml_file(Path("/config/invalid.yml"))
+
+            assert "Error parsing YAML file '/config/invalid.yml'" in str(exc_info.value)
+            assert "YAML syntax error" in str(exc_info.value)
