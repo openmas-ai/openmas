@@ -228,7 +228,14 @@ async def test_error_conditions(mock_communicator):
 
 ## Using the AgentTestHarness
 
-The `AgentTestHarness` simplifies testing agent behavior by providing a structured way to create, start, stop, and interact with agent instances during tests.
+The `AgentTestHarness` simplifies testing agent behavior by providing a structured way to create, start, stop, and interact with agent instances during tests. It's especially powerful for multi-agent testing scenarios.
+
+Key features:
+- Creates agent instances with properly configured MockCommunicators
+- Manages the agent lifecycle (start/stop) through convenient context managers
+- Provides utilities for simulating and verifying agent communications
+- Supports multi-agent testing with per-agent MockCommunicator instances
+- Enables testing of complex interactions between multiple agents
 
 ### Basic Agent Testing
 
@@ -263,7 +270,7 @@ async def test_agent_processing(agent_harness):
     agent = await agent_harness.create_agent()
 
     # Set up expectations for the external service call
-    agent_harness.communicator.expect_request(
+    agent.communicator.expect_request(
         "math-service", "calculate",
         {"operation": "double", "value": 5},
         {"value": 10}
@@ -280,47 +287,127 @@ async def test_agent_processing(agent_harness):
         assert result == {"result": 10}
 
         # Verify all expected communications occurred
-        agent_harness.communicator.verify()
+        agent_harness.verify_all_communicators()
 ```
 
 ### Multi-Agent Testing
 
-The enhanced AgentTestHarness includes utilities for testing interactions between multiple agents:
+The AgentTestHarness provides robust support for testing interactions between multiple agents, with each agent having its own unique MockCommunicator:
 
 ```python
 @pytest.mark.asyncio
 async def test_multi_agent_interaction(agent_harness):
-    # Create two agents
+    # Create multiple agents, each getting a unique MockCommunicator
     agent1 = await agent_harness.create_agent(name="agent1")
     agent2 = await agent_harness.create_agent(name="agent2")
-
-    # Set up handler on agent2
-    async def handle_query(message):
-        return {"data": f"Processed {message['content'].get('query', '')}"}
-
-    await agent2.communicator.register_handler("query", handle_query)
+    agent3 = await agent_harness.create_agent(name="agent3")
 
     # Link the agents for direct communication
+    # This sets up service_urls in both agent configs and communicators,
+    # and links the mock communicators for direct message passing
     await agent_harness.link_agents(agent1, agent2)
+    await agent_harness.link_agents(agent1, agent3)
 
-    # Start both agents using the running_agents context manager
-    async with agent_harness.running_agents(agent1, agent2):
-        # Set up the expected request from agent1 to agent2
-        agent_harness.communicators["agent1"].expect_request(
-            "agent2", "query", {"query": "test_data"}, None
+    # Start the agents to register their handlers
+    async with agent_harness.running_agents(agent1, agent2, agent3):
+        # Store test data in agents (will be needed for testing inter-agent communication)
+        await agent_harness.trigger_handler(agent1, "store_data", {"key": "test", "value": "from-agent1"})
+        await agent_harness.trigger_handler(agent2, "store_data", {"key": "test", "value": "from-agent2"})
+        await agent_harness.trigger_handler(agent3, "store_data", {"key": "test", "value": "from-agent3"})
+
+        # Method 1: Using the harness's send_request helper for cleaner testing
+        # This method directly routes the request to the target agent's handler
+        result1 = await agent_harness.send_request(agent1, "agent2", "get_data", {"key": "test"})
+        assert result1["value"] == "from-agent2"
+
+        # Method 2: Using the agent's communicator directly
+        # In this case, you may need to set up expectations on the receiving agent
+        agent3.communicator.expect_request(
+            "agent3", "get_data", {"key": "test"}, {"key": "test", "value": "from-agent3"}
         )
+        result2 = await agent1.communicator.send_request("agent3", "get_data", {"key": "test"})
+        assert result2["value"] == "from-agent3"
 
-        # Agent1 sends a request to agent2
-        response = await agent1.communicator.send_request(
-            "agent2", "query", {"query": "test_data"}
-        )
-
-        # Verify the response
-        assert response == {"data": "Processed test_data"}
+        # Test sending a notification between agents
+        agent2.communicator.expect_notification("agent2", "callback", {"event": "update"})
+        await agent1.communicator.send_notification("agent2", "callback", {"event": "update"})
 
         # Verify all expectations were met across all communicators
         agent_harness.verify_all_communicators()
 ```
+
+The harness tracks all agent communicators in the `communicators` dictionary, allowing for targeted setup and verification:
+
+```python
+# You can directly access a specific agent's communicator
+agent1_comm = agent_harness.communicators["agent1"]
+agent2_comm = agent_harness.communicators["agent2"]
+
+# Set up specific expectations for each communicator
+agent1_comm.expect_request("external-service", "get_data", {"id": "123"}, {"result": "data1"})
+agent2_comm.expect_notification("monitoring", "log", {"level": "info"})
+
+# Verify expectations for all agents at once
+agent_harness.verify_all_communicators()
+
+# Or verify a specific agent's expectations
+agent1_comm.verify()
+```
+
+### Linking Agents for Testing
+
+When testing interactions between multiple agents, it's crucial to properly link them using the `link_agents` method:
+
+```python
+await agent_harness.link_agents(agent1, agent2, agent3)
+```
+
+This method does several important things:
+1. Updates each agent's `config.service_urls` to include references to the other agents
+2. Adds entries in each agent's `communicator.service_urls` dictionary
+3. Links the mock communicators to enable direct message routing between agents
+
+Always link agents before attempting to test communication between them. Without proper linking:
+- Agents won't know how to route messages to each other
+- The MockCommunicator won't know how to route requests to the appropriate handler
+- You'll get errors about missing service URLs or unexpected requests
+
+### Using the Harness's send_request Method
+
+The AgentTestHarness provides a convenient `send_request` method to simplify testing communication between agents:
+
+```python
+@pytest.mark.asyncio
+async def test_inter_agent_communication(agent_harness):
+    # Create and link two agents
+    agent1 = await agent_harness.create_agent(name="sender")
+    agent2 = await agent_harness.create_agent(name="receiver")
+
+    await agent_harness.link_agents(agent1, agent2)
+
+    # Start both agents to register handlers
+    async with agent_harness.running_agents(agent1, agent2):
+        # Store test data in the receiver agent
+        await agent_harness.trigger_handler(
+            agent2, "store_data", {"key": "test_key", "value": "test_value"}
+        )
+
+        # Use send_request to route a request from sender to receiver
+        # This automatically handles the routing and expectations
+        response = await agent_harness.send_request(
+            agent1, "receiver", "get_data", {"key": "test_key"}
+        )
+
+        # Verify the response
+        assert response["key"] == "test_key"
+        assert response["value"] == "test_value"
+```
+
+The `send_request` method offers several advantages:
+- Simplifies inter-agent testing by handling the request/response flow
+- Automatically routes the request to the target agent's handler
+- No need to manually set up expectations for basic testing
+- Works with the established links between agents
 
 ## Test Organization and Structure
 
@@ -443,7 +530,7 @@ Follow this structure for agent tests:
 async def test_agent_behavior(agent_harness):
     # ARRANGE
     agent = await agent_harness.create_agent()
-    agent_harness.communicator.expect_request(
+    agent.communicator.expect_request(
         "service", "method", {"param": "value"}, {"result": "success"}
     )
 
@@ -455,7 +542,7 @@ async def test_agent_behavior(agent_harness):
 
     # ASSERT
     assert result == expected_value
-    agent_harness.communicator.verify()
+    agent_harness.verify_all_communicators()
 ```
 
 ### Testing Error Handling
@@ -468,7 +555,7 @@ async def test_agent_error_handling(agent_harness):
     agent = await agent_harness.create_agent()
 
     # Set up a service to return an error
-    agent_harness.communicator.expect_request_exception(
+    agent.communicator.expect_request_exception(
         "service", "method", {"param": "value"},
         Exception("Service error")
     )
@@ -521,7 +608,7 @@ async def test_agent_timeout_handling(agent_harness):
 
     # In a real test, you would mock the timeout behavior
     # For demonstration, we'll just set up an expectation
-    agent_harness.communicator.expect_request_exception(
+    agent.communicator.expect_request_exception(
         "slow-service", "get_data", {"id": "123"},
         TimeoutError("Request timed out")
     )
