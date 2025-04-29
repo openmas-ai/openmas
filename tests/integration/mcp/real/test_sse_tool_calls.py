@@ -3,60 +3,54 @@
 import asyncio
 import json
 import logging
-import os
 import random
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
+from mcp.client.session import ClientSession
+from mcp.client.sse import sse_client
+from mcp.types import ListToolsResult, TextContent
 
-# Configure detailed logging
+# Fix E402: Move dependency checks and utils import to the top
+SKIP_REASON = "mcp or aiohttp not installed"
+HAS_MCP = True
+HAS_AIOHTTP = True
+try:
+    # Fix F401: Comment out direct aiohttp import as it's only used in utils.py
+    import aiohttp # noqa: F401
+except ImportError:
+    HAS_AIOHTTP = False
+    SKIP_REASON += " (aiohttp)"
+
+try:
+    # Check for MCP installation
+    import mcp # noqa: F401
+except ImportError:
+    HAS_MCP = False
+    SKIP_REASON += " (mcp)"
+
+# Ensure this import is AFTER the dependency checks
+from tests.integration.mcp.real.utils import McpTestHarness, TransportType
+
+logger = logging.getLogger(__name__)
+
+# Determine the path to the server script dynamically
+_current_dir = Path(__file__).parent
+_server_script_path = _current_dir / "sse_server_script.py"
+
+# Configure detailed logging (moved below imports and path setup)
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
     stream=sys.stderr,
 )
 
-# Skip tests if aiohttp is not available
-try:
-    import aiohttp  # noqa: F401 # type: ignore
-
-    HAS_AIOHTTP = True
-except ImportError:
-    HAS_AIOHTTP = False
-    logging.getLogger(__name__).warning("aiohttp not available, skipping SSE tests")
-
-# Conditionally import MCP components only if aiohttp is present
-if HAS_AIOHTTP:
-    try:
-        import mcp.client.sse  # Try importing the module itself
-        from mcp.client.session import ClientSession
-        from mcp.client.sse import sse_client
-        from mcp.types import CallToolResult, ListToolsResult, TextContent
-
-        # Log MCP version for debugging
-        try:
-            import mcp
-
-            logging.getLogger(__name__).info(f"MCP version: {getattr(mcp, '__version__', 'unknown')}")
-        except (ImportError, AttributeError):
-            logging.getLogger(__name__).warning("Could not determine MCP version")
-    except ImportError as e:
-        # If MCP imports fail even though aiohttp was found, log the error
-        HAS_AIOHTTP = False
-        logging.getLogger(__name__).warning(f"Failed to import MCP SSE client components: {e}. Skipping SSE tests.")
-
-SKIP_REASON = "Skipping SSE tests because aiohttp or mcp.client.sse is not available"
-
-from tests.integration.mcp.real.utils import McpTestHarness, TransportType
-
-logger = logging.getLogger(__name__)
-
 
 @pytest.mark.asyncio
 @pytest.mark.mcp
-@pytest.mark.skipif(not HAS_AIOHTTP, reason=SKIP_REASON)
+@pytest.mark.skipif(not HAS_AIOHTTP or not HAS_MCP, reason=SKIP_REASON)
 async def test_sse_echo_basic_types() -> None:
     """Test the echo tool with various basic parameter types."""
     test_port = 8765 + random.randint(0, 1000)
@@ -172,7 +166,7 @@ async def test_sse_echo_basic_types() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.mcp
-@pytest.mark.skipif(not HAS_AIOHTTP, reason=SKIP_REASON)
+@pytest.mark.skipif(not HAS_AIOHTTP or not HAS_MCP, reason=SKIP_REASON)
 async def test_sse_echo_complex_types() -> None:
     """Test the echo tool with complex parameter types (list, dict)."""
     test_port = 8765 + random.randint(0, 1000)
@@ -244,7 +238,7 @@ async def test_sse_echo_complex_types() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.mcp
-@pytest.mark.skipif(not HAS_AIOHTTP, reason=SKIP_REASON)
+@pytest.mark.skipif(not HAS_AIOHTTP or not HAS_MCP, reason=SKIP_REASON)
 async def test_sse_multiple_sequential_calls() -> None:
     """Test multiple sequential calls to the echo tool."""
     test_port = 8765 + random.randint(0, 1000)
@@ -295,7 +289,7 @@ async def test_sse_multiple_sequential_calls() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.mcp
-@pytest.mark.skipif(not HAS_AIOHTTP, reason=SKIP_REASON)
+@pytest.mark.skipif(not HAS_AIOHTTP or not HAS_MCP, reason=SKIP_REASON)
 async def test_sse_list_tools() -> None:
     """Test the list_tools functionality via SSE."""
     test_port = 8765 + random.randint(0, 1000)

@@ -10,18 +10,15 @@ This module provides comprehensive tests for:
 import asyncio
 import json
 import logging
-import os
 import sys
 from pathlib import Path
-from pprint import pformat
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.server import Server
-from mcp.types import CallToolRequestParams, CallToolResult, TextContent
+from mcp.types import TextContent
 
 from tests.integration.mcp.real.utils import McpTestHarness, TransportType
 

@@ -11,7 +11,6 @@ import uvicorn
 from fastapi import FastAPI, Request  # Import FastAPI
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.sse import SseServerTransport  # Import SSE Transport
-from mcp.types import CallToolResult, TextContent
 from starlette.routing import Mount
 
 # Set up logging

@@ -5,7 +5,7 @@ import asyncio
 import json
 import logging
 import sys
-from typing import Any, Dict
+from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import CallToolResult, TextContent

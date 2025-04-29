@@ -3,7 +3,9 @@ import random
 
 import httpx
 import pytest
-from mcp.client.sse import sse_client
+
+# from mcp.client.sse import sse_client
+
 
 # from mcp.types import TextContent, Prompt # Commenting out as not used in this test
 
@@ -13,7 +15,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.asyncio
 @pytest.mark.mcp
 @pytest.mark.integration
-async def test_server_not_available_sse():
+async def test_server_not_available_sse() -> None:
     """
     Tests that connecting to a non-existent SSE server URL raises an appropriate error.
     Uses httpx directly as sse_client might wrap errors.
@@ -38,3 +40,5 @@ async def test_server_not_available_sse():
     logger.info(f"Got expected exception: {exc_info.type.__name__}")
     # Optionally, assert specific details about the error if needed
     # assert "Connection refused" in str(exc_info.value) # This might be platform-specific
+
+    logger.info("SSE client error test passed (ConnectError expected)")
