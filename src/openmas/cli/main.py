@@ -56,28 +56,41 @@ def init(project_name: str, template: Optional[str], name: Optional[str]) -> Non
 
     # Create main project directory if not using current directory
     if project_path != Path("."):
-        project_path.mkdir(parents=True)
+        try:
+            project_path.mkdir(parents=True)
+        except (PermissionError, OSError) as e:
+            click.echo(f"❌ Error creating project directory: {str(e)}")
+            sys.exit(1)
 
     # Create subdirectories
     subdirs = ["agents", "shared", "extensions", "config", "tests", "packages"]
-    for subdir in subdirs:
-        (project_path / subdir).mkdir(exist_ok=project_path == Path("."))
+    try:
+        for subdir in subdirs:
+            (project_path / subdir).mkdir(exist_ok=project_path == Path("."))
+    except (PermissionError, OSError) as e:
+        click.echo(f"❌ Error creating project structure: {str(e)}")
+        sys.exit(1)
 
-    # Create README.md
-    with open(project_path / "README.md", "w") as f:
-        f.write(f"# {display_name}\n\nA OpenMAS project.\n")
+    # Create project files
+    try:
+        # Create README.md
+        with open(project_path / "README.md", "w") as f:
+            f.write(f"# {display_name}\n\nA OpenMAS project.\n")
 
-    # Create requirements.txt
-    with open(project_path / "requirements.txt", "w") as f:
-        f.write("openmas>=0.1.0\n")
+        # Create requirements.txt
+        with open(project_path / "requirements.txt", "w") as f:
+            f.write("openmas>=0.1.0\n")
 
-    # Create .gitignore if it doesn't exist
-    gitignore_path = project_path / ".gitignore"
-    if not gitignore_path.exists():
-        with open(gitignore_path, "w") as f:
-            f.write("__pycache__/\n*.py[cod]\n*$py.class\n.env\n.venv\nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/\n")
-            f.write(".pytest_cache/\n.coverage\nhtmlcov/\n.tox/\n.mypy_cache/\n")
-            f.write("# OpenMAS specific\npackages/\n")
+        # Create .gitignore if it doesn't exist
+        gitignore_path = project_path / ".gitignore"
+        if not gitignore_path.exists():
+            with open(gitignore_path, "w") as f:
+                f.write("__pycache__/\n*.py[cod]\n*$py.class\n.env\n.venv\nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/\n")
+                f.write(".pytest_cache/\n.coverage\nhtmlcov/\n.tox/\n.mypy_cache/\n")
+                f.write("# OpenMAS specific\npackages/\n")
+    except (PermissionError, OSError) as e:
+        click.echo(f"❌ Error creating project files: {str(e)}")
+        sys.exit(1)
 
     # Create openmas_project.yml
     project_config: Dict[str, Any] = {
@@ -92,15 +105,16 @@ def init(project_name: str, template: Optional[str], name: Optional[str]) -> Non
 
     # If template is specified, customize the project structure
     if template:
-        if template.lower() == "mcp-server":
-            # Setup an MCP server template
-            agent_dir = project_path / "agents" / "mcp_server"
-            agent_dir.mkdir(parents=True, exist_ok=project_path == Path("."))
+        try:
+            if template.lower() == "mcp-server":
+                # Setup an MCP server template
+                agent_dir = project_path / "agents" / "mcp_server"
+                agent_dir.mkdir(parents=True, exist_ok=project_path == Path("."))
 
-            # Create agent.py file
-            with open(agent_dir / "agent.py", "w") as f:
-                f.write(
-                    """'''MCP Server Agent.'''
+                # Create agent.py file
+                with open(agent_dir / "agent.py", "w") as f:
+                    f.write(
+                        """'''MCP Server Agent.'''
 
 import asyncio
 from openmas.agent import BaseAgent
@@ -124,12 +138,12 @@ class McpServerAgent(BaseAgent):
         # Shutdown your MCP server here
         pass
 """
-                )
+                    )
 
-            # Create openmas.deploy.yaml file
-            with open(agent_dir / "openmas.deploy.yaml", "w") as f:
-                f.write(
-                    """version: "1.0"
+                # Create openmas.deploy.yaml file
+                with open(agent_dir / "openmas.deploy.yaml", "w") as f:
+                    f.write(
+                        """version: "1.0"
 
 component:
   name: "mcp-server"
@@ -164,12 +178,13 @@ volumes:
 
 dependencies: []
 """
-                )
+                    )
 
-            # Update project config with the agent
-            if "agents" not in project_config:
-                project_config["agents"] = {}
-            project_config["agents"]["mcp_server"] = "agents/mcp_server"
+                # Update project config with the agent
+                project_config["agents"]["mcp_server"] = "agents/mcp_server"
+        except (PermissionError, OSError) as e:
+            click.echo(f"❌ Error creating template files: {str(e)}")
+            sys.exit(1)
 
     # Add dependencies schema comment
     dependencies_comment = """# Dependencies configuration (for external packages)
@@ -183,25 +198,64 @@ dependencies: []
 """
 
     # Write the project configuration file with comments
-    with open(project_path / "openmas_project.yml", "w") as f:
-        yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
-        f.write("\n" + dependencies_comment)
+    try:
+        with open(project_path / "openmas_project.yml", "w") as f:
+            yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
+            f.write("\n" + dependencies_comment)
+    except (PermissionError, OSError) as e:
+        click.echo(f"❌ Error writing project configuration: {str(e)}")
+        sys.exit(1)
 
-    if project_path == Path("."):
-        click.echo(f"✅ Created OpenMAS project '{display_name}'")
-        click.echo("Project structure initialized in current directory")
-    else:
-        click.echo(f"✅ Created OpenMAS project '{project_path}'")
-        click.echo(f"Project structure initialized in '{project_path}'")
+    # Success message with styling
+    try:
+        from rich.console import Console
+        from rich.panel import Panel
+        from rich.text import Text
 
-    if template:
-        click.echo(f"Used template: {template}")
+        rich_console = Console()
 
-    click.echo("\nNext steps:")
-    if project_path != Path("."):
-        click.echo(f"  cd {project_name}")
-    click.echo("  poetry install openmas")
-    click.echo("  # Start developing your agents!")
+        # Create a styled success message
+        success_text = Text()
+        success_text.append("✅ ", style="bold green")
+
+        if project_path == Path("."):
+            success_text.append(f"OpenMAS project '{display_name}' created successfully!\n\n", style="bold")
+            success_text.append("Project structure initialized in current directory")
+        else:
+            success_text.append(f"OpenMAS project '{project_path}' created successfully!\n\n", style="bold")
+            success_text.append(f"Project structure initialized in '{project_path}'")
+
+        if template:
+            success_text.append(f"\n\nTemplate: {template}", style="bold blue")
+
+        # Add next steps
+        next_steps = Text("\n\nNext steps:", style="bold yellow")
+        if project_path != Path("."):
+            next_steps.append(f"\n  cd {project_name}")
+        next_steps.append("\n  poetry install openmas")
+        next_steps.append("\n  # Start developing your agents!")
+
+        success_text.append(next_steps)
+
+        # Display the styled message in a panel
+        rich_console.print(Panel(success_text, title="Project Creation Complete", border_style="green"))
+    except ImportError:
+        # Fallback to plain text if rich is not available
+        if project_path == Path("."):
+            click.echo(f"✅ Created OpenMAS project '{display_name}'")
+            click.echo("Project structure initialized in current directory")
+        else:
+            click.echo(f"✅ Created OpenMAS project '{project_path}'")
+            click.echo(f"Project structure initialized in '{project_path}'")
+
+        if template:
+            click.echo(f"Used template: {template}")
+
+        click.echo("\nNext steps:")
+        if project_path != Path("."):
+            click.echo(f"  cd {project_name}")
+        click.echo("  poetry install openmas")
+        click.echo("  # Start developing your agents!")
 
 
 @cli.command()

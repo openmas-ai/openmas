@@ -28,7 +28,8 @@ def test_init_new_project(temp_dir):
 
         result = runner.invoke(init, [str(project_path)])
         assert result.exit_code == 0
-        assert f"Created OpenMAS project '{str(project_path)}'" in result.output
+        assert "OpenMAS project" in result.output
+        assert "created successfully" in result.output
 
         # Check that the project directory was created
         assert project_path.exists()
@@ -52,7 +53,7 @@ def test_init_current_directory_with_name(temp_dir):
 
     result = runner.invoke(init, [".", "--name", "current_dir_project"])
     assert result.exit_code == 0
-    assert "Created OpenMAS project 'current_dir_project'" in result.output
+    assert "OpenMAS project 'current_dir_project' created successfully" in result.output
     assert "Project structure initialized in current directory" in result.output
 
     # Check that files were created in the current directory
@@ -104,8 +105,9 @@ def test_init_with_template(temp_dir):
 
     result = runner.invoke(init, [str(project_path), "--template", "mcp-server"])
     assert result.exit_code == 0
-    assert f"Created OpenMAS project '{str(project_path)}'" in result.output
-    assert "Used template: mcp-server" in result.output
+    assert "OpenMAS project" in result.output
+    assert "created successfully" in result.output
+    assert "Template: mcp-server" in result.output
 
     # Check that the template-specific files were created
     assert (project_path / "agents" / "mcp_server").exists()

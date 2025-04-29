@@ -1,0 +1,23 @@
+name: examples/00a_hello_agent_single
+version: 0.1.0
+agents:
+  hello_agent_single:
+    module: agents.hello_agent_single.agent
+    class: HelloWorldAgent
+shared_paths:
+- shared
+extension_paths:
+- extensions
+default_config:
+  log_level: INFO
+  communicator_type: http
+dependencies: []
+
+# Dependencies configuration (for external packages)
+# Examples:
+# dependencies:
+#   # - package: <org_or_user>/<package_name>  # Example: From official repo (Not implemented yet)
+#   #   version: <version_spec>
+#   # - git: <git_url>                         # Example: From Git repo (Implemented)
+#   #   revision: <branch_tag_or_commit>       # Optional
+#   # - local: <relative_path_to_package>      # Example: From local path (Not implemented yet)
