@@ -351,9 +351,39 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
                 click.echo(f"[OpenMAS CLI] Project agents: {', '.join(all_agent_names)}")
                 click.echo("")
 
-            # Wait for shutdown signal
-            click.echo("Agent is running. Press Ctrl+C to stop.")
-            await shutdown_event.wait()
+            # Create tasks for the agent's run method and the shutdown signal wait
+            agent_run_task = loop.create_task(agent.run(), name=f"agent_run_{agent_name}")
+            shutdown_wait_task = loop.create_task(shutdown_event.wait(), name=f"shutdown_wait_{agent_name}")
+
+            # Wait for either the agent to finish or a shutdown signal
+            click.echo("Agent is running. Waiting for completion or Ctrl+C...")
+            done, pending = await asyncio.wait(
+                [agent_run_task, shutdown_wait_task], return_when=asyncio.FIRST_COMPLETED
+            )
+
+            if agent_run_task in done:
+                click.echo("Agent run method completed.")
+                # Check for exceptions in the agent's run task
+                try:
+                    agent_run_task.result()  # Raise exception if run() had one
+                except asyncio.CancelledError:
+                    click.echo("Agent run task was cancelled.")  # Should not happen unless stop() was called early
+                except Exception as e:
+                    click.echo(f"❌ Error during agent execution: {e}")
+                    traceback.print_exc()
+            else:
+                # This means shutdown_wait_task finished (signal received)
+                click.echo("Shutdown signal received.")
+
+            # Ensure the other task is cancelled if it's still pending
+            for task in pending:
+                click.echo(f"Cancelling pending task: {task.get_name()}")
+                task.cancel()
+                try:
+                    # Allow cancellation to propagate
+                    await task
+                except asyncio.CancelledError:
+                    pass  # Expected
 
         except asyncio.CancelledError:
             click.echo("Agent execution cancelled")
