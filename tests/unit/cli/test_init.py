@@ -29,7 +29,7 @@ def test_init_new_project(temp_dir):
         result = runner.invoke(init, [str(project_path)])
         assert result.exit_code == 0
         assert "OpenMAS project" in result.output
-        assert "created successfully" in result.output
+        assert "Project Creation Complete" in result.output
 
         # Check that the project directory was created
         assert project_path.exists()
