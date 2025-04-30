@@ -1,0 +1,118 @@
+name: OpenMAS CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*.*.*' ] # Trigger on tags like v1.2.3
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read # Default read permission
+
+jobs:
+  build_and_test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Use the lowest supported Python version for broader compatibility checks
+        # Add other versions if needed, but one is usually sufficient for CI checks
+        python-version: ["3.10"]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Install Tox
+      run: pipx install tox
+
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+    - name: Install dependencies if cache doesn't exist
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root --with dev,all # Install all deps for coverage
+
+    - name: Run linters
+      run: tox -e lint
+
+    - name: Run tests with coverage check (fail < 50%)
+      run: tox -e coverage # This env generates coverage.xml and fails if below threshold
+
+    - name: Upload coverage report to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }} # Required for private repos or specific org settings
+        files: ./coverage.xml
+        fail_ci_if_error: true # Recommended to fail the build if upload fails
+        # The coverage threshold is enforced by `tox -e coverage`, not here.
+
+    - name: Build package artifacts
+      run: poetry build
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-${{ matrix.python-version }}
+        path: dist/
+
+  publish:
+    name: Publish to PyPI and Create Release
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') # Only run on tag pushes
+
+    permissions:
+      contents: write # Needed to create GitHub releases
+      # Use id-token: write for PyPI trusted publishing (preferred)
+      id-token: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10" # Use a fixed version for publishing consistency
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        # Artifact name must match the upload step
+        name: python-package-3.10 # Assuming 3.10 was the build python version
+        path: dist/
+
+    - name: Publish package to PyPI
+      # Using PyPI trusted publishing (OIDC) - configure this in PyPI project settings
+      run: poetry publish --username __token__ --password ${{ secrets.PYPI_TOKEN }}
+      # Fallback using API token (less secure):
+      # env:
+      #   POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
+      # run: poetry publish
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/* # Attach all files from the dist directory (sdist and wheel)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Provided by Actions

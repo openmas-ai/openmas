@@ -1,0 +1,65 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches:
+      - main # Trigger deployment on pushes to the main branch
+
+permissions:
+  contents: write # Allow deployment to gh-pages branch
+
+jobs:
+  deploy:
+    name: Deploy MkDocs Site
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.x # Use a recent Python version
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+
+    # Install project dependencies + MkDocs and theme
+    # Caching can be added here for faster builds if needed
+    - name: Install dependencies
+      run: |
+        poetry install --no-interaction --no-root # Install project deps if needed by docs
+        poetry run pip install mkdocs mkdocs-material # Install MkDocs and theme
+
+    # Create a basic mkdocs.yml if it doesn't exist - ADJUST THIS AS NEEDED
+    - name: Create default mkdocs.yml if needed
+      run: |
+        if [ ! -f mkdocs.yml ]; then
+          echo "site_name: OpenMAS"
+          echo "theme:
+            name: material"
+          echo "repo_url: https://github.com/dylangames/openmas"
+          echo "edit_uri: edit/main/docs/"
+          echo "nav:
+            - Home: index.md"
+          echo "markdown_extensions:
+            - admonition
+            - pymdownx.details
+            - pymdownx.superfences
+            - pymdownx.tabbed:
+                alternate_style: true"
+          # Add custom domain configuration here if needed
+          # echo "site_url: https://docs.openmas.ai/" # Uncomment and verify
+        fi > mkdocs.yml
+
+    # Create CNAME file for custom domain if needed - MUST match site_url in mkdocs.yml
+    # This is one way to handle custom domains with GitHub Pages
+    # - name: Create CNAME file
+    #   run: echo "docs.openmas.ai" > docs/CNAME
+
+    - name: Deploy documentation to GitHub Pages
+      # Use poetry run to ensure mkdocs uses the correct environment
+      run: poetry run mkdocs gh-deploy --force --config-file mkdocs.yml
+      # The `--force` flag is necessary for CI deployments
+      # Ensure mkdocs.yml exists or is created before this step

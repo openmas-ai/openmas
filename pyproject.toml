@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "openmas"
-version = "0.0.1"
+version = "0.0.2"
 description = "OpenMAS: A lightweight SDK for building Multi-Agent Systems"
 authors = ["Wilson <your-email@example.com>"]
 readme = "README.md"
