@@ -1,0 +1,85 @@
+site_name: OpenMAS
+site_url: https://docs.openmas.ai
+repo_url: https://github.com/wilson-urdaneta/openmas # Replace with your actual repo URL if different
+repo_name: wilson-urdaneta/openmas # Replace with your actual repo name if different
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+nav:
+  - Home: index.md
+  - Guides:
+    - Installation: installation.md
+    - Getting Started: getting_started.md
+    - Configuration: configuration.md
+    - Communication: communication.md
+    - LLM Integration: llm_integration.md
+    - MCP Integration: mcp_integration.md
+    - Testing Utilities: testing-utilities.md
+    - Deployment: deployment.md
+    # - Reasoning Integration: reasoning_integration.md # Deferred for now
+  - Core Concepts:
+    - Architecture: architecture.md
+    - Design Philosophy: design.md
+    - Agent Patterns: patterns.md
+  - Extending OpenMAS:
+    - Custom Communicators: communicator_extensions.md
+    # - Custom Agent Patterns: # Placeholder
+    # - Custom Reasoning: # Placeholder
+  - Command Line Interface:
+    - Overview: cli/index.md
+    - init: cli/init.md
+    - validate: cli/validate.md
+    - list: cli/list.md
+    - run: cli/run.md
+    - deps: cli/deps.md
+    - generate-dockerfile: cli/generate-dockerfile.md
+  - API Reference: api_reference.md
+  - Contributing: contributing.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            # members_order: source # Optional: Order members as they appear in source
+            # show_root_heading: true # Optional
+            # heading_level: 2 # Optional
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - toc:
+      permalink: true

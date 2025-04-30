@@ -12,6 +12,16 @@ The OpenMAS testing framework addresses several key goals:
 - Properly test optional features and communicators
 - Provide end-to-end validation via example applications
 
+## Testing Philosophy
+
+OpenMAS follows a Test-Driven Development (TDD) approach internally:
+
+1. Write failing tests first.
+2. Implement the minimum code required to make the tests pass.
+3. Refactor the code while keeping the tests passing.
+
+This ensures that features are well-tested and code quality remains high.
+
 ## Tooling
 
 OpenMAS uses standard Python testing tools:
@@ -27,16 +37,23 @@ Tests are organized primarily by directory structure, reflecting the type of tes
 
 ### Unit Tests (`tests/unit/`)
 
-Unit tests validate individual components in isolation, with all external dependencies mocked. These tests ensure core functionality works as expected without depending on external systems.
+Unit tests verify isolated components with all external dependencies mocked.
 
 - **Location:** `tests/unit/`
-- **Purpose:** Test individual classes and functions with complete isolation
+- **Purpose:** Test individual classes and functions with complete isolation.
+- **Dependencies:** External dependencies (Communicators, I/O, etc.) are **always** mocked.
 - **Execution:** Run via the `tox -e unit` environment.
-- **Dependencies:** External dependencies (Communicators, I/O, etc.) are always mocked.
+- **Requirement:** Must never be skipped due to the unavailability of external dependencies.
 
 ### Integration Tests (`tests/integration/`)
 
-Integration tests validate interactions between components. They are subdivided based on dependency requirements and whether they use mocks or real services.
+Integration tests verify how components work together. They are subdivided based on dependency requirements and whether they use mocks or real services.
+
+- **Location:** `tests/integration/`
+- **Purpose:** Test interactions between components or with external services/protocols.
+- **Dependencies:** May use mocks or actual dependencies (like specific communicators or running services like an MQTT broker).
+- **Execution:** Run via various `tox -e integration-*` environments.
+- **Requirement:** Tests relying on actual dependencies **must** be skipped (using `pytest.mark.skipif`) if the required dependency is unavailable. Any test that is executed (not skipped) must pass.
 
 #### Core Integration Tests (`tests/integration/core/`)
 

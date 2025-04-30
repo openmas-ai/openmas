@@ -226,43 +226,104 @@ if __name__ == "__main__":
 
 ## Creating an MCP Client
 
-The `McpClientAgent` class provides convenient methods for working with MCP servers:
+To interact with an MCP server (like the `CalculatorAgent` above), you create a standard OpenMAS agent (`BaseAgent`) and configure it to use an MCP communicator (`McpSseCommunicator` or `McpStdioCommunicator`) in **client mode** (which is the default). There isn't a specific `McpClientAgent` class; you leverage the standard `BaseAgent`.
 
 ```python
-from openmas.agent import McpClientAgent
+import asyncio
+from openmas.agent import BaseAgent  # Use BaseAgent for clients
 from openmas.communication.mcp import McpSseCommunicator
+from openmas.logging import configure_logging, get_logger
+from openmas.exceptions import CommunicationError # Import relevant exceptions
+
+configure_logging(log_level="INFO")
+logger = get_logger(__name__)
+
+class CalculatorClientAgent(BaseAgent): # Inherit from BaseAgent
+    def __init__(self, name="calculator-client", server_url="http://localhost:8001"):
+        super().__init__(name=name)
+        logger.info(f"Initializing CalculatorClientAgent to connect to {server_url}")
+
+        # Configure communicator for client mode
+        communicator = McpSseCommunicator(
+            agent_name=self.name,
+            # Define the target service URL. The key ('calculator' here) is how
+            # you refer to this service in send_request calls.
+            service_urls={"calculator": server_url},
+            server_mode=False # Explicitly client mode (default)
+        )
+        self.set_communicator(communicator)
+
+    async def run(self) -> None:
+        logger.info(f"Agent '{self.name}' running. Will call calculator server.")
+        try:
+            # In client mode, communicator.start() (called by agent.start())
+            # mostly sets up internal state. Connections are typically made lazily
+            # when send_request is first called for a service.
+
+            # Call the 'add' tool on the 'calculator' service
+            logger.info("Calling 'add' tool...")
+            add_result = await self.communicator.send_request(
+                target_service="calculator", # Use the key defined in service_urls
+                method="add", # Corresponds to the @mcp_tool method name on the server
+                params={"a": 10, "b": 5}
+            )
+            logger.info(f"Add Result: {add_result}") # Expected: {'result': 15}
+
+            # Call the 'subtract' tool
+            logger.info("Calling 'subtract' tool...")
+            sub_result = await self.communicator.send_request(
+                target_service="calculator",
+                method="subtract",
+                params={"a": 100, "b": 33}
+            )
+            logger.info(f"Subtract Result: {sub_result}") # Expected: {'result': 67}
+
+        except CommunicationError as e: # Catch more specific errors if possible
+            logger.error(f"Error during MCP request: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"An unexpected error occurred in run: {e}", exc_info=True)
+        finally:
+            logger.info("Client run finished.")
+            # In a real agent, this loop might wait for external triggers,
+            # process incoming messages, or run periodically.
+            # For this example, we exit after making the calls.
+            # To keep it running indefinitely:
+            # while True: await asyncio.sleep(3600)
 
 async def main():
-    # Create a client agent
-    client = McpClientAgent(name="math-client")
+    # Ensure the CalculatorAgent server is running on localhost:8001 first!
+    client_agent = CalculatorClientAgent(server_url="http://localhost:8001")
 
-    # Set a communicator
-    client.set_communicator(McpSseCommunicator(
-        agent_name=client.name,
-        service_urls={}  # We'll add connections dynamically
-    ))
+    try:
+        # Start the agent. This calls agent.setup() and then agent.run()
+        # The communicator's client-side setup happens within agent.start()
+        await client_agent.start()
+        # In this example, run() completes after making requests, so start() will return.
 
-    await client.communicator.start()
-
-    # Connect to a server
-    await client.connect_to_service("math-server", "localhost", 8000)
-
-    # List available tools
-    tools = await client.list_tools("math-server")
-    print(f"Available tools: {tools}")
-
-    # Call a tool
-    result = await client.call_tool("math-server", "add", {"a": 5, "b": 3})
-    print(f"5 + 3 = {result['sum']}")
-
-    # Disconnect and stop
-    await client.disconnect_from_service("math-server")
-    await client.communicator.stop()
+    except KeyboardInterrupt:
+        logger.info("Client interrupted by user.")
+    except Exception as e:
+         logger.error(f"Client agent failed: {e}", exc_info=True)
+    finally:
+        # Stop the agent (calls agent.shutdown() which cleans up communicator)
+        await client_agent.stop()
+        logger.info("Client agent stopped.")
 
 if __name__ == "__main__":
-    import asyncio
+    # Optional: Add a small delay if running server & client almost simultaneously
+    # import time
+    # time.sleep(2) # Allow server time to bind port
     asyncio.run(main())
 ```
+
+**To Run:**
+
+1.  Make sure the `CalculatorAgent` server (from the previous section) is running.
+2.  Save the client code above (e.g., `calculator_client.py`).
+3.  Ensure `openmas[mcp]` is installed.
+4.  Run `python calculator_client.py`.
+
+You will see the client log messages as it calls the `add` and `subtract` tools on the server and prints the results.
 
 ## How It Works
 
@@ -385,4 +446,4 @@ async def test_mcp_tool_calls(mcp_agent_harness):
         pass
 ```
 
-For more information on testing, see the [Testing](./testing.md) documentation.
+For more information on testing, see the [Testing Utilities Guide](./testing-utilities.md) documentation.

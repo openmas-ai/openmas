@@ -39,7 +39,7 @@ jobs:
           echo "site_name: OpenMAS"
           echo "theme:
             name: material"
-          echo "repo_url: https://github.com/dylangames/openmas"
+          echo "repo_url: https://github.com/wilson-urdaneta/openmas"
           echo "edit_uri: edit/main/docs/"
           echo "nav:
             - Home: index.md"

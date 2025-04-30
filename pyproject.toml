@@ -1,10 +1,27 @@
 [tool.poetry]
 name = "openmas"
-version = "0.0.2"
+version = "0.1.0"
 description = "OpenMAS: A lightweight SDK for building Multi-Agent Systems"
-authors = ["Wilson <your-email@example.com>"]
+authors = ["Wilson Urdaneta <your-email@example.com>"]
+license = "MIT"
 readme = "README.md"
 packages = [{include = "openmas", from = "src"}]
+homepage = "https://openmas.ai"
+repository = "https://github.com/wilson-urdaneta/openmas"
+documentation = "https://docs.openmas.ai"
+keywords = ["multi-agent-systems", "mas", "agent", "ai", "mcp", "model-context-protocol", "sdk"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
 
 [tool.poetry.scripts]
 openmas = "openmas.cli:main"
@@ -52,6 +69,10 @@ aiohttp = "^3.9.1"
 uvicorn = "^0.34.2"
 pytest-timeout = "^2.3.1"
 tox = "^4.25.0"
+mkdocs = ">=1.5"
+mkdocs-material = ">=9.5"
+mkdocstrings = {version = ">=0.24", extras = ["python"]}
+pymdown-extensions = ">=10.0"
 
 [build-system]
 requires = ["poetry-core"]

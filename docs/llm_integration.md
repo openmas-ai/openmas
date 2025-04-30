@@ -1,210 +1,156 @@
-# LLM Integration
+# Integrating Large Language Models (LLMs)
 
-This document outlines patterns for integrating Large Language Models (LLMs) such as OpenAI, Anthropic, and Google Gemini into OpenMAS agents.
+OpenMAS agents can easily integrate with various Large Language Models (LLMs) like OpenAI's GPT, Anthropic's Claude, or Google's Gemini to add sophisticated reasoning capabilities.
 
-## Recommended Pattern
+The recommended approach is straightforward: initialize the official LLM client library (e.g., `openai`, `anthropic`, `google-generativeai`) directly within your agent's `setup()` method, using configuration loaded via OpenMAS's standard mechanisms.
 
-The recommended approach for integrating LLMs is to use the standard configuration system and initialize the LLM clients directly in the agent's `setup()` method.
+This pattern offers several advantages:
+*   **Simplicity:** Leverages the official, feature-rich SDKs provided by the LLM vendors.
+*   **Direct Control:** Gives you full control over model parameters, error handling, and interaction logic.
+*   **Standard Configuration:** Uses OpenMAS's environment variable and configuration file loading for API keys and model names.
+*   **No Extra Abstraction:** Avoids adding unnecessary abstraction layers over the LLM clients.
 
-### 1. Configure API Keys via Environment Variables
+## Steps
 
-Set up environment variables for your LLM service:
+### 1. Install the LLM Client Library
+
+Ensure you have the necessary Python package for your chosen LLM installed in your project's environment:
 
 ```bash
-# OpenAI
-export OPENAI_API_KEY=your_openai_api_key
-export OPENAI_MODEL_NAME=gpt-4
+# Example for OpenAI
+pip install openai
+# poetry add openai
 
-# Anthropic
-export ANTHROPIC_API_KEY=your_anthropic_api_key
-export ANTHROPIC_MODEL_NAME=claude-3-opus-20240229
+# Example for Anthropic
+pip install anthropic
+# poetry add anthropic
 
-# Google
-export GOOGLE_API_KEY=your_google_api_key
-export GOOGLE_MODEL_NAME=gemini-pro
+# Example for Google
+pip install google-generativeai
+# poetry add google-generativeai
 ```
 
-These will be loaded into your agent's configuration through the standard `AgentConfig` system.
+### 2. Configure API Keys and Model Names
 
-### 2. Initialize the LLM Client in the Agent's setup() Method
+Set environment variables for your LLM service. OpenMAS configuration will automatically pick these up if you map them in your agent's config or access them directly.
+
+```bash
+export OPENAI_API_KEY="your_openai_api_key"
+export OPENAI_MODEL_NAME="gpt-4o" # Or your preferred model
+
+export ANTHROPIC_API_KEY="your_anthropic_api_key"
+export ANTHROPIC_MODEL_NAME="claude-3-opus-20240229"
+
+export GOOGLE_API_KEY="your_google_api_key"
+export GOOGLE_MODEL_NAME="gemini-1.5-pro-latest"
+```
+
+### 3. Initialize the Client in `setup()`
+
+In your agent's code (subclassing `BaseAgent`), import the LLM library and initialize its client within the `setup` method.
 
 ```python
 import asyncio
-from typing import Optional
+import os
+from openmas.agent import BaseAgent
+# Assuming you might use a custom config, or access os.environ directly
+# from openmas.config import AgentConfig
 
-from openmas.agent.base import BaseAgent
-from openmas.config import AgentConfig
-
-
-class LLMAgent(BaseAgent):
-    """Agent that uses an LLM for reasoning."""
+# --- Example using OpenAI ---
+class OpenAIAgent(BaseAgent):
+    """Agent that uses OpenAI for reasoning."""
 
     async def setup(self) -> None:
-        """Set up the agent by initializing the LLM client."""
-        # For OpenAI
+        """Set up the agent by initializing the OpenAI client."""
         try:
             import openai
-
-            # Configure from environment or agent config
+            self.logger.info("Initializing OpenAI client...")
+            # Load API key from environment variable
             api_key = os.environ.get("OPENAI_API_KEY")
-            self.model_name = os.environ.get("OPENAI_MODEL_NAME", "gpt-4")
+            if not api_key:
+                self.logger.error("OPENAI_API_KEY environment variable not set.")
+                raise ValueError("Missing OpenAI API Key")
 
-            # Initialize the client
-            self.client = openai.OpenAI(api_key=api_key)
-            self.logger.info("OpenAI client initialized", model=self.model_name)
+            # Get model name from environment or use a default
+            self.model_name = os.environ.get("OPENAI_MODEL_NAME", "gpt-4o")
+
+            # Use the official OpenAI async client
+            self.aclient = openai.AsyncOpenAI(api_key=api_key)
+            self.logger.info("OpenAI client initialized.", model=self.model_name)
+
         except ImportError:
-            self.logger.error("OpenAI package not installed. Install with: pip install openai")
+            self.logger.error("OpenAI package not installed. Run: pip install openai")
+            raise
+        except Exception as e:
+            self.logger.error(f"Failed to initialize OpenAI client: {e}")
             raise
 
-    async def get_llm_response(self, prompt: str) -> str:
-        """Get a response from the LLM."""
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[
-                {"role": "system", "content": "You are an intelligent agent in a multi-agent system."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message.content
+    async def get_llm_response(self, prompt: str, system_prompt: str = "You are a helpful assistant.") -> str:
+        """Get a response from the initialized OpenAI LLM."""
+        if not hasattr(self, 'aclient'):
+            raise RuntimeError("OpenAI client not initialized. Call setup() first.")
+
+        try:
+            response = await self.aclient.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            # Basic error check (you might want more robust handling)
+            if response.choices:
+                return response.choices[0].message.content
+            else:
+                self.logger.warning("LLM response had no choices.")
+                return ""
+        except Exception as e:
+            self.logger.error(f"Error getting LLM response: {e}")
+            # Decide how to handle errors - raise, return default, etc.
+            raise
 
     async def run(self) -> None:
-        """Run the agent's main loop."""
-        while True:
-            # ... agent logic
-            await asyncio.sleep(1)
+        """Example run loop using the LLM."""
+        self.logger.info("LLM Agent running...")
+        try:
+            response = await self.get_llm_response("What is the capital of France?")
+            self.logger.info(f"LLM Response: {response}")
+        except Exception as e:
+            self.logger.error(f"Failed during run loop: {e}")
+
+        # Keep agent alive or perform other tasks
+        await asyncio.sleep(3600)
 
     async def shutdown(self) -> None:
         """Clean up resources."""
-        # Some LLM clients might need cleanup
-        pass
+        self.logger.info("Shutting down LLM agent.")
+        if hasattr(self, 'aclient'):
+             # Use await for the async client's close method if available
+             # await self.aclient.close() # Check specific SDK docs for cleanup
+             pass
+        await super().shutdown()
+
+# --- Example using Anthropic ---
+# (Similar structure: import, init in setup, use client method)
+# Remember to use the official async client: anthropic.AsyncAnthropic
+
+# --- Example using Google Gemini ---
+# (Similar structure: import, configure/init model in setup, use model method)
+# Ensure you use async methods if available in the google-generativeai library
+
 ```
 
-### 3. Using Different LLM Providers
+### 4. Use the Client in Agent Logic
 
-#### OpenAI
-
-```python
-async def setup(self) -> None:
-    """Set up the agent by initializing OpenAI."""
-    try:
-        import openai
-
-        api_key = os.environ.get("OPENAI_API_KEY")
-        self.model_name = os.environ.get("OPENAI_MODEL_NAME", "gpt-4")
-
-        self.client = openai.OpenAI(api_key=api_key)
-        self.logger.info("OpenAI client initialized", model=self.model_name)
-    except ImportError:
-        self.logger.error("OpenAI package not installed. Install with: pip install openai")
-        raise
-
-async def get_llm_response(self, prompt: str) -> str:
-    """Get a response from OpenAI."""
-    response = self.client.chat.completions.create(
-        model=self.model_name,
-        messages=[
-            {"role": "system", "content": "You are an intelligent agent in a multi-agent system."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return response.choices[0].message.content
-```
-
-#### Anthropic
-
-```python
-async def setup(self) -> None:
-    """Set up the agent by initializing Anthropic."""
-    try:
-        import anthropic
-
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        self.model_name = os.environ.get("ANTHROPIC_MODEL_NAME", "claude-3-opus-20240229")
-
-        self.client = anthropic.Anthropic(api_key=api_key)
-        self.logger.info("Anthropic client initialized", model=self.model_name)
-    except ImportError:
-        self.logger.error("Anthropic package not installed. Install with: pip install anthropic")
-        raise
-
-async def get_llm_response(self, prompt: str) -> str:
-    """Get a response from Anthropic."""
-    message = self.client.messages.create(
-        model=self.model_name,
-        max_tokens=1000,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return message.content[0].text
-```
-
-#### Google Gemini
-
-```python
-async def setup(self) -> None:
-    """Set up the agent by initializing Google Gemini."""
-    try:
-        import google.generativeai as genai
-
-        api_key = os.environ.get("GOOGLE_API_KEY")
-        self.model_name = os.environ.get("GOOGLE_MODEL_NAME", "gemini-pro")
-
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(self.model_name)
-        self.logger.info("Google Gemini model initialized", model=self.model_name)
-    except ImportError:
-        self.logger.error("Google generativeai package not installed. Install with: pip install google-generativeai")
-        raise
-
-async def get_llm_response(self, prompt: str) -> str:
-    """Get a response from Google Gemini."""
-    response = self.model.generate_content(prompt)
-    return response.text
-```
+Call the methods of the initialized LLM client (like `aclient.chat.completions.create` for OpenAI) within your agent's `run` loop or request handlers to generate responses based on prompts.
 
 ## Best Practices
 
-1. **Environment Variables**: Always load API keys from environment variables or secure configuration rather than hardcoding them.
+*   **Use Async Clients:** Always use the asynchronous versions of the LLM client libraries (e.g., `openai.AsyncOpenAI`, `anthropic.AsyncAnthropic`) to avoid blocking your agent's event loop.
+*   **Configuration:** Load API keys and model names securely from environment variables or configuration files managed by OpenMAS.
+*   **Error Handling:** Implement robust error handling for API calls, considering network issues, rate limits, and invalid responses.
+*   **Resource Management:** Ensure any necessary client cleanup is performed in the agent's `shutdown` method (refer to the specific LLM SDK documentation).
+*   **Prompt Engineering:** Develop clear and effective prompts, potentially using system messages to provide context about the agent's role and goals.
+*   **Dependency Management:** Add the required LLM client library to your project's dependencies (e.g., in `pyproject.toml` or `requirements.txt`).
 
-2. **Error Handling**: Implement appropriate error handling for API rate limits, errors, and timeouts.
-
-3. **Async Support**: Most LLM clients support async operations. Use them to keep your agent responsive.
-
-4. **Dependency Management**: Include the LLM client packages in your project's optional dependencies.
-
-5. **Prompting Strategies**: Develop clear prompting strategies with system messages that define the agent's role and context.
-
-## Extending Agent Configuration
-
-You can extend the base `AgentConfig` to include LLM-specific configuration:
-
-```python
-from pydantic import Field
-from openmas.config import AgentConfig
-
-class LLMAgentConfig(AgentConfig):
-    """Configuration for an LLM-powered agent."""
-
-    llm_provider: str = Field("openai", description="The LLM provider to use (openai, anthropic, google)")
-    llm_model: str = Field("gpt-4", description="The model name to use")
-    llm_temperature: float = Field(0.7, description="Temperature setting for LLM responses")
-    llm_max_tokens: int = Field(1000, description="Maximum number of tokens in responses")
-```
-
-Then use this extended configuration in your agent:
-
-```python
-class MyLLMAgent(BaseAgent):
-    def __init__(self, name=None, config=None):
-        super().__init__(name, config, config_model=LLMAgentConfig)
-
-    async def setup(self) -> None:
-        # Access LLM-specific config
-        provider = self.config.llm_provider
-        model = self.config.llm_model
-        temperature = self.config.llm_temperature
-
-        # Initialize appropriate client based on provider
-        # ...
-```
+*(See the specific documentation for the OpenAI, Anthropic, or Google Generative AI Python libraries for detailed API usage.)*

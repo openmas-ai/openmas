@@ -26,10 +26,12 @@ version: "0.1.0"
 agents:
   orchestrator: "agents/orchestrator"
   worker: "agents/worker"
+# Define paths for code shared between agents in this project
 shared_paths:
   - "shared"
-plugin_paths:
-  - "plugins/custom_communicators"
+# Define paths for project-local framework extensions (e.g., custom communicators)
+extension_paths:
+  - "extensions"
 default_config:
   log_level: "INFO"
   communicator_type: "http"
@@ -37,7 +39,7 @@ default_config:
     timeout: 30
 ```
 
-The `default_config` section provides base configuration values for all agents in the project. The `plugin_paths` section defines paths where OpenMAS will look for plugin modules (such as custom communicators).
+The `default_config` section provides base configuration values for all agents in the project. The `shared_paths` and `extension_paths` sections define locations where OpenMAS will look for project-specific shared code or framework extensions (like custom communicators).
 
 ### Environment Configuration Files
 
@@ -69,7 +71,7 @@ communicator_options:
   timeout: 60
 ```
 
-To use environment-specific configuration, set the `OPENMAS_ENV` environment variable:
+To use environment-specific configuration, set the `OPENMAS_ENV` environment variable (defaults to `local` if not set):
 
 ```bash
 export OPENMAS_ENV=production
@@ -133,23 +135,31 @@ OpenMAS will automatically discover and load plugins from these directories. For
 
 ## Configuration in Code
 
-In your agent code, use the `load_config` function to load and validate configuration:
+In your agent code, use the `load_config` function along with a Pydantic model (typically `AgentConfig` or a subclass) to load and validate configuration:
 
 ```python
 from openmas.config import load_config, AgentConfig
-
-# Load standard agent configuration
-config = load_config(AgentConfig)
-
-# Or extend AgentConfig for custom settings
 from pydantic import Field
 
-class MyAgentConfig(AgentConfig):
-    api_key: str = Field(..., description="API key for external service")
-    model_name: str = Field("gpt-4", description="Model name to use")
+# Load standard agent configuration using the base AgentConfig model
+config: AgentConfig = load_config(AgentConfig)
 
-config = load_config(MyAgentConfig)
+# --- Or define and load a custom configuration model ---
+
+class MyLLMAgentConfig(AgentConfig):
+    """Custom configuration including LLM settings."""
+    llm_api_key: str = Field(..., description="API key for external LLM service")
+    llm_model_name: str = Field("gpt-4o", description="Model name to use")
+
+# Load configuration using your custom model
+my_config: MyLLMAgentConfig = load_config(MyLLMAgentConfig)
+
+# Access validated config values later in your agent:
+# api_key = my_config.llm_api_key
+# agent_name = my_config.name
 ```
+
+The `load_config` function handles the layering logic, environment variable parsing, and Pydantic validation, providing a type-safe configuration object.
 
 ## Common Configuration Patterns
 
@@ -207,5 +217,6 @@ Here are the commonly used configuration keys in OpenMAS:
 | `service_urls` | Dictionary of service URLs | `{}` |
 | `communicator_options` | Dictionary of options for the communicator | `{}` |
 | `plugin_paths` | List of paths to look for plugins | `[]` |
+| `extension_paths` | List of paths to look for local framework extensions | `[]` |
 
-For communicator-specific options, refer to the documentation for each communicator type.
+For communicator-specific options, refer to the [Communication Guide](communication.md).

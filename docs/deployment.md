@@ -1,35 +1,48 @@
 # Deploying OpenMAS Systems
 
-This document provides guidance on deploying multi-agent systems built with OpenMAS.
+This document provides guidance on deploying multi-agent systems built with OpenMAS using common technologies like Docker and Kubernetes.
 
-## Deployment Architectures
+## Deployment Strategies
+
+Depending on the complexity and requirements of your system, you might choose different deployment strategies:
 
 ### Single-Process Deployment
 
-Ideal for simpler systems or testing:
+All agents run within the same operating system process. This is suitable for:
+
+*   Simple systems with few agents.
+*   Testing and development.
+*   Scenarios where high-performance, low-latency communication via in-memory communicators (like a potential future `InMemoryCommunicator` or specific MCP setups) is crucial.
+
+**Example Structure (`main_app.py`):**
 
 ```python
 import asyncio
-from openmas import Agent
-from openmas.communication.mcp import MCPCommunicator
+from openmas.agent import BaseAgent
+# Assume an in-memory or suitable local communicator exists or is mocked
+# from openmas.communication.memory import InMemoryCommunicator
+from openmas.testing import MockCommunicator # Using Mock for illustration
+from openmas.logging import configure_logging
+
+configure_logging()
 
 async def main():
-    # Create agents in same process
-    agent1 = Agent(
-        name="agent1",
-        communicator=MCPCommunicator(
-            agent_name="agent1",
-            service_urls={"agent2": "mcp://agent2"}
-        )
-    )
+    # Define shared communicator or links
+    comm1 = MockCommunicator(agent_name="agent1")
+    comm2 = MockCommunicator(agent_name="agent2")
+    # Link mock communicators for in-process testing/simulation
+    comm1.link_communicator(comm2)
+    comm2.link_communicator(comm1)
 
-    agent2 = Agent(
-        name="agent2",
-        communicator=MCPCommunicator(
-            agent_name="agent2",
-            service_urls={"agent1": "mcp://agent1"}
-        )
-    )
+    # Create agents in the same process
+    agent1 = BaseAgent(name="agent1")
+    agent1.set_communicator(comm1) # Manually set communicator
+    # Register handlers...
+    # @agent1.register_handler(...)
+
+    agent2 = BaseAgent(name="agent2")
+    agent2.set_communicator(comm2)
+    # Register handlers...
 
     # Start agents
     await agent1.start()
@@ -37,13 +50,15 @@ async def main():
 
     # System runs here
     try:
-        # Keep the system running
+        print("Single-process system running. Press Ctrl+C to stop.")
+        # Keep the main process alive
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(3600)
     except KeyboardInterrupt:
-        # Graceful shutdown
+        print("\nShutting down...")
         await agent1.stop()
         await agent2.stop()
+        print("System stopped.")
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -51,130 +66,201 @@ if __name__ == "__main__":
 
 ### Multi-Process Deployment
 
-For larger systems with agents running in separate processes:
+Each agent (or a small group of related agents) runs in its own operating system process on the same machine or different machines. This is the most common approach for non-trivial systems.
+
+*   **Communication:** Requires network-based communicators like `HttpCommunicator`, `McpSseCommunicator`, `GrpcCommunicator`, or `MqttCommunicator`.
+*   **Configuration:** Each agent process needs its configuration, especially `service_urls` pointing to the network addresses (host/port) of other agents/services it needs to contact.
+
+**Example (`agent1_main.py`):**
 
 ```python
-# agent1.py
+# agent1_main.py
 import asyncio
-from openmas import Agent
-from openmas.communication import HTTPCommunicator
+from openmas.agent import BaseAgent
+from openmas.config import load_config, AgentConfig
+from openmas.logging import configure_logging
+
+configure_logging()
 
 async def main():
-    agent = Agent(
-        name="agent1",
-        communicator=HTTPCommunicator(
-            agent_name="agent1",
-            service_urls={"agent2": "http://localhost:8001/agent2"}
-        ),
-        http_port=8000
-    )
+    config = load_config(AgentConfig) # Loads from env vars, files
+    # Ensure config has necessary communicator_type, http_port, service_urls
+
+    agent = BaseAgent(config=config)
+    # Register handlers...
 
     await agent.start()
 
     try:
-        # Keep the process running
+        print(f"Agent '{agent.name}' running. Press Ctrl+C to stop.")
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(3600)
     except KeyboardInterrupt:
+        print(f"\nShutting down agent '{agent.name}'...")
         await agent.stop()
+        print(f"Agent '{agent.name}' stopped.")
 
 if __name__ == "__main__":
+    # Example: Run with specific config via env vars
+    # export AGENT_NAME=agent1
+    # export COMMUNICATOR_TYPE=http
+    # export COMMUNICATOR_OPTION_HTTP_PORT=8000
+    # export SERVICE_URL_AGENT2="http://localhost:8001"
     asyncio.run(main())
 ```
 
-```python
-# agent2.py
-import asyncio
-from openmas import Agent
-from openmas.communication import HTTPCommunicator
+(A similar `agent2_main.py` would be created, typically listening on a different port, e.g., 8001).
 
-async def main():
-    agent = Agent(
-        name="agent2",
-        communicator=HTTPCommunicator(
-            agent_name="agent2",
-            service_urls={"agent1": "http://localhost:8000/agent1"}
-        ),
-        http_port=8001
-    )
+## Containerization with Docker
 
-    await agent.start()
+Containerizing agents with Docker is highly recommended for consistent environments and easier deployment.
 
-    try:
-        # Keep the process running
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        await agent.stop()
+### Creating a Dockerfile
 
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-## Docker Deployment
-
-Containerize each agent for deployment:
+A typical Dockerfile for an OpenMAS agent using Poetry might look like this:
 
 ```dockerfile
-# Dockerfile for agent
-FROM python:3.10-slim
+# Dockerfile for a single agent
+ARG PYTHON_VERSION=3.10
+FROM python:${PYTHON_VERSION}-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_CACHE_DIR='/var/cache/pypoetry' \
+    POETRY_HOME='/opt/poetry'
 
 WORKDIR /app
 
-COPY pyproject.toml poetry.lock ./
-RUN pip install poetry && \
-    poetry config virtualenvs.create false && \
-    poetry install --no-dev
+# Install poetry
+RUN pip install --no-cache-dir poetry==1.7.1 # Use a specific stable version
 
+# Copy only dependency files first for caching
+COPY pyproject.toml poetry.lock ./
+
+# Install dependencies
+# Use --only main if you don't need dev dependencies in the image
+RUN poetry install --no-root --sync
+
+# Copy the rest of the application code
 COPY . .
 
+# Default port exposure (can be overridden)
 EXPOSE 8000
 
-CMD ["poetry", "run", "python", "agent1.py"]
+# Command to run the agent (adjust path if needed)
+# Assumes your agent entrypoint script is src/my_project/agent1_main.py
+CMD ["poetry", "run", "python", "src/my_project/agent1_main.py"]
 ```
 
-## Docker Compose
+### Generating a Dockerfile (Experimental)
 
-Deploy multiple agents together:
+OpenMAS provides an experimental CLI command to help generate a basic Dockerfile for a specific agent defined in your `openmas_project.yml`:
+
+```bash
+poetry run openmas generate-dockerfile <agent_name> --output-file Dockerfile.<agent_name>
+```
+
+*Replace `<agent_name>` with the name of the agent defined in your project file.* Review and customize the generated Dockerfile as needed.
+
+### Building and Running
+
+```bash
+# Build the image
+docker build -t my-agent-image:latest .
+
+# Run the container
+docker run -d --rm \
+    -p 8000:8000 \
+    -e AGENT_NAME=agent1 \
+    -e COMMUNICATOR_OPTION_HTTP_PORT=8000 \
+    -e SERVICE_URL_AGENT2="http://<agent2_host_or_ip>:8001" \
+    --name my-agent1-container \
+    my-agent-image:latest
+```
+
+## Orchestration with Docker Compose
+
+For running multiple agents locally or in simple deployments, Docker Compose is useful.
+
+**Example (`docker-compose.yml`):**
 
 ```yaml
-# docker-compose.yml
-version: '3'
+version: '3.8'
 
 services:
   agent1:
-    build: .
-    command: poetry run python agent1.py
+    build:
+      context: . # Assumes Dockerfile is in the current directory
+      # target: production # Optional: if using multi-stage builds
+    container_name: agent1
     ports:
-      - "8000:8000"
+      - "8000:8000" # Expose agent1's port 8000 on the host
     environment:
+      # --- OpenMAS Configuration ---
+      - OPENMAS_ENV=production # Or development, local, etc.
+      - LOG_LEVEL=INFO
       - AGENT_NAME=agent1
-      - AGENT_PORT=8000
-      - AGENT2_URL=http://agent2:8001/agent2
+      - COMMUNICATOR_TYPE=http
+      # --- Agent 1 Specific Options ---
+      - COMMUNICATOR_OPTION_HTTP_PORT=8000 # Port inside the container
+      # --- Service URLs (using Docker Compose service names) ---
+      - SERVICE_URL_AGENT2=http://agent2:8001 # Agent 2 listens on 8001 internally
+      # - SERVICE_URL_REDIS=redis://redis_db:6379 # Example external service
+    # volumes: # Optional: Mount config files if not using env vars exclusively
+      # - ./config:/app/config
+    networks:
+      - openmas_net
 
   agent2:
-    build: .
-    command: poetry run python agent2.py
+    build:
+      context: .
+    container_name: agent2
     ports:
       - "8001:8001"
     environment:
+      - OPENMAS_ENV=production
+      - LOG_LEVEL=INFO
       - AGENT_NAME=agent2
-      - AGENT_PORT=8001
-      - AGENT1_URL=http://agent1:8000/agent1
+      - COMMUNICATOR_TYPE=http
+      - COMMUNICATOR_OPTION_HTTP_PORT=8001
+      - SERVICE_URL_AGENT1=http://agent1:8000 # Agent 1 listens on 8000 internally
+    networks:
+      - openmas_net
+
+  # redis_db: # Example dependency
+  #   image: redis:alpine
+  #   networks:
+  #     - openmas_net
+
+networks:
+  openmas_net:
+    driver: bridge
+
+```
+
+**Run:**
+
+```bash
+docker-compose up -d
 ```
 
 ## Kubernetes Deployment
 
-For production-grade, scalable systems:
+For production-grade, scalable deployments, Kubernetes is recommended. You will typically define `Deployment` and `Service` resources for each agent.
+
+**Example (`agent1-k8s.yaml`):**
 
 ```yaml
-# agent-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: agent1
+  name: agent1-deployment
+  labels:
+    app: agent1
 spec:
-  replicas: 1
+  replicas: 1 # Adjust as needed
   selector:
     matchLabels:
       app: agent1
@@ -184,483 +270,80 @@ spec:
         app: agent1
     spec:
       containers:
-      - name: agent1
-        image: openmas-agent:latest
-        command: ["poetry", "run", "python", "agent1.py"]
+      - name: agent1-container
+        image: your-repo/my-agent-image:latest # Replace with your image registry path
+        # If your agent entrypoint is different from Dockerfile CMD:
+        # command: ["poetry", "run", "python", "src/my_project/agent1_main.py"]
         ports:
-        - containerPort: 8000
+        - name: http # Name the port
+          containerPort: 8000 # Agent listens on this port internally
         env:
+        # --- OpenMAS Configuration via Env Vars ---
+        - name: OPENMAS_ENV
+          value: "production"
+        - name: LOG_LEVEL
+          value: "INFO"
         - name: AGENT_NAME
           value: "agent1"
-        - name: AGENT_PORT
-          value: "8000"
-        - name: AGENT2_URL
-          value: "http://agent2-service:8001/agent2"
+        - name: COMMUNICATOR_TYPE
+          value: "http"
+        - name: COMMUNICATOR_OPTION_HTTP_PORT
+          value: "8000" # Port inside the container
+        # --- Service URLs (using Kubernetes service DNS names) ---
+        - name: SERVICE_URL_AGENT2
+          # Assumes a K8s Service named 'agent2-service' exists in the same namespace
+          value: "http://agent2-service:8001" # agent2 listens on port 8001
+        # Add other env vars for API keys, etc.
+        # Consider using Secrets or ConfigMaps for sensitive/config data
+        resources: # Optional: Define resource requests/limits
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: agent1-service
+  name: agent1-service # This is the DNS name other services will use
+  labels:
+    app: agent1
 spec:
   selector:
-    app: agent1
+    app: agent1 # Selects pods with the 'app: agent1' label
   ports:
-  - port: 8000
-    targetPort: 8000
-  type: ClusterIP
+  - name: http
+    port: 8000 # Port the Service exposes within the cluster
+    targetPort: http # Name of the container port to target (defined in Deployment)
+  type: ClusterIP # Only exposes the service within the cluster
+  # Use LoadBalancer or NodePort for external access if needed
+```
+
+**(A similar `agent2-k8s.yaml` would define the Deployment and Service for `agent2`, listening on port 8001 and referencing `agent1-service` in its `SERVICE_URL_AGENT1` environment variable).**
+
+**Apply:**
+
+```bash
+kubectl apply -f agent1-k8s.yaml
+kubectl apply -f agent2-k8s.yaml
 ```
 
 ## Monitoring and Logging
 
-Use the OpenMAS logging system to integrate with monitoring tools:
+Effective monitoring and logging are crucial for deployed systems.
 
-```python
-from openmas.logging import get_logger
+*   **Logging:** OpenMAS uses standard Python logging. Configure `configure_logging` (e.g., setting `json_format=True`) to output logs in a structured format (like JSON) suitable for log aggregation systems (e.g., Elasticsearch, Loki, Datadog).
+    ```python
+    from openmas.logging import configure_logging, get_logger
 
-logger = get_logger(__name__)
+    # In your main entrypoint or agent setup:
+    configure_logging(log_level="INFO", json_format=True)
 
-# Configure logging to send to monitoring systems
-logger.add_sink("prometheus", host="monitoring-server", port=9090)
+    logger = get_logger(__name__)
 
-# Log important events
-logger.info(
-    "Agent started",
-    agent_name="agent1",
-    connections=["agent2", "agent3"]
-)
-```
-
-## Deployment Metadata Definition
-
-OpenMAS provides a standardized way to define deployment requirements for each component through the `openmas.deploy.yaml` file. This metadata format allows the OpenMAS deployment tooling to automatically generate configurations for Docker Compose, Kubernetes, and other orchestration systems.
-
-### Metadata File Format (openmas.deploy.yaml)
-
-The deployment metadata is defined using a YAML file at the root of your OpenMAS component:
-
-```yaml
-# openmas.deploy.yaml - Component deployment metadata
-version: "1.0"  # OpenMAS deployment metadata version
-
-component:
-  name: "agent-name"  # Logical name of the component
-  type: "agent"       # Component type: agent, service, etc.
-  description: "Description of what this component does"
-
-docker:
-  build:
-    context: "."      # Docker build context relative to this file
-    dockerfile: "Dockerfile"  # Optional, defaults to "Dockerfile"
-  # Alternative: use existing image
-  # image: "name:tag"  # Docker image to use instead of building
-
-environment:
-  # Required environment variables
-  - name: "AGENT_NAME"
-    value: "${component.name}"  # Variables can reference other properties
-  - name: "LOG_LEVEL"
-    value: "INFO"
-    description: "Logging level for the agent"
-  # Secret environment variables (will be handled securely in deployment)
-  - name: "API_KEY"
-    secret: true
-    description: "API key for external service"
-
-ports:
-  - port: 8000
-    protocol: "http"
-    description: "Main API endpoint"
-  - port: 8001
-    protocol: "websocket"
-    description: "WebSocket for real-time communication"
-
-volumes:
-  - name: "data-volume"
-    path: "/app/data"
-    description: "Storage for persistent data"
-  - name: "logs"
-    path: "/app/logs"
-    description: "Log storage"
-
-dependencies:
-  # Other OpenMAS components this component depends on
-  - name: "knowledge-base"
-    required: true
-    description: "Knowledge base service for retrieving information"
-  - name: "reasoning-engine"
-    required: false
-    description: "Optional reasoning engine for complex decisions"
-```
-
-### Using Variables and Templating
-
-The metadata format supports variable references using `${var.path}` syntax to make configurations DRY and maintainable:
-
-- Component properties: `${component.name}`, `${component.type}`
-- Environment references: `${env.VARIABLE_NAME}`
-- Dependency references: `${dependencies.name.property}`
-
-### Example Metadata for a Hypothetical Agent
-
-Here's an example `openmas.deploy.yaml` file for a hypothetical chess playing agent:
-
-```yaml
-version: "1.0"
-
-component:
-  name: "chess-player"
-  type: "agent"
-  description: "An agent that can play chess using MCP protocol"
-
-docker:
-  build:
-    context: "."
-    dockerfile: "Dockerfile"
-
-environment:
-  - name: "AGENT_NAME"
-    value: "${component.name}"
-  - name: "LOG_LEVEL"
-    value: "INFO"
-  - name: "COMMUNICATOR_TYPE"
-    value: "mcp_stdio"
-  - name: "COMMUNICATOR_OPTIONS"
-    value: '{"model": "claude-3-opus-20240229"}'
-  - name: "MCP_API_KEY"
-    secret: true
-    description: "API key for MCP service"
-
-ports:
-  - port: 8000
-    protocol: "http"
-    description: "HTTP API for agent interaction"
-
-volumes:
-  - name: "chess-memory"
-    path: "/app/data/memory"
-    description: "Persistent memory for chess games"
-
-dependencies:
-  - name: "mcp-server"
-    required: true
-    description: "MCP server for model access"
-  - name: "game-coordinator"
-    required: true
-    description: "Service that coordinates chess games"
-```
-
-### CLI for Deployment Generation
-
-The OpenMAS deployment tooling provides a CLI for generating deployment configurations:
-
-```bash
-# Generate Docker Compose configuration for a single component
-openmas deploy compose --input openmas.deploy.yaml --output docker-compose.yml
-
-# Generate Kubernetes manifests for a single component
-openmas deploy k8s --input openmas.deploy.yaml --output k8s/
-
-# Validate deployment metadata
-openmas deploy validate --input openmas.deploy.yaml
-```
-
-## Project-Based Deployment
-
-OpenMAS provides a simplified way to generate deployment configurations directly from your `openmas_project.yml` file. This approach ensures that all agents defined in your project are properly included in the deployment with correct networking configuration.
-
-### Using the `openmas deploy generate-compose` Command
-
-The `generate-compose` command reads your project configuration and generates a Docker Compose file with all the agents connected:
-
-```bash
-# Basic usage
-openmas deploy generate-compose
-
-# Specify custom project file and output location
-openmas deploy generate-compose --project-file=my-project.yml --output=compose/docker-compose.yml
-
-# Fail if any agent is missing deployment metadata
-openmas deploy generate-compose --strict
-
-# Use agent names from the project file instead of names in the metadata
-openmas deploy generate-compose --use-project-names
-```
-
-#### Command Options
-
-- `--project-file`, `-p`: Path to the OpenMAS project file (default: openmas_project.yml)
-- `--output`, `-o`: Path to save the Docker Compose configuration file (default: docker-compose.yml)
-- `--strict`, `-s`: Fail if any agent is missing deployment metadata
-- `--use-project-names`, `-n`: Use agent names from project file instead of names in metadata
-
-#### How It Works
-
-The command performs the following steps:
-
-1. Reads the `openmas_project.yml` file to get agent definitions and their paths
-2. Looks for a `openmas.deploy.yaml` file in each agent's directory
-3. Parses each metadata file and collects the deployment information
-4. Automatically generates and configures `SERVICE_URL_*` environment variables based on dependencies
-5. Creates a Docker Compose file with all the services properly connected
-
-#### Example
-
-For a project structure like:
-
-```
-my_project/
-├── openmas_project.yml
-├── agents/
-│   ├── orchestrator/
-│   │   ├── agent.py
-│   │   └── openmas.deploy.yaml
-│   └── worker/
-│       ├── agent.py
-│       └── openmas.deploy.yaml
-└── ...
-```
-
-Where `openmas_project.yml` contains:
-
-```yaml
-name: "my_project"
-version: "0.1.0"
-agents:
-  orchestrator: "agents/orchestrator"
-  worker: "agents/worker"
-# ...
-```
-
-Running `openmas deploy generate-compose` will:
-
-1. Read metadata for both agents
-2. Configure the Docker Compose file with proper service URLs
-3. Set up dependencies so that services start in the correct order
-
-The resulting Docker Compose file will include both agents with networking automatically configured between them.
-
-## Multi-component Deployment Orchestration
-
-OpenMAS provides powerful tools for orchestrating the deployment of multi-agent systems consisting of multiple components.
-
-### Component Discovery
-
-You can automatically discover all OpenMAS components in a directory structure:
-
-```bash
-# Discover all components in the current directory and subdirectories
-openmas deploy discover
-
-# Discover components in a specific directory
-openmas deploy discover --directory path/to/project
-
-# Use a custom pattern to match metadata files
-openmas deploy discover --pattern "agent*/openmas.deploy.yaml"
-```
-
-### Orchestrating Multiple Components
-
-Generate a combined Docker Compose file for multiple components with automatic dependency resolution:
-
-```bash
-# Orchestrate all components in the current directory
-openmas deploy orchestrate --output docker-compose.yml
-
-# Orchestrate components in a specific directory with dependency validation
-openmas deploy orchestrate --directory path/to/project --validate --output docker-compose.yml
-```
-
-This automatically configures:
-- Service dependencies
-- Environment variables for inter-service communication
-- Shared volumes
-- Networking between services
-
-### Central Manifest Orchestration
-
-For more complex deployments, you can define a central manifest file that coordinates multiple components:
-
-```yaml
-# openmas.manifest.yaml
-version: "1.0"
-
-# Define the components to orchestrate
-components:
-  - name: agent1
-    path: agent1/openmas.deploy.yaml
-    # Optional overrides for specific values
-    overrides:
-      environment:
-        - name: SERVICE_URL_AGENT2
-          value: http://agent2:8001
-
-  - name: agent2
-    path: agent2/openmas.deploy.yaml
-
-# Global configuration (applied to all components)
-global:
-  networks:
-    - name: agent-network
-      driver: bridge
-```
-
-Generate a deployment from the manifest:
-
-```bash
-# Generate Docker Compose from a manifest
-openmas deploy manifest --manifest openmas.manifest.yaml --output docker-compose.yml
-```
-
-## Dockerfile Generation
-
-OpenMAS provides a command to generate standardized, best-practice Dockerfiles for your agents. This ensures consistent containerization across your multi-agent system.
-
-### Using the `openmas deploy generate-dockerfile` Command
-
-You can use the `generate-dockerfile` command to create a Dockerfile customized for your specific agent:
-
-```bash
-# Basic usage - creates a standard Dockerfile in the current directory
-openmas deploy generate-dockerfile
-
-# Customize Python version
-openmas deploy generate-dockerfile --python-version 3.11
-
-# Specify a different entrypoint (default is agent.py)
-openmas deploy generate-dockerfile --app-entrypoint main.py
-
-# Specify a different requirements file
-openmas deploy generate-dockerfile --requirements-file requirements-prod.txt
-
-# Generate a Dockerfile that uses Poetry for dependency management
-openmas deploy generate-dockerfile --use-poetry
-
-# Change the output path
-openmas deploy generate-dockerfile --output ./docker/Dockerfile
-```
-
-### Command Options
-
-- `--python-version`, `-p`: Python version to use (default: "3.10")
-- `--app-entrypoint`, `-e`: Application entrypoint file (default: "agent.py")
-- `--requirements-file`, `-r`: Path to requirements file (default: "requirements.txt")
-- `--output`, `-o`: Output file path (default: "Dockerfile")
-- `--use-poetry`: Generate Dockerfile using Poetry instead of pip
-- `--port`: Port to expose in the Dockerfile (default: 8000)
-
-### Generated Dockerfile Examples
-
-#### Standard Pip-based Dockerfile
-
-```dockerfile
-# OpenMAS Agent Dockerfile
-# Generated with openmas deploy generate-dockerfile
-
-FROM python:3.10-slim
-
-WORKDIR /app
-
-# Copy requirements first for better caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY . .
-
-# Expose the port the app runs on
-EXPOSE 8000
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    AGENT_PORT=8000
-
-# Run the application
-CMD ["python", "agent.py"]
-```
-
-#### Poetry-based Dockerfile
-
-```dockerfile
-# OpenMAS Agent Dockerfile
-# Generated with openmas deploy generate-dockerfile
-
-FROM python:3.10-slim
-
-WORKDIR /app
-
-# Install Poetry
-RUN pip install --no-cache-dir poetry && \
-    poetry config virtualenvs.create false
-
-# Copy Poetry configuration files
-COPY pyproject.toml poetry.lock* ./
-
-# Install dependencies
-RUN poetry install --no-dev --no-interaction --no-ansi
-
-# Copy application code
-COPY . .
-
-# Expose the port the app runs on
-EXPOSE 8000
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    AGENT_PORT=8000
-
-# Run the application
-CMD ["poetry", "run", "python", "agent.py"]
-```
-
-These Dockerfiles follow best practices for Python applications:
-- Using the slim image variant to reduce size
-- Installing dependencies before copying application code for better layer caching
-- Setting appropriate environment variables for Python applications
-- Following a multi-stage build pattern
-- Proper configuration of the workdir and port exposure
-
-## Examples
-
-### Multi-agent System Example
-
-Here's an example of a multi-agent system with two agents:
-
-**Agent 1 (agent1/openmas.deploy.yaml):**
-```yaml
-version: "1.0"
-component:
-  name: "agent1"
-  type: "agent"
-  description: "First agent in a multi-agent system"
-environment:
-  - name: "SERVICE_URL_AGENT2"
-    value: "http://agent2:8001"
-dependencies:
-  - name: "agent2"
-    required: true
-# ... other configuration ...
-```
-
-**Agent 2 (agent2/openmas.deploy.yaml):**
-```yaml
-version: "1.0"
-component:
-  name: "agent2"
-  type: "agent"
-  description: "Second agent in a multi-agent system"
-environment:
-  - name: "SERVICE_URL_AGENT1"
-    value: "http://agent1:8000"
-# ... other configuration ...
-```
-
-**Orchestrating the system:**
-```bash
-# Discover and verify the components
-openmas deploy discover --directory .
-
-# Generate a combined Docker Compose file
-openmas deploy orchestrate --directory . --output docker-compose.yml --validate
-```
+    # Logs will now be in JSON format
+    logger.info("Agent started", extra={"agent_id": self.name, "status": "active"})
+    ```
+*   **Metrics:** Integrate with metrics libraries (like `prometheus-client` or `opentelemetry-python`) to expose key agent metrics (e.g., messages processed, queue lengths, task durations). Expose these via an HTTP endpoint scraped by Prometheus or pushed to a monitoring backend.
+*   **Tracing:** For complex interactions, consider distributed tracing using OpenTelemetry to track requests across multiple agents and services.

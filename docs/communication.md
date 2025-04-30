@@ -147,18 +147,20 @@ service_urls = {
 
 ## MCP Method Mapping
 
-OpenMAS's request/response model maps to MCP's tool/prompt/resource model as follows:
+When an OpenMAS agent uses an MCP communicator (`McpSseCommunicator` or `McpStdioCommunicator`) in *client mode* to interact with a remote MCP server, the standard OpenMAS communicator methods (`send_request`, `send_notification`) are mapped to the underlying MCP protocol actions on the remote server:
 
-| OpenMAS Method | MCP Equivalent |
-|------------------|---------------|
-| `send_request("service", "tool/list")` | `list_tools()` |
-| `send_request("service", "tool/call", {"name": "tool_name", "arguments": {...}})` | `call_tool("tool_name", {...})` |
-| `send_request("service", "prompt/list")` | `list_prompts()` |
-| `send_request("service", "prompt/get", {"name": "prompt_name", "arguments": {...}})` | `get_prompt("prompt_name", {...})` |
-| `send_request("service", "resource/list")` | `list_resources()` |
-| `send_request("service", "resource/read", {"uri": "resource_uri"})` | `read_resource("resource_uri")` |
-| `send_request("service", "custom_method", {...})` | `call_tool("custom_method", {...})` |
-| `send_notification("service", "method", {...})` | Async `call_tool("method", {...})` |
+| Your Agent's Call (`self.communicator.<method>`) | Remote MCP Action Triggered | Description |
+|----------------------------------------------------|-----------------------------|-------------|
+| `send_request(target_service="svc", method="tool/list")` | `list_tools()` | Lists tools on the remote MCP server `svc`. |
+| `send_request(target_service="svc", method="tool/call", params={"name": "calc", "arguments": {"a":1}})` | `call_tool("calc", {"a":1})` | Calls the tool named "calc" on the remote server `svc`. |
+| `send_request(target_service="svc", method="prompt/list")` | `list_prompts()` | Lists prompts on the remote server `svc`. |
+| `send_request(target_service="svc", method="prompt/get", params={"name": "qa", "arguments": {"q":"Hi"}})` | `get_prompt("qa", {"q":"Hi"})` | Gets the prompt named "qa" from the remote server `svc`. |
+| `send_request(target_service="svc", method="resource/list")` | `list_resources()` | Lists resources on the remote server `svc`. |
+| `send_request(target_service="svc", method="resource/read", params={"uri": "/data.json"})` | `read_resource("/data.json")` | Reads the resource at the specified URI from server `svc`. |
+| `send_request(target_service="svc", method="some_custom_name", params={...})` | `call_tool("some_custom_name", {...})` | By convention, non-prefixed methods often map to `call_tool` on the server. |
+| `send_notification(target_service="svc", method="log_event", params={...})` | Async `call_tool("log_event", {...})` | Sends a notification, often mapped to an asynchronous tool call on the server `svc` where no response is expected by the caller. |
+
+**Note:** This mapping applies when your OpenMAS agent is acting as an *MCP client*. When your agent acts as an *MCP server* (using `MCPServerAgent` or a communicator in `server_mode=True`), incoming MCP requests trigger the methods decorated with `@mcp_tool`, `@mcp_prompt`, or `@mcp_resource` within your agent.
 
 ## Extending with Custom Protocols
 
@@ -235,156 +237,100 @@ agent = BaseAgent(
 
 ### gRPC Communication
 
-The gRPC communicator provides efficient, high-performance communication using Google's gRPC framework. It's suitable for:
+The gRPC communicator provides efficient, high-performance communication using Google's gRPC framework. It requires the `openmas[grpc]` extra to be installed.
 
-- High-performance, type-safe communication
+It's suitable for:
+
+- High-performance, type-safe communication (if using Protobuf definitions)
 - Cross-language interoperability
-- Bidirectional streaming
-- Microservice architectures
+- Streaming scenarios
+- Microservice architectures where gRPC is already in use
 
-**Server Mode Example:**
-```python
-from openmas.agent import BaseAgent
-from openmas.config import AgentConfig
-
-agent = BaseAgent(
-    name="grpc_server_agent",
-    config=AgentConfig(
-        name="grpc_server_agent",
-        communicator_type="grpc",
-        communicator_options={
-            "server_mode": True,
-            "server_address": "localhost:50051",
-            "max_workers": 10
-        },
-        service_urls={}  # Not used in server mode
-    )
-)
-
-# Register handlers
-await agent.communicator.register_handler("my_method", handler_function)
-```
-
-**Client Mode Example:**
-```python
-from openmas.agent import BaseAgent
-from openmas.config import AgentConfig
-
-agent = BaseAgent(
-    name="grpc_client_agent",
-    config=AgentConfig(
-        name="grpc_client_agent",
-        communicator_type="grpc",
-        communicator_options={},  # Default client options
-        service_urls={
-            "server": "localhost:50051"  # URL of the gRPC server
-        }
-    )
-)
-
-# Send a request
-response = await agent.communicator.send_request(
-    target_service="server",
-    method="my_method",
-    params={"param1": "value1"},
-    timeout=5.0
-)
-```
-
-### When to Use gRPC
-
-gRPC is an excellent choice when:
-
-1. **Performance is critical**: gRPC uses Protocol Buffers for serialization, which is more efficient than JSON.
-2. **Type safety is important**: The protocol definition provides strong typing.
-3. **Cross-language services**: You need to communicate with services written in different languages.
-4. **Streaming data**: You need to stream large datasets or real-time updates.
-5. **Complex service definitions**: Your API has complex method signatures or data structures.
-
-The main trade-offs compared to HTTP communicator:
-- Requires more setup (protocol definition, code generation)
-- Less human-readable message format
-- Requires gRPC infrastructure support
-
-### Creating a Custom Communicator Extension
-
-To create a custom communicator extension:
-
-1. Implement the `BaseCommunicator` interface:
+**Configuration Example (Client Mode):**
 
 ```python
-from openmas.communication.base import BaseCommunicator
+# In config (e.g., YAML or environment variables)
+# COMMUNICATOR_TYPE=grpc
+# SERVICE_URL_MY_GRPC_SERVICE=localhost:50051
 
-class MyCustomCommunicator(BaseCommunicator):
-    """Custom communicator implementation."""
+from openmas.communication.grpc import GrpcCommunicator
 
-    def __init__(self, agent_name: str, service_urls: Dict[str, str], custom_option: str = "default"):
-        super().__init__(agent_name, service_urls)
-        self.custom_option = custom_option
-
-    # Implement all required abstract methods
-    async def send_request(self, target_service, method, params=None, response_model=None, timeout=None):
-        # Implementation...
-
-    async def send_notification(self, target_service, method, params=None):
-        # Implementation...
-
-    async def register_handler(self, method, handler):
-        # Implementation...
-
-    async def start(self):
-        # Implementation...
-
-    async def stop(self):
-        # Implementation...
-```
-
-2. Register your communicator with OpenMAS. There are several ways to do this:
-
-#### Direct Registration
-
-```python
-from openmas.communication.base import register_communicator
-from mypackage.communicator import MyCustomCommunicator
-
-register_communicator("my_custom", MyCustomCommunicator)
-```
-
-#### Python Entry Points (Recommended)
-
-Add this to your package's `pyproject.toml`:
-
-```toml
-[project.entry-points."openmas.communicators"]
-my_custom = "mypackage.communicator:MyCustomCommunicator"
-```
-
-Or in `setup.py`:
-
-```python
-setup(
-    # ... other setup parameters
-    entry_points={
-        "openmas.communicators": [
-            "my_custom=mypackage.communicator:MyCustomCommunicator",
-        ],
+# Or instantiated directly:
+communicator = GrpcCommunicator(
+    agent_name="my-grpc-client",
+    service_urls={
+        "my_grpc_service": "localhost:50051" # Address of the target gRPC server
     },
+    # server_mode=False # Default
 )
 ```
 
-Once registered, users can use your communicator with:
+**Configuration Example (Server Mode):**
 
 ```python
-agent = BaseAgent(
-    name="my-agent",
-    config=AgentConfig(
-        name="my-agent",
-        communicator_type="my_custom",
-        communicator_options={
-            "custom_option": "my_value"
-        }
-    )
+# In config:
+# COMMUNICATOR_TYPE=grpc
+# COMMUNICATOR_OPTION_SERVER_MODE=true
+# COMMUNICATOR_OPTION_GRPC_PORT=50052
+
+from openmas.communication.grpc import GrpcCommunicator
+
+# Or instantiated directly:
+communicator = GrpcCommunicator(
+    agent_name="my-grpc-server",
+    service_urls={}, # Not needed for server
+    server_mode=True,
+    grpc_port=50052 # Port for this agent's gRPC server to listen on
 )
 ```
 
-For more details on implementing custom communicators, see the [Communication Module README](../src/openmas/communication/README.md).
+**Note:** The current `GrpcCommunicator` uses a generic dictionary-based request/response format over gRPC. For type safety using Protobuf definitions, you would typically implement a custom communicator or extend the existing one.
+
+### MQTT Communication
+
+The MQTT communicator uses the MQTT protocol for publish/subscribe messaging, typically via an MQTT broker. It requires the `openmas[mqtt]` extra.
+
+It's suitable for:
+
+- Event-driven architectures
+- Decoupled communication where agents publish or subscribe to topics
+- IoT scenarios
+- Situations where a message broker is preferred
+
+**Configuration Example:**
+
+```python
+# In config:
+# COMMUNICATOR_TYPE=mqtt
+# COMMUNICATOR_OPTION_BROKER_HOST=mqtt.eclipseprojects.io
+# COMMUNICATOR_OPTION_BROKER_PORT=1883
+# SERVICE_URLS={} # Often not used directly, communication is via pub/sub
+
+from openmas.communication.mqtt import MqttCommunicator
+
+# Or instantiated directly:
+communicator = MqttCommunicator(
+    agent_name="my-mqtt-agent",
+    service_urls={}, # Agents typically discover each other via topics
+    broker_host="mqtt.eclipseprojects.io", # Address of the MQTT broker
+    broker_port=1883,
+    # Optional: username="user", password="pass", client_id="custom_id"
+)
+```
+
+**Note:** With MQTT, agents usually communicate via topics rather than direct service names in `service_urls`. The `send_request` and `send_notification` methods in the `MqttCommunicator` likely map `target_service` and `method` to specific MQTT topics based on internal conventions.
+
+### MQTT Communicator
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `broker_host` | `"localhost"` | Hostname or IP address of the MQTT broker. |
+| `broker_port` | `1883` | Port of the MQTT broker. |
+| `username` | `None` | Username for MQTT broker authentication. |
+| `password` | `None` | Password for MQTT broker authentication. |
+| `client_id` | Auto-generated | MQTT client ID. If empty, one is generated. |
+| `keepalive` | `60` | MQTT keepalive interval in seconds. |
+| `tls_enabled` | `False` | Enable TLS/SSL encryption. |
+| `tls_ca_certs` | `None` | Path to CA certificate file for TLS. |
+| `tls_certfile` | `None` | Path to client certificate file for TLS. |
+| `tls_keyfile` | `None` | Path to client private key file for TLS. |

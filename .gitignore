@@ -63,3 +63,6 @@ Desktop.ini
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# MkDocs build output
+site/

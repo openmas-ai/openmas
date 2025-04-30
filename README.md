@@ -1,17 +1,28 @@
 # OpenMAS
 
-A lightweight SDK for building Multi-Agent Systems with a focus on the Model Context Protocol (MCP).
+[![PyPI version](https://badge.fury.io/py/openmas.svg)](https://badge.fury.io/py/openmas) <!-- Placeholder - Replace with actual badge once published -->
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<!-- Add Build Status, Coverage badges once CI/CD is set up -->
+<!-- [![Build Status](https://github.com/wilson-urdaneta/openmas/actions/workflows/ci.yml/badge.svg)](https://github.com/wilson-urdaneta/openmas/actions/workflows/ci.yml) -->
+<!-- [![Coverage Status](https://coveralls.io/repos/github/wilson-urdaneta/openmas/badge.svg?branch=main)](https://coveralls.io/github/wilson-urdaneta/openmas?branch=main) -->
 
-## Features
+**Build Intelligent Agent Systems**
 
-- **Agent Framework** - Build autonomous agents with the BaseAgent class and extension points
-- **Rich Communication Options** - HTTP, WebSockets, gRPC, and MCP-based communication between agents
-- **Model Context Protocol (MCP) Integration** - First-class support for Anthropic's MCP
-- **Environment-based Configuration** - Configure agents using environment variables
-- **Belief-Desire-Intention (BDI) Patterns** - Build agents that reason about beliefs, desires, and intentions
-- **Testing Framework** - Test your agents with the built-in testing framework
-- **Deployment Tools** - Generate and orchestrate deployment configurations for Docker Compose and Kubernetes
-- **Package Management** - Import dependencies from Git repositories with `openmas deps`
+OpenMAS is a lightweight Python SDK for building asynchronous Multi-Agent Systems (MAS) with first-class support for the Model Context Protocol (MCP).
+
+It provides the essential tools and patterns to create sophisticated, independent agents that can communicate, coordinate, and interact with AI models and services.
+
+**Full Documentation:** [**https://docs.openmas.ai**](https://docs.openmas.ai)
+
+## Key Features
+
+*   **Flexible Agent Framework:** Build agents using the `BaseAgent` class with clear lifecycle methods (`setup`, `run`, `shutdown`).
+*   **Diverse Communication:** Support for HTTP, WebSockets, gRPC, MQTT, and first-class MCP integration.
+*   **Environment Configuration:** Easily configure agents via environment variables or configuration files.
+*   **Testing Utilities:** Includes tools like `MockCommunicator` and `AgentTestHarness`.
+*   **Deployment Ready:** CLI tools to help generate Dockerfiles.
+*   **Agent Patterns:** Built-in support for patterns like Orchestrator-Worker.
+*   **Package Management:** Git-based dependency management for agents using `openmas deps`.
 
 ## Installation
 
@@ -19,132 +30,59 @@ A lightweight SDK for building Multi-Agent Systems with a focus on the Model Con
 pip install openmas
 ```
 
-Or with Poetry:
+OpenMAS has optional extras for different communication protocols (`[mcp]`, `[grpc]`, `[mqtt]`, `[all]`).
 
-```bash
-poetry add openmas
-```
+See the full [Installation Guide](https://docs.openmas.ai/guides/installation/) for details on prerequisites, virtual environments, and optional dependencies.
 
-### Optional Dependencies
+## Quick Start
 
-OpenMAS has a modular design with optional dependencies for different communication protocols. The core package is lightweight, and you can install only the dependencies you need:
-
-```bash
-# Install MCP support (Anthropic Model Context Protocol)
-pip install 'openmas[mcp]'
-
-# Install gRPC support
-pip install 'openmas[grpc]'
-
-# Install MQTT support
-pip install 'openmas[mqtt]'
-
-# Install all optional dependencies
-pip install 'openmas[all]'
-```
-
-With Poetry:
-
-```bash
-# Install MCP support
-poetry add 'openmas[mcp]'
-
-# Install multiple optional dependencies
-poetry add 'openmas[mcp,grpc,mqtt]'
-```
-
-## Usage
-
-### Basic Agent
+Here's a basic agent:
 
 ```python
+# hello_agent.py
+import asyncio
 from openmas.agent import BaseAgent
-from openmas.communication import HTTPCommunicator
+from openmas.logging import configure_logging, get_logger
 
-class MyAgent(BaseAgent):
+configure_logging()
+logger = get_logger(__name__)
+
+class HelloAgent(BaseAgent):
     async def setup(self) -> None:
-        # Initialize your agent with MCP communication
-        self.communicator = McpSseCommunicator(
-            agent_name=self.name,
-            service_urls={"assistant": "http://assistant-service:8000/"}
-        )
+        logger.info(f"Agent '{self.name}' setting up.")
+        await self.communicator.register_handler("greet", self.handle_greet)
 
     async def run(self) -> None:
-        # Send a request to the assistant service
-        response = await self.communicator.send_request(
-            "assistant",
-            "generate_response",
-            {"prompt": "Tell me about multi-agent systems"}
-        )
-        print(f"Response: {response}")
+        logger.info(f"Agent '{self.name}' running...")
+        while True: await asyncio.sleep(3600)
 
     async def shutdown(self) -> None:
-        # Clean up resources
-        await self.communicator.close()
+        logger.info(f"Agent '{self.name}' shutting down.")
 
-# Run the agent
+    async def handle_greet(self, name: str = "world") -> dict:
+        return {"message": f"Hello, {name}!"}
+
 async def main():
-    agent = MyAgent(name="my-agent")
-    await agent.start()
+    agent = HelloAgent(name="hello-007") # Uses HttpCommunicator by default
+    try:
+        await agent.start()
+    except KeyboardInterrupt:
+        logger.info("Shutdown signal received.")
+    finally:
+        await agent.stop()
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
 ```
 
-### Package Management
+Run it with `python hello_agent.py`.
 
-OpenMAS provides Git-based package management inspired by dbt. Define dependencies in your `openmas_project.yml`:
+For a more detailed walkthrough, see the [Getting Started Guide](https://docs.openmas.ai/guides/getting_started/).
 
-```yaml
-dependencies:
-  - git: https://github.com/example/openmas-repo.git
-    revision: main
-```
+## Contributing
 
-Install dependencies:
-
-```bash
-openmas deps
-```
-
-Learn more in the [package management documentation](docs/cli/deps.md).
-
-## Development
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/openmas.git
-cd openmas
-
-# Install dependencies
-poetry install
-
-# Install pre-commit hooks
-poetry run pre-commit install
-
-# Run tests
-poetry run pytest
-
-# Run type checking
-poetry run mypy --config-file=mypy.ini src tests
-
-# Run all code quality checks at once
-poetry run pre-commit run --all-files
-```
-
-### Code Quality
-
-This project uses several tools to ensure code quality:
-
-- **black**: Code formatting
-- **isort**: Import sorting
-- **flake8**: Linting
-- **mypy**: Type checking
-- **pytest**: Testing
-
-Pre-commit hooks are configured to run these checks automatically before each commit.
+Contributions are welcome! Please see the [Contributing Guide](https://docs.openmas.ai/contributing/) for details on how to get involved, set up your development environment, run tests (`tox`), and submit pull requests.
 
 ## License
 
-MIT
+OpenMAS is licensed under the [MIT License](LICENSE).

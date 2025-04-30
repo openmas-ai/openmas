@@ -266,46 +266,34 @@ Key functions:
 - `get_logger(name)`: Get a logger with the specified name
 - `configure_logging(log_level, json_format)`: Configure logging for the application
 
-## Patterns Module
+## Agent Patterns
 
-The patterns module provides reusable patterns for multi-agent systems:
+::: openmas.patterns.orchestrator
+    options:
+        show_source: yes
+        members:
+            - BaseOrchestratorAgent
+            - BaseWorkerAgent
+            - TaskHandler
+            - TaskRequest
+            - TaskResult
+            - WorkerInfo
 
-```python
-from openmas.patterns import OrchestratorAgent, WorkerAgent
+::: openmas.patterns.chaining
+    options:
+        show_source: yes
+        members:
+            - ServiceChain
+            - ChainBuilder
+            - create_chain
+            - execute_chain
 
-# Create an orchestrator agent
-orchestrator = OrchestratorAgent(name="orchestrator")
+## Deployment
 
-# Create worker agents
-worker1 = WorkerAgent(name="worker1")
-worker2 = WorkerAgent(name="worker2")
-```
-
-Key classes:
-- `OrchestratorAgent`: Agent that coordinates work among worker agents
-- `WorkerAgent`: Agent that performs tasks assigned by an orchestrator
-- `PipelineAgent`: Agent that processes data in a pipeline
-- `PublisherAgent`: Agent that publishes data
-- `SubscriberAgent`: Agent that subscribes to data
-
-## Exceptions
-
-```python
-class ServiceNotFoundError(Exception): ...
-```
-Raised when a target service is not found.
-
-```python
-class CommunicationError(Exception): ...
-```
-Base class for communication-related errors.
-
-```python
-class TimeoutError(CommunicationError): ...
-```
-Raised when a request times out.
-
-```python
-class ValidationError(Exception): ...
-```
-Raised when response validation fails.
+::: openmas.deployment.generators
+    options:
+      show_source: yes
+      members:
+        - generate_docker_compose
+        - generate_kubernetes_manifests
+        - generate_dockerfile
