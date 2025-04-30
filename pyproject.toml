@@ -2,12 +2,12 @@
 name = "openmas"
 version = "0.1.0"
 description = "OpenMAS: A lightweight SDK for building Multi-Agent Systems"
-authors = ["Wilson Urdaneta <your-email@example.com>"]
+authors = ["Wilson Urdaneta <wilson.urdaneta@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [{include = "openmas", from = "src"}]
 homepage = "https://openmas.ai"
-repository = "https://github.com/wilson-urdaneta/openmas"
+repository = "https://github.com/open-mas/openmas"
 documentation = "https://docs.openmas.ai"
 keywords = ["multi-agent-systems", "mas", "agent", "ai", "mcp", "model-context-protocol", "sdk"]
 classifiers = [

@@ -3,8 +3,8 @@
 [![PyPI version](https://badge.fury.io/py/openmas.svg)](https://badge.fury.io/py/openmas) <!-- Placeholder - Replace with actual badge once published -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 <!-- Add Build Status, Coverage badges once CI/CD is set up -->
-<!-- [![Build Status](https://github.com/wilson-urdaneta/openmas/actions/workflows/ci.yml/badge.svg)](https://github.com/wilson-urdaneta/openmas/actions/workflows/ci.yml) -->
-<!-- [![Coverage Status](https://coveralls.io/repos/github/wilson-urdaneta/openmas/badge.svg?branch=main)](https://coveralls.io/github/wilson-urdaneta/openmas?branch=main) -->
+<!-- [![Build Status](https://github.com/open-mas/openmas/actions/workflows/ci.yml/badge.svg)](https://github.com/open-mas/openmas/actions/workflows/ci.yml) -->
+<!-- [![Coverage Status](https://coveralls.io/repos/github/open-mas/openmas/badge.svg?branch=main)](https://coveralls.io/github/open-mas/openmas?branch=main) -->
 
 **Build Intelligent Agent Systems**
 
