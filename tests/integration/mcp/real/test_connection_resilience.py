@@ -293,9 +293,9 @@ async def test_stdio_connection_resilience() -> None:
     script_path = str(harness.script_path)
     logger.info(f"Using stdio server script: {script_path}")
 
-    first_client_process: Optional[
-        asyncio.subprocess.Process
-    ] = None  # To track the process started by the first client
+    first_client_process: Optional[asyncio.subprocess.Process] = (
+        None  # To track the process started by the first client
+    )
 
     try:
         # 2. Connect first client using asyncio task and make successful tool call
