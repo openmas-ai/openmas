@@ -66,6 +66,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
+          paths: [src]  # Look for modules in the src directory
           options:
             show_source: true
             # members_order: source # Optional: Order members as they appear in source

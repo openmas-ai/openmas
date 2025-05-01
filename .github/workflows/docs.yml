@@ -27,9 +27,10 @@ jobs:
 
     # Install project dependencies + MkDocs and theme
     # Caching can be added here for faster builds if needed
-    - name: Install dependencies
+    - name: Install dependencies and build package
       run: |
-        poetry install --no-interaction --no-root --with dev # Install project deps including documentation dependencies
+        poetry install --no-interaction --with dev # Install project deps including the package itself
+        poetry build # Build the distribution files so mkdocstrings can find the package
 
     # Create a basic mkdocs.yml if it doesn't exist - ADJUST THIS AS NEEDED
     - name: Create default mkdocs.yml if needed

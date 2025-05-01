@@ -72,6 +72,7 @@ types-paho-mqtt = "^1.6.0.6"
 # Dev tooling
 tox = "^4.25.0"
 pre-commit = "^4.2.0"
+build = "^1.0.3"
 # Documentation
 mkdocs = "==1.6.1"
 mkdocs-material = "==9.6.12"

@@ -42,3 +42,14 @@ repos:
         # Use root mypy.ini file for configuration
         args: ["--config-file=mypy.ini", "src/", "tests/"]
         pass_filenames: false  # Run on all files rather than just changed ones
+
+  # Local hook for checking MkDocs builds
+  - repo: local
+    hooks:
+      - id: mkdocs-check
+        name: check documentation build
+        entry: poetry run tox -e mkdocs-check
+        language: system
+        pass_filenames: false
+        types: [markdown, yaml]
+        files: "^(docs/|mkdocs.yml)$"
