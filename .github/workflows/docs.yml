@@ -29,29 +29,30 @@ jobs:
     # Caching can be added here for faster builds if needed
     - name: Install dependencies
       run: |
-        poetry install --no-interaction --no-root # Install project deps if needed by docs
-        poetry run pip install mkdocs mkdocs-material # Install MkDocs and theme
+        poetry install --no-interaction --no-root --with dev # Install project deps including documentation dependencies
 
     # Create a basic mkdocs.yml if it doesn't exist - ADJUST THIS AS NEEDED
     - name: Create default mkdocs.yml if needed
       run: |
         if [ ! -f mkdocs.yml ]; then
-          echo "site_name: OpenMAS"
-          echo "theme:
-            name: material"
-          echo "repo_url: https://github.com/open-mas/openmas"
-          echo "edit_uri: edit/main/docs/"
-          echo "nav:
-            - Home: index.md"
-          echo "markdown_extensions:
-            - admonition
-            - pymdownx.details
-            - pymdownx.superfences
-            - pymdownx.tabbed:
-                alternate_style: true"
-          # Add custom domain configuration here if needed
-          # echo "site_url: https://docs.openmas.ai/" # Uncomment and verify
-        fi > mkdocs.yml
+          {
+            echo "site_name: OpenMAS"
+            echo "theme:"
+            echo "  name: material"
+            echo "repo_url: https://github.com/open-mas/openmas"
+            echo "edit_uri: edit/main/docs/"
+            echo "nav:"
+            echo "  - Home: index.md"
+            echo "markdown_extensions:"
+            echo "  - admonition"
+            echo "  - pymdownx.details"
+            echo "  - pymdownx.superfences"
+            echo "  - pymdownx.tabbed:"
+            echo "      alternate_style: true"
+            # Add custom domain configuration here if needed
+            # echo "site_url: https://docs.openmas.ai/" # Uncomment and verify
+          } > mkdocs.yml
+        fi
 
     # Create CNAME file for custom domain if needed - MUST match site_url in mkdocs.yml
     # This is one way to handle custom domains with GitHub Pages
