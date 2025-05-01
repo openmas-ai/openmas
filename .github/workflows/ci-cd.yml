@@ -50,10 +50,16 @@ jobs:
       run: poetry install --no-interaction --no-root --with dev --extras "all" # Install all deps for coverage
 
     - name: Run linters
-      run: tox -e lint
+      run: poetry run tox -e lint
+
+    - name: Run unit tests
+      run: poetry run tox -e unit
+
+    - name: Run mock integration tests
+      run: poetry run tox -e integration-mock
 
     - name: Run tests with coverage check (fail < 50%)
-      run: tox -e coverage # This env generates coverage.xml and fails if below threshold
+      run: poetry run tox -e coverage # This env generates coverage.xml and fails if below threshold
 
     - name: Upload coverage report to Codecov
       uses: codecov/codecov-action@v4
@@ -62,6 +68,9 @@ jobs:
         files: ./coverage.xml
         fail_ci_if_error: true # Recommended to fail the build if upload fails
         # The coverage threshold is enforced by `tox -e coverage`, not here.
+
+    - name: Build documentation
+      run: poetry run tox -e docs
 
     - name: Build package artifacts
       run: poetry build
