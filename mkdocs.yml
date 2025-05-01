@@ -55,8 +55,11 @@ nav:
     - run: cli/run.md
     - deps: cli/deps.md
     - generate-dockerfile: cli/generate-dockerfile.md
+  - Contributing:
+    - Guidelines: contributing.md
+    - Development Workflow: development_workflow.md
+    - Docstring Policy: docstring_policy.md
   - API Reference: api_reference.md
-  - Contributing: contributing.md
 
 plugins:
   - search
