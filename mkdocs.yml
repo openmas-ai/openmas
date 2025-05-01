@@ -1,10 +1,12 @@
 site_name: OpenMAS
 site_url: https://docs.openmas.ai
-repo_url: https://github.com/openmas-ai/openmas # Replace with your actual repo URL if different
-repo_name: openmas-ai/openmas # Replace with your actual repo name if different
+repo_url: https://github.com/openmas-ai/openmas
+repo_name: openmas-ai/openmas
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   features:
     - navigation.tabs
     - navigation.sections
