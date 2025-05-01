@@ -111,7 +111,7 @@ def validate_config(config_path: Path = Path("openmas_project.yml")) -> int:
                 # Each dependency must have exactly one type key
                 dep_types = [key for key in ["git", "package", "local"] if key in dep]
                 if len(dep_types) != 1:
-                    click.echo(f"❌ Dependency #{i+1} must have exactly one type (git, package, or local)")
+                    click.echo(f"❌ Dependency #{i + 1} must have exactly one type (git, package, or local)")
                     all_deps_valid = False
                     continue
 
@@ -121,7 +121,7 @@ def validate_config(config_path: Path = Path("openmas_project.yml")) -> int:
                 if dep_type == "git":
                     git_url = dep["git"]
                     if not git_url or not isinstance(git_url, str):
-                        click.echo(f"❌ Git dependency #{i+1} has invalid URL: {git_url}")
+                        click.echo(f"❌ Git dependency #{i + 1} has invalid URL: {git_url}")
                         all_deps_valid = False
                         continue
 
@@ -129,7 +129,7 @@ def validate_config(config_path: Path = Path("openmas_project.yml")) -> int:
                 elif dep_type == "package":
                     package_name = dep["package"]
                     if not package_name or not isinstance(package_name, str):
-                        click.echo(f"❌ Package dependency #{i+1} has invalid name: {package_name}")
+                        click.echo(f"❌ Package dependency #{i + 1} has invalid name: {package_name}")
                         all_deps_valid = False
                         continue
 
@@ -142,7 +142,7 @@ def validate_config(config_path: Path = Path("openmas_project.yml")) -> int:
                 elif dep_type == "local":
                     local_path = dep["local"]
                     if not local_path or not isinstance(local_path, str):
-                        click.echo(f"❌ Local dependency #{i+1} has invalid path: {local_path}")
+                        click.echo(f"❌ Local dependency #{i + 1} has invalid path: {local_path}")
                         all_deps_valid = False
                         continue
 

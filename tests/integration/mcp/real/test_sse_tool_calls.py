@@ -266,16 +266,16 @@ async def test_sse_multiple_sequential_calls() -> None:
 
                 # Make multiple calls
                 for i in range(5):
-                    message = f"Call number {i+1}"
-                    logger.info(f"Sequential call {i+1}: Sending '{message}'")
+                    message = f"Call number {i + 1}"
+                    logger.info(f"Sequential call {i + 1}: Sending '{message}'")
                     result = await asyncio.wait_for(session.call_tool("echo", {"message": message}), timeout=15.0)
-                    logger.debug(f"Sequential call {i+1} raw result: {result}")
+                    logger.debug(f"Sequential call {i + 1} raw result: {result}")
                     assert result is not None and not result.isError and result.content
                     text_content = result.content[0]
                     assert isinstance(text_content, TextContent)
                     response_data = json.loads(text_content.text)
                     assert response_data.get("echoed") == message
-                    logger.info(f"Sequential call {i+1} successful.")
+                    logger.info(f"Sequential call {i + 1} successful.")
                     await asyncio.sleep(0.05)  # Small delay between calls
 
     except Exception as e:

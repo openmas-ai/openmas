@@ -183,7 +183,7 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
 
     click.echo("Python import paths:")
     for idx, path_str in enumerate(sys_path_additions):
-        click.echo(f"  {idx+1}. {path_str}")
+        click.echo(f"  {idx + 1}. {path_str}")
 
     # Discover local communicators and extensions BEFORE importing agent module
     # This ensures communicators are properly registered before agent code runs

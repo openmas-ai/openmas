@@ -332,16 +332,16 @@ async def test_stdio_multiple_sequential_calls() -> None:
                 ]
 
                 for idx, message in enumerate(messages):
-                    logging.debug(f"Sequential call {idx+1}: Sending '{message}'")
+                    logging.debug(f"Sequential call {idx + 1}: Sending '{message}'")
                     result = await session.call_tool("echo", {"message": message})
-                    logging.debug(f"Sequential call {idx+1}: Received {result}")
+                    logging.debug(f"Sequential call {idx + 1}: Received {result}")
                     assert (
                         result.content is not None and len(result.content) > 0
-                    ), f"No content returned for call {idx+1}"
+                    ), f"No content returned for call {idx + 1}"
                     text_content = result.content[0]
-                    assert isinstance(text_content, TextContent), f"Content is not TextContent for call {idx+1}"
+                    assert isinstance(text_content, TextContent), f"Content is not TextContent for call {idx + 1}"
                     raw_text_field = text_content.text
-                    logging.debug(f"Sequential call {idx+1}: Raw text field '{raw_text_field}'")
+                    logging.debug(f"Sequential call {idx + 1}: Raw text field '{raw_text_field}'")
 
                     actual_text = None
                     # --- WORKAROUND START ---
@@ -362,26 +362,26 @@ async def test_stdio_multiple_sequential_calls() -> None:
                             ):
                                 actual_text = parsed_result_json["content"][0]["text"]
                                 logging.debug(
-                                    f"Sequential call {idx+1}: Workaround applied: Extracted text '{actual_text}'"
+                                    f"Sequential call {idx + 1}: Workaround applied: Extracted text '{actual_text}'"
                                 )
                         except (json.JSONDecodeError, TypeError, KeyError, IndexError) as e:
                             logging.warning(
-                                f"Sequential call {idx+1}: Workaround JSON parsing failed for '{raw_text_field}': {e}"
+                                f"Sequential call {idx + 1}: Workaround JSON parsing failed for '{raw_text_field}': {e}"
                             )
                             pass
 
                     if actual_text is None:
                         actual_text = raw_text_field
                         logging.debug(
-                            f"Sequential call {idx+1}: Workaround not applied or failed, using raw text field."
+                            f"Sequential call {idx + 1}: Workaround not applied or failed, using raw text field."
                         )
                     # --- WORKAROUND END ---
 
                     # Compare the extracted text directly with the expected message
                     assert (
                         actual_text == message
-                    ), f"Call {idx+1} failed. Expected '{message}', got '{actual_text}' (raw: '{raw_text_field}')"
-                    logging.debug(f"Sequential call {idx+1}: Assertion passed for '{message}'")
+                    ), f"Call {idx + 1} failed. Expected '{message}', got '{actual_text}' (raw: '{raw_text_field}')"
+                    logging.debug(f"Sequential call {idx + 1}: Assertion passed for '{message}'")
 
     finally:
         await harness.cleanup()
@@ -429,16 +429,16 @@ async def test_stdio_parallel_calls() -> None:
 
                 # Verify results
                 for idx, (message, result) in enumerate(zip(messages, results)):
-                    logging.debug(f"Parallel call {idx+1}: Verifying result for '{message}'. Received {result}")
+                    logging.debug(f"Parallel call {idx + 1}: Verifying result for '{message}'. Received {result}")
                     assert (
                         result.content is not None and len(result.content) > 0
-                    ), f"No content returned for parallel call {idx+1}"
+                    ), f"No content returned for parallel call {idx + 1}"
                     text_content = result.content[0]
                     assert isinstance(
                         text_content, TextContent
-                    ), f"Content is not TextContent for parallel call {idx+1}"
+                    ), f"Content is not TextContent for parallel call {idx + 1}"
                     raw_text_field = text_content.text
-                    logging.debug(f"Parallel call {idx+1}: Raw text field '{raw_text_field}'")
+                    logging.debug(f"Parallel call {idx + 1}: Raw text field '{raw_text_field}'")
 
                     actual_text = None
                     # --- WORKAROUND START ---
@@ -459,24 +459,26 @@ async def test_stdio_parallel_calls() -> None:
                             ):
                                 actual_text = parsed_result_json["content"][0]["text"]
                                 logging.debug(
-                                    f"Parallel call {idx+1}: Workaround applied: Extracted text '{actual_text}'"
+                                    f"Parallel call {idx + 1}: Workaround applied: Extracted text '{actual_text}'"
                                 )
                         except (json.JSONDecodeError, TypeError, KeyError, IndexError) as e:
                             logging.warning(
-                                f"Parallel call {idx+1}: Workaround JSON parsing failed for '{raw_text_field}': {e}"
+                                f"Parallel call {idx + 1}: Workaround JSON parsing failed for '{raw_text_field}': {e}"
                             )
                             pass
 
                     if actual_text is None:
                         actual_text = raw_text_field
-                        logging.debug(f"Parallel call {idx+1}: Workaround not applied or failed, using raw text field.")
+                        logging.debug(
+                            f"Parallel call {idx + 1}: Workaround not applied or failed, using raw text field."
+                        )
                     # --- WORKAROUND END ---
 
                     # Compare the extracted text directly with the expected message
                     assert (
                         actual_text == message
-                    ), f"Parallel call {idx+1} failed. Expected '{message}', got '{actual_text}' (raw: '{raw_text_field}')"
-                    logging.debug(f"Parallel call {idx+1}: Assertion passed for '{message}'")
+                    ), f"Parallel call {idx + 1} failed. Expected '{message}', got '{actual_text}' (raw: '{raw_text_field}')"
+                    logging.debug(f"Parallel call {idx + 1}: Assertion passed for '{message}'")
 
     finally:
         await harness.cleanup()
