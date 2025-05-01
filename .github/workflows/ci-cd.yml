@@ -47,7 +47,7 @@ jobs:
 
     - name: Install dependencies if cache doesn't exist
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-      run: poetry install --no-interaction --no-root --with dev,all # Install all deps for coverage
+      run: poetry install --no-interaction --no-root --with dev --extras "all" # Install all deps for coverage
 
     - name: Run linters
       run: tox -e lint
