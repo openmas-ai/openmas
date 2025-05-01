@@ -35,7 +35,7 @@ pip install openmas
 
 OpenMAS has optional extras for different communication protocols (`[mcp]`, `[grpc]`, `[mqtt]`, `[all]`).
 
-See the full [Installation Guide](https://docs.openmas.ai/guides/installation/) for details on prerequisites, virtual environments, and optional dependencies.
+See the full [Installation Guide](https://docs.openmas.ai/installation/) for details on prerequisites, virtual environments, and optional dependencies.
 
 ## Quick Start
 
@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
 Run it with `python hello_agent.py`.
 
-For a more detailed walkthrough, see the [Getting Started Guide](https://docs.openmas.ai/guides/getting_started/).
+For a more detailed walkthrough, see the [Getting Started Guide](https://docs.openmas.ai/getting_started/).
 
 ## Contributing
 
