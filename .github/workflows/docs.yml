@@ -40,7 +40,7 @@ jobs:
             echo "site_name: OpenMAS"
             echo "theme:"
             echo "  name: material"
-            echo "repo_url: https://github.com/open-mas/openmas"
+            echo "repo_url: https://github.com/openmas-ai/openmas"
             echo "edit_uri: edit/main/docs/"
             echo "nav:"
             echo "  - Home: index.md"

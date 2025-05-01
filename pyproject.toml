@@ -7,7 +7,7 @@ license = "MIT"
 readme = "README.md"
 packages = [{include = "openmas", from = "src"}]
 homepage = "https://openmas.ai"
-repository = "https://github.com/open-mas/openmas"
+repository = "https://github.com/openmas-ai/openmas"
 documentation = "https://docs.openmas.ai"
 keywords = ["multi-agent-systems", "mas", "agent", "ai", "mcp", "model-context-protocol", "sdk"]
 classifiers = [

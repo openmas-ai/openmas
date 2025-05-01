@@ -1,7 +1,7 @@
 site_name: OpenMAS
 site_url: https://docs.openmas.ai
-repo_url: https://github.com/open-mas/openmas # Replace with your actual repo URL if different
-repo_name: open-mas/openmas # Replace with your actual repo name if different
+repo_url: https://github.com/openmas-ai/openmas # Replace with your actual repo URL if different
+repo_name: openmas-ai/openmas # Replace with your actual repo name if different
 
 theme:
   name: material
