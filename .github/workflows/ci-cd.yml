@@ -65,6 +65,7 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }} # Required for private repos or specific org settings
+        slug: openmas-ai/openmas
         files: ./coverage.xml
         fail_ci_if_error: true # Recommended to fail the build if upload fails
         # The coverage threshold is enforced by `tox -e coverage`, not here.
