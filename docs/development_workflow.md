@@ -56,6 +56,25 @@ OpenMAS uses a DRY (Don't Repeat Yourself) approach to dependency management by 
 
 This approach ensures that the tox environments always use the same versions of dependencies as defined in `pyproject.toml`, eliminating duplication and potential version conflicts.
 
+## Convenience Scripts
+
+### check_quality.sh
+
+For convenience, OpenMAS provides a script that runs all the quality checks in one command:
+
+```bash
+# Run all checks (linting and tests)
+./scripts/check_quality.sh
+
+# Run only linting checks
+./scripts/check_quality.sh lint
+
+# Run only tests
+./scripts/check_quality.sh test
+```
+
+This script provides color-coded output and helpful troubleshooting tips if any checks fail. It uses the tox environments under the hood to ensure consistency with CI checks.
+
 ## Common Commands
 
 ### Linting and Formatting

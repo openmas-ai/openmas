@@ -24,6 +24,14 @@ We use `black` for formatting, `isort` for import sorting, `flake8` for linting,
 
 Run quality checks using `poetry run tox -e lint`.
 
+Alternatively, you can use the convenience script to run all quality checks at once:
+
+```bash
+./scripts/check_quality.sh
+```
+
+See the [Development Workflow](development_workflow.md#check_qualitysh) guide for more details.
+
 ### Docstrings
 
 Clear and consistent docstrings are important. Please adhere to the guidelines outlined in our [Docstring Policy](docstring_policy.md).
