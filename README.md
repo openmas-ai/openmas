@@ -1,10 +1,13 @@
 # OpenMAS
 
-[![PyPI version](https://badge.fury.io/py/openmas.svg)](https://badge.fury.io/py/openmas) <!-- Placeholder - Replace with actual badge once published -->
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-<!-- Add Build Status, Coverage badges once CI/CD is set up -->
-<!-- [![Build Status](https://github.com/openmas-ai/openmas/actions/workflows/ci.yml/badge.svg)](https://github.com/openmas-ai/openmas/actions/workflows/ci.yml) -->
-<!-- [![Coverage Status](https://coveralls.io/repos/github/openmas-ai/openmas/badge.svg?branch=main)](https://coveralls.io/github/openmas-ai/openmas?branch=main) -->
+[![PyPI version](https://img.shields.io/pypi/v/chesspal-mcp-engine.svg)](https://pypi.org/project/chesspal-mcp-engine/)
+[![Python Version](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Poetry](https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json)](https://python-poetry.org/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![CI/CD](https://github.com/openmas-ai/openmas/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/openmas-ai/openmas/actions)
+[![codecov](https://codecov.io/gh/openmas-ai/openmas/graph/badge.svg)](https://codecov.io/gh/openmas-ai/openmas)
+
 
 **Build Intelligent Agent Systems**
 
