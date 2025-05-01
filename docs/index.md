@@ -6,11 +6,12 @@ It aims to provide developers with the essential tools and patterns to create so
 
 ## Key Features
 
-*   **Flexible Agent Framework:** Build agents using the `BaseAgent` class with clear lifecycle methods (`setup`, `run`, `shutdown`).
-*   **Diverse Communication:** Support for HTTP, WebSockets, gRPC, and MQTT alongside first-class MCP integration.
-*   **Environment Configuration:** Easily configure agents via environment variables or configuration files.
-*   **Testing Utilities:** Includes tools like `MockCommunicator` and `AgentTestHarness` to facilitate testing your agent applications.
-*   **Deployment Ready:** Tools to help package and deploy your agent systems.
+*   **Flexible Agent Design:** Build agents using the `BaseAgent` class with a clean lifecycle pattern, supporting various reasoning frameworks (BDI, LLM-based, heuristics).
+*   **Diverse Communication:** First-class support for [Model Context Protocol](https://modelcontextprotocol.io/introduction) alongside with HTTP, WebSockets, gRPC, and MQTT.
+*   **Extensible Architecture:** Customize with local extensions or reusable packages, all with lazy loading to keep the core lightweight.
+*   **Powerful Configuration:** Multi-layered system supporting environment variables, .env files, and YAML configuration.
+*   **Project Structure & CLI:** Opinionated project organization with a command-line interface for scaffolding, validation, execution, and deployment.
+*   **Testing & Deployment:** Includes testing utilities and tools to automatically generate Docker artifacts for your agent systems.
 
 ## Getting Started
 

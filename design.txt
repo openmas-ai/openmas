@@ -1,0 +1,365 @@
+OpenMAS - Comprehensive Design Document (v0.2.3)
+Date: April 25, 2025
+Status: Proposed Design
+Authors: Wilson Urdaneta
+
+Abstract: This document outlines the architecture and design for OpenMAS, a Pythonic ecosystem aimed at simplifying the development, structuring, integration, and deployment of Multi-Agent Systems (MAS). It covers the core OpenMAS SDK, the application architecture (including extensions/ and packages/), CLI tooling, examples strategy, and testing approach, drawing inspiration from frameworks like dbt.
+Table of Contents:
+Introduction & Motivation
+Core Principles (Philosophy)
+State of the Art & Justification
+OpenMAS Ecosystem Overview
+OpenMAS SDK Architecture (The Framework)
+OpenMAS Application Architecture (The User Experience)
+Configuration Files Overview
+Core Concepts in Practice (Handling Variability)
+CLI Tooling (openmas CLI)
+Examples & Testing Strategy
+Future Considerations & Roadmap
+Monetization Potential
+1. Introduction & Motivation
+1.1. The Problem
+Developing, deploying, and maintaining Multi-Agent Systems (MAS) is complex. Key challenges include:
+Integration Complexity: Connecting diverse components (LLMs, specialized engines, external APIs, databases) requires brittle, custom code.
+Configuration Management: Handling distributed configuration securely and consistently is difficult and error-prone.
+Repetitive Boilerplate: Significant code duplication occurs when setting up agent structure, communication, configuration loading, and basic service logic.
+Deployment & Operations: Containerization, networking, interaction testing, and monitoring add significant overhead.
+Extensibility & Reusability: Adapting systems or adding capabilities often requires substantial refactoring without a modular design. Lack of mechanisms for sharing common components across projects.
+Application Structuring: Lack of conventions makes organizing, understanding, and scaling MAS application codebases difficult.
+Developer Focus: Too much time is spent on plumbing rather than core agent intelligence and logic.
+1.2. Project Context
+Initial motivation stems from challenges in projects like chesspal.ai, involving orchestrators, specialized servers and protocols such as Model Context Protocol (MCP), and deployment complexity. The need to generalize beyond specific domains highlights the requirement for a reusable, structured approach.
+1.3. Goal of OpenMAS Ecosystem
+To provide a cohesive Pythonic environment that simplifies the end-to-end lifecycle of MAS development. This includes:
+A thin, transparent, and extensible SDK (framework) for building individual agent components with reduced boilerplate, focusing on configuration, communication abstraction, lazy loading, and lifecycle management.
+An opinionated application structure and conventions (inspired by dbt) to organize MAS projects, promoting modularity, understandability, and defining clear roles for shared/, extensions/, and installed packages/.
+CLI tooling (openmas) to scaffold projects, manage dependencies (deps), validate configurations, run agents locally, and generate deployment artifacts.
+Mechanisms for local (extensions/) and external (packages/) extensibility without modifying the core SDK.
+A robust examples and testing strategy using tox and pytest for framework dogfooding and user guidance.
+Ultimately, allowing developers to focus on agent logic and MAS design, rather than foundational plumbing and project organization challenges.
+2. Core Principles (Philosophy)
+Simplicity & Composability: Favor simple, understandable components. Provide building blocks, avoid opaque magic.
+Transparency: Ensure component interactions (especially communication) are reasonably clear to aid debugging.
+Modularity & Pluggability: Design for extension via local extensions/ and external packages/. Foster an ecosystem. Ensure optional components (like specific communicators) are lazily loaded to minimize dependencies.
+Pragmatism: Focus initially on solving the most pressing pain points (config, communication abstraction, boilerplate reduction, application structure, local execution).
+Protocol Support (HTTP Core, Pluggable): Excellent HTTP support (e.g., via httpx) should be core. Other protocols (MCP, gRPC, MQ) must be supported via pluggable, lazily-loaded communicators.
+Agent Reasoning Agnosticism: The SDK provides the agent's "body" (structure, communication), not its "brain" (reasoning). Supports various internal logic implementations.
+Separation of Concerns:
+SDK: Manages core agent abstractions (BaseAgent, BaseCommunicator), lifecycle, config loading interface, core exceptions.
+Application Structure: Organizes developer code (agents/, shared/, extensions/), installed dependencies (packages/), project config (openmas_project.yml).
+CLI Tooling: Provides developer workflow commands (init, run, deps, generate-*, etc.).
+Deployment Tools: Handle containerization, networking, runtime config injection (e.g., Docker Compose, Kubernetes, aided by openmas generate-* commands).
+3. State of the Art & Justification
+(Content largely unchanged from v0.2.0, emphasizing OpenMAS's unique combination)
+Existing Frameworks:
+MCP-Focused (mcp-agent, fast-agent, ADK): Strong on MCP client/workflow patterns, less on MCP server creation or broader protocol/structure needs.
+BDI Frameworks (spade-bdi, MASPY): Focus on specific internal reasoning models.
+Justification for OpenMAS: Fills a gap by providing a thin, flexible foundation that simplifies building both clients and servers, offers pluggable/lazily-loaded communication for diverse protocols, remains agnostic to reasoning models, and crucially, introduces a standardized application structure (extensions/, packages/), CLI tooling, and testing approach for better project organization and developer experience, inspired by dbt's success.
+4. OpenMAS Ecosystem Overview
+The OpenMAS ecosystem consists of several interconnected parts:
+OpenMAS SDK (The Framework):
+The core Python library (pip install openmas).
+Provides fundamental building blocks: BaseAgent, BaseCommunicator implementations (with lazy loading for non-core protocols), configuration loading utilities, standard exceptions.
+Imported and used by developers within their agent code.
+Focus: Reducing boilerplate for individual agent components, providing abstractions, managing lifecycle.
+OpenMAS Application Architecture (The User Experience):
+A set of conventions and tools for structuring a complete MAS project.
+Defines a standard directory layout (agents/, shared/, extensions/, packages/, etc.). See Section 6.1.
+Includes central project configuration (openmas_project.yml) and other config files. See Section 7.
+Focus: Organizing the overall application, promoting modularity, enabling local and external extensions, simplifying configuration management.
+OpenMAS CLI (openmas):
+The command-line interface for interacting with OpenMAS projects.
+Provides commands for initializing projects, managing package dependencies, validating configurations, running agents locally, generating deployment artifacts. See Section 9.
+Focus: Streamlining the developer workflow.
+Examples & Testing Infrastructure:
+A curated set of examples demonstrating framework features.
+A tox-based testing setup to ensure example correctness and dogfood the framework. See Section 10.
+Focus: User learning, framework validation, demonstrating best practices.
+5. OpenMAS SDK Architecture (The Framework)
+5.1. Core Components
+BaseAgent (openmas.agent):
+Fundamental class inherited by all OpenMAS components/agents.
+Handles initialization boilerplate: loads config via openmas.config, instantiates configured Communicator.
+Provides self.name, self.config, self.communicator.
+Defines standard async lifecycle methods: setup(), run(), shutdown(). run() contains the component's main logic loop.
+Configuration (openmas.config):
+Provides load_config(): Standardized function to load and validate agent/project settings using a layered approach (See Section 6.3).
+Uses Pydantic for validation and type-safe access (self.config).
+Communicator (openmas.communication):
+BaseCommunicator (ABC): Abstract interface defining methods like send_request(), send_notification(), register_handler(), start(), stop(). Key pluggability point.
+Core Implementation: HttpCommunicator (using httpx) likely included by default.
+Optional Implementations: McpStdioCommunicator, McpSseCommunicator, GrpcCommunicator, MessageQueueCommunicator (e.g., RabbitMQ, Redis). These should be lazily loaded (See Section 5.4).
+Instantiated by BaseAgent based on configuration (config.communicator_type). The framework searches built-ins, extensions/, and packages/.
+Exceptions (openmas.exceptions): Custom exceptions (OpenMASError, ConfigurationError, CommunicationError) for consistent error handling.
+5.2. Key Abstractions & Benefits
+Unified Base: Common starting point (BaseAgent) reduces boilerplate.
+Simplified Setup & Config: Standardized initialization and configuration access via load_config.
+Decoupled Communication: Communicator abstracts protocol details, allowing agent logic to be cleaner and protocols swappable/added.
+Testability: Clear interfaces facilitate mocking (e.g., MockCommunicator).
+5.3. Relationship to BDI & Workflows
+(Unchanged from v0.2.0) The SDK is agnostic, providing the foundation upon which various reasoning models and workflow patterns can be implemented.
+5.4. Lazy Loading of Optional Components
+To keep the core framework lightweight and avoid unnecessary dependencies, components not essential for basic operation, particularly alternative Communicator implementations (gRPC, MCP, MQ), must be loaded lazily.
+Mechanism: The framework (e.g., within BaseAgent when instantiating a communicator based on config.communicator_type) should use importlib.import_module to dynamically import the required class only when it's actually configured.
+Dependency Management: Dependencies required only for specific communicators (e.g., grpcio, paho-mqtt, pika) should not be core dependencies of the openmas package. They should be installed by the user explicitly using standard optional extras (e.g., `pip install openmas[grpc,mqtt]`). See pyproject.toml structure.
+Error Handling: If a user configures a communicator whose underlying library is not installed, the framework should raise a clear ImportError or custom exception guiding the user to install the necessary dependency (e.g., `pip install openmas[grpc]`).
+Core Exception: The HttpCommunicator (using httpx) might be considered a core dependency, but even this could potentially be lazy-loaded if httpx is made optional.
+6. OpenMAS Application Architecture (The User Experience)
+This defines how developers structure their MAS projects using the OpenMAS SDK and CLI tooling.
+6.1. Standard Directory Structure
+Generated by openmas init, a typical project looks like:
+
+Plaintext
+
+
+your_mas_project_name/
+├── agents/              # Code for individual agents/components
+│   ├── <agent_name_1>/
+│   │   ├── agent.py          # BaseAgent subclass implementation
+│   │   ├── requirements.txt  # Optional: Agent-specific deps (rarely needed)
+│   │   └── openmas.deploy.yaml # Deployment metadata (optional)
+│   └── <agent_name_2>/ ...
+│
+├── extensions/             # Project-local OpenMAS extensions (custom communicators, patterns, base agents)
+│   └── my_custom_extension/
+│       └── communicator.py
+│
+├── shared/              # Project-internal shared Python code (utils, models used by agents/extensions)
+│   └── utils.py
+│
+├── packages/            # Installed external OpenMAS packages (managed by `openmas deps`) - GitIgnored
+│   └── openmas-kafka/    # Example installed package content
+│
+├── config/              # Environment-specific config files
+│   ├── default.yml
+│   └── production.yml
+│
+├── tests/               # Project/Application-level tests (NOT example tests)
+│
+├── openmas_project.yml    # Central project configuration
+├── requirements.txt         # Top-level Python dependencies (incl. openmas SDK)
+├── .env                   # Optional: Local environment variables (GitIgnored)
+├── .gitignore
+└── README.md
+
+
+6.2. Core Directory Roles & Interactions
+agents/: Contains the primary logic for each distinct agent or component in the MAS. Each subdirectory typically represents one agent.
+extensions/ (Local extensions - Replaces extensions/):
+Role: Holds project-specific Python code that extends or customizes the OpenMAS framework locally. This includes custom BaseCommunicator subclasses, specialized BaseAgent types, reusable patterns, or utility functions tightly coupled to this project.
+Nature: Code written directly within this project, not intended for easy sharing without copying.
+Discovery: The framework finds code here based on extension_paths in openmas_project.yml and adds relevant directories to sys.path during execution (e.g., via openmas run).
+shared/:
+Role: Contains general-purpose Python code (utility functions, data models/schemas, constants) that needs to be shared between multiple local components within the same project (i.e., shared between different agents in agents/ or code in extensions/).
+Nature: Project-internal library code.
+Discovery: The framework finds code here based on shared_paths in openmas_project.yml and adds relevant directories to sys.path during execution.
+packages/ (External Packages):
+Role: Contains reusable OpenMAS components (communicators, agents, patterns) developed externally and installed into the project as dependencies.
+Nature: Shareable, often versioned code fetched from external sources (Git, potentially PyPI in the future). Managed via the dependencies section in openmas_project.yml and the openmas deps command. This directory should typically be added to .gitignore.
+Discovery: The framework must also search within this directory (specifically, configured subdirectories within it) for components (e.g., communicators) and add relevant paths to sys.path.
+How they work together: When `openmas run <agent_name>` executes:
+It identifies the project root and the effective project directory (via CWD or --project-dir).
+It parses the relevant openmas_project.yml.
+It identifies required agent code, extension_paths, shared_paths.
+It identifies installed packages/ (implicitly or via metadata).
+It constructs the sys.path to include the agent's directory, paths from shared_paths, paths from extension_paths, and relevant paths within packages/.
+It loads the agent code, which can now import modules from shared/, extensions/, and installed packages/.
+Framework mechanisms (like communicator lookup) search across built-ins, extensions/, and packages/.
+6.3. Configuration Layering Strategy
+Settings are resolved in the following order (higher precedence overrides lower):
+Environment Variables: Directly set in the shell or via deployment tools. (Highest)
+.env File(s): Loaded from the effective project directory (using python-dotenv).
+Environment-specific YAML: config/<SIMPLEMAS_ENV>.yml (e.g., config/production.yml or config/local.yml). SIMPLEMAS_ENV defaults to local. Located relative to the effective project directory.
+Default Environment YAML: config/default.yml. Located relative to the effective project directory.
+Project Defaults: default_config: section in openmas_project.yml.
+SDK Internal Defaults. (Lowest)
+The openmas.config.load_config function implements this logic.
+7. Configuration Files Overview
+OpenMAS projects utilize several key configuration files:
+openmas_project.yml (Required):
+Location: Project root.
+Purpose: Central definition of the MAS project structure and metadata. Defines agents, local extensions, shared code paths, external package dependencies, and default configuration values.
+Key Sections:
+name: Project name.
+version: Project version.
+agents: Mapping of logical agent names to their code paths (e.g., orchestrator: agents/orchestrator).
+extension_paths: List of directories containing local extensions (replaces extension_paths).
+shared_paths: List of directories containing shared project code.
+dependencies: List defining external OpenMAS package dependencies (e.g., Git URL, version/tag). Used by openmas deps.
+default_config: Dictionary of default parameters (lowest precedence).
+config/*.yml (Optional):
+Location: config/ subdirectory within the effective project directory.
+Purpose: Store environment-specific configurations (e.g., service URLs, API keys, resource limits).
+Files:
+default.yml: Base configuration applied before environment-specific files.
+<environment_name>.yml (e.g., local.yml, development.yml, production.yml): Loaded based on the SIMPLEMAS_ENV environment variable (defaults to local). Overrides default.yml and openmas_project.yml[default_config].
+.env (Optional):
+Location: Effective project directory root. Should be added to .gitignore.
+Purpose: Store local environment variables, often used for development secrets (API keys) or overriding specific settings without modifying YAML files. Loaded by python-dotenv. Takes precedence over YAML files.
+openmas.deploy.yaml (Optional):
+Location: Inside specific agent directories (e.g., agents/<agent_name>/openmas.deploy.yaml).
+Purpose: Provides metadata hints for deployment generation tools (openmas generate-compose, openmas generate-dockerfile). May include information about required ports, base images, resource requests, build arguments, etc.
+8. Core Concepts in Practice (Handling Variability)
+(Largely unchanged, but reflects new directory names)
+The combination of the SDK and Application Architecture handles diversity:
+Workflow Types (Orchestrator, Chain, etc.): Implemented in agent code (agents/), potentially using helpers from extensions/ or installed packages/. Configured via agent parameters.
+Protocols (HTTP, MCP, gRPC, MQ): Selected via agent config (COMMUNICATOR_TYPE=...). The framework finds the corresponding Communicator class (built-in, extensions/, packages/) and instantiates it (using lazy loading for non-core). Incoming connections handled within the agent's run().
+Reasoning Types (Simple, BDI, etc.): Implemented within the BaseAgent subclass (agents/). SDK remains agnostic. Helpers can live in extensions/, shared/, or packages/.
+9. CLI Tooling (openmas CLI)
+A command-line interface to streamline the developer workflow. Assumes execution within a OpenMAS project directory or using the --project-dir flag where applicable.
+openmas init <directory> [--name <project_name>] [--template <template_name>]:
+Scaffolds a new OpenMAS project in the specified <directory>.
+Creates the standard directory structure (agents/, extensions/, shared/, config/, tests/).
+Generates a basic openmas_project.yml (using --name or deriving from the directory name).
+Generates .gitignore.
+Optionally uses a project template (e.g., --template=basic, --template=mcp-server). Templates provide starting code/config for common patterns.
+openmas validate [--project-dir <path>]:
+Parses openmas_project.yml in the effective project directory.
+Checks YAML syntax.
+Verifies that paths specified in agents, extension_paths, shared_paths exist.
+(Future) Can perform deeper validation (e.g., check agent code structure).
+openmas list agents [--project-dir <path>]:
+Parses openmas_project.yml.
+Lists the names of all agents defined in the agents: section.
+openmas run <agent_name> [--project-dir <path>]:
+Core local execution command.
+Uses CWD or --project-dir to find the effective project directory and openmas_project.yml.
+Loads the full layered configuration (including .env, config/*.yml).
+Sets up sys.path based on agent path, shared_paths, extension_paths, and installed packages/.
+Dynamically loads and instantiates the specified <agent_name>.
+Executes the agent's setup(), run(), shutdown() lifecycle.
+Blocks the terminal while run() executes.
+Prints guidance message if multiple agents are defined.
+Handles Ctrl+C for graceful shutdown.
+openmas deps [--project-dir <path>]:
+Package management command.
+Reads the dependencies: section in openmas_project.yml.
+Fetches the specified external packages (e.g., clones Git repos based on URL/tag/revision).
+Installs/places the package source code into the packages/ directory within the effective project directory.
+(Future) Could handle dependency resolution, updates, and potentially integrate with PyPI.
+openmas generate-dockerfile <agent_name> [--project-dir <path>] [--output-file <path>] ...:
+Generates a best-practice, multi-stage Dockerfile tailored for the specified <agent_name>.
+Reads openmas_project.yml (from effective project dir) to understand agent path, shared/extension usage.
+Reads optional agent-specific metadata from agents/<agent_name>/openmas.deploy.yaml.
+Copies necessary code (agent, shared, extensions) correctly based on project structure.
+Sets up non-root user, entrypoint (openmas run <agent_name>), etc.
+Accepts options like --python-version, --base-image.
+openmas generate-compose [--project-dir <path>] [--output-file <path>] ...:
+Generates a docker-compose.yml file for the entire MAS defined in openmas_project.yml.
+Reads project config and agent-specific openmas.deploy.yaml files.
+Defines a service for each agent, referencing its (assumed pre-built) Docker image.
+Automates basic Docker networking setup.
+Injects necessary environment variables (AGENT_NAME, COMMUNICATOR_TYPE, calculated SERVICE_URLS for inter-agent communication) into each service definition.
+(Future) Could generate Kubernetes manifests.
+10. Examples & Testing Strategy
+10.1. Role of the examples/ Directory
+The examples/ directory in the OpenMAS source repository serves multiple critical roles:
+Contributor Testing & Dogfooding: Provides concrete scenarios for developers contributing to OpenMAS. Running tests against examples ensures framework features work as expected and helps catch regressions. The process of creating examples is a primary dogfooding mechanism, forcing use of the framework's CLI and SDK.
+User Learning (via Download/Copy): While not installed by default via pip, users can browse examples on the repository or potentially download them (e.g., via a future openmas examples download command or manually). They serve as practical, runnable illustrations of specific features, patterns, and integrations. Documentation should reference and include snippets from these examples.
+Best Practice Demonstration: Showcases recommended ways to structure agents, configure communication, handle errors, and integrate components using OpenMAS.
+10.2. Example Structure
+Examples are organized by topic, with specific, runnable scenarios in leaf directories:
+examples/
+├── 00_hello_agent/
+│   └── hello_agent/  # Leaf example directory
+│       ├── agents/hello_agent/agent.py
+│       ├── openmas_project.yml # Minimal project config for this example
+│       ├── requirements.txt      # Example-specific Python deps (often empty)
+│       ├── test_example.py       # Internal test script (uses pytest)
+│       └── README.md             # How to run this specific example
+│   └── hello_multiagent/  # Hellow world of two agents
+├── 01_communication_basics/
+│   ├── http_client_server/   # Leaf example directory
+│   │   └── ... (similar files)
+│   └── mq/
+│       ├── rabbitmq/           # Leaf example directory
+│       │   └── ... (similar files, requires pika)
+│       └── redis/              # Leaf example directory
+│           └── ... (similar files, requires redis-py)
+├── ... (other categories) ...
+└── README.md                   # Explains overall example structure
+
+
+10.3. Testing Strategy (tox + pytest)
+Testing examples requires isolating dependencies and providing a consistent execution environment.
+Tooling: tox is used to manage isolated virtual environments and orchestrate tests. pytest (with pytest-asyncio) is used as the test runner.
+Configuration (tox.ini):
+Defines separate tox environments for each leaf example directory (e.g., [testenv:example-00-hello-agent], [testenv:example-01-comm-http]).
+Each environment's deps installs openmas (editable) and the example's specific dependencies via its requirements.txt.
+The commands section typically runs pytest targeting the specific example directory (e.g., `pytest {toxinidir}/examples/00_hello_agent/hello_agent_example/`).
+Example Test File (test_example.py):
+Located directly within each leaf example directory.
+Purpose: Internal framework testing via tox, NOT an end-user testing pattern demonstration. Contains a header comment clarifying this.
+Uses pytest conventions (test_* functions) and @pytest.mark.asyncio.
+Imports the example's agent class(es).
+Instantiates agent(s).
+Runs agent lifecycle methods (setup, run, shutdown).
+Multi-Agent Testing: For examples with multiple interacting agents, the test function runs each agent's run() method as a separate asyncio.Task within the single event loop managed by pytest-asyncio. The test then orchestrates interactions between the agents (e.g., by calling methods or simulating network requests on localhost) and asserts the outcomes. Careful task cancellation and agent shutdown are implemented in finally blocks.
+Uses assert statements to verify behavior (e.g., checking logs via capsys, examining agent state, verifying communication outcomes via mocks).
+Dogfooding Loop: When `tox -e <example_env>` fails due to a framework issue, developers must fix the framework code (src/simple_mas/) and add tests (tests/) before retrying the tox command. Workarounds within the example code itself are explicitly discouraged.
+11. Future Considerations & Roadmap
+(Renumbered from v0.2.0 Section 9)
+11.1. SDK Enhancements
+Full MCP Support: Implement/refine MCP communicators, add SDK helpers/decorators. Ensure lazy loading. (High Priority)
+Formalize Extension & Package System: Implement robust discovery (entry points, extension_paths, packages/) and configuration. Ensure lazy loading works correctly for components found via these mechanisms. (High Priority)
+Add More Communicators: Mature gRPC, RabbitMQ, Redis implementations. Ensure lazy loading and optional dependencies via extras. (Medium Priority)
+Pattern Helpers: Enhance optional modules (openmas.patterns) for Orchestrator-Worker, Chaining, Routing. (Medium Priority)
+BDI/Reasoning Integration: Refine optional hooks/base classes (BdiAgent). (Medium Priority)
+Testing Utilities: Mature MockCommunicator, AgentTestHarness. (Medium Priority)
+Configuration Enhancement: Ensure load_config is robust and fully tested across all layers. (Medium Priority)
+11.2. Application & Tooling Enhancements
+Implement openmas CLI: Complete implementation of all commands (init, validate, list agents, run, deps, generate-dockerfile, generate-compose). Ensure --project-dir works correctly. (High Priority)
+Mature Deployment Generation:
+Enhance generate-compose and potentially add generate-k8s. Improve networking and configuration injection. (High Priority)
+Enhance generate-dockerfile based on dogfooding with examples. Add validation tests for generated files within the tox workflow. (High Priority)
+Package Management (openmas deps): Implement robust fetching (Git initially), installation into packages/, and integration with framework discovery mechanisms. (Medium Priority)
+Example Download Command: Consider openmas examples download to fetch examples from the repository for end-users. (Low Priority)
+11.3. Documentation
+Continuous improvement of user guides, tutorials (including example walkthroughs), CLI reference, API references, and contribution guidelines. Establish clear docstring policy. Document the testing strategy and the purpose of test_example.py files. Document optional dependencies and installation via extras (`pip install openmas[...]`).
+12. Monetization Potential
+While the core OpenMAS framework and CLI are intended to be open-source, the complexity surrounding the deployment, hosting, scaling, and management of production MAS applications presents potential commercial opportunities. These could include:
+Managed Cloud Hosting: A platform service that simplifies deploying and running OpenMAS applications on cloud infrastructure.
+Enterprise Support: Paid support contracts for organizations using OpenMAS in critical systems.
+Advanced Deployment Tooling: Premium features or separate tools for more sophisticated Kubernetes deployments, monitoring integrations, or security hardening.
+Consulting & Training: Professional services to help companies design and build MAS using OpenMAS.
+
+Appendix A - Model Context Protocol (MCP)
+MCP stands for Model Context Protocol. All MCP work must be done using Anthropic's python-sdk 1.6 which internally uses the FastMCP library.
+Package installation: poetry install mcp
+Github location: https://github.com/modelcontextprotocol/python-sdk
+pypi: https://pypi.org/project/mcp/
+Model Context Protocol official documentation about the protocol:
+Architecture: https://modelcontextprotocol.io/docs/concepts/architecture
+Resources: https://modelcontextprotocol.io/docs/concepts/resources
+Prompts: https://modelcontextprotocol.io/docs/concepts/prompts
+Tools: https://modelcontextprotocol.io/docs/concepts/tools
+Sampling: https://modelcontextprotocol.io/docs/concepts/sampling
+Roots: https://modelcontextprotocol.io/docs/concepts/roots
+Transports:https://modelcontextprotocol.io/docs/concepts/transports
+Example of classic imports:
+from mcp.client.session import ClientSession
+from mcp.client.sse import sse_client
+from mcp.types import TextContent, CallToolResult
+from mcp.server.fastmcp import FastMCP, Context
+Appendix B - Main Use Case
+The primary goal for OpenMAS v0.1.0 is to enable the refactoring of an existing application, chesspal.ai, into a Multi-Agent System. This system relies heavily on the Model Context Protocol (MCP), implemented via Anthropic's mcp Python SDK (v1.6+), for inter-agent communication and potentially interaction with external systems or interfaces. Understanding this target architecture is crucial for validating OpenMAS v0.1.0 capabilities.
+The target chesspal.ai MAS architecture consists of the following agents:
+Orchestrator Agent:
+Role: Central coordinator, managing game logic, state, and orchestration flow.
+Communication (MCP):
+Runs an MCP Server (using FastMCP via OpenMAS) to allow a GUI to connect and interact (get state, submit moves) using the Model Context Protocol.
+Acts as an MCP Client (using ClientSession via OpenMAS) to send requests (like call_tool, get_prompt) and receive responses from the Commentary and Stockfish agents according to the Model Context Protocol.
+State Management: Persists game state using a database (SQLite for dev, PostgreSQL for prod). OpenMAS must allow standard async database interactions within the agent.
+Dependencies: Requires OpenMAS to provide robust wrappers for MCP server (FastMCP) and client (ClientSession) functionality via the mcp SDK, plus compatibility with database libraries.
+Commentary Agent:
+Role: Generates textual commentary using Google's Gemma LLM.
+Communication (MCP): Runs an MCP Server exposing its functionality (likely as an MCP Tool or Prompt) for the Orchestrator Agent to invoke via the Model Context Protocol.
+Dependencies: Requires OpenMAS's MCP server capabilities and compatibility with LLM integration libraries.
+Stockfish Agent:
+Role: Provides chess move logic/analysis via the Stockfish engine.
+Communication (MCP): Runs an MCP Server exposing its functionality (likely as an MCP Tool) for the Orchestrator Agent to invoke via the Model Context Protocol.
+Dependencies: Requires OpenMAS's MCP server capabilities and compatibility with managing external processes (Stockfish) asynchronously.
+Summary of Framework Requirements Derived from chesspal.ai:
+Robust Model Context Protocol (MCP) Integration: OpenMAS must provide stable and correct wrappers around the official mcp Python SDK (v1.6+) for both client (ClientSession) and server (FastMCP) roles, enabling agents to communicate reliably using this specific protocol.
+Async Compatibility: The BaseAgent structure must support standard async patterns for database access and external process management without conflicts.
+Integration: The framework should facilitate the integration of external libraries/SDKs (LLMs, DB drivers, etc.) within agents.

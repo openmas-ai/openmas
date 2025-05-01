@@ -1,0 +1,18 @@
+/* Custom header color for MkDocs Material theme */
+
+/* Primary header color - using a much more obvious red color for testing */
+:root {
+    --md-primary-fg-color: #1A73E8;
+    --md-primary-fg-color--light: #5b9cf0;
+    --md-primary-fg-color--dark: #0a4ea6;
+}
+
+/* Make the header text color black for contrast with red */
+.md-header {
+  color: #000000;
+}
+
+/* Additional styles to force override */
+.md-header, .md-tabs {
+  background-color: var(--md-primary-fg-color) !important;
+}

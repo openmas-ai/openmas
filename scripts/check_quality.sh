@@ -10,6 +10,7 @@
 #   ./scripts/check_quality.sh       # Run all checks
 #   ./scripts/check_quality.sh lint  # Run just linting checks
 #   ./scripts/check_quality.sh test  # Run just tests (unit and mock integration)
+#   ./scripts/check_quality.sh docs  # Run just documentation checks
 #
 # Requirements:
 #   - Poetry (installed and configured)
@@ -61,6 +62,16 @@ if [ "$check_type" = "all" ] || [ "$check_type" = "test" ]; then
     fi
 fi
 
+if [ "$check_type" = "all" ] || [ "$check_type" = "docs" ]; then
+    echo -e "${BLUE}=== Checking documentation build ===${NC}"
+    if ! poetry run tox -e mkdocs-check; then
+        echo -e "${RED}❌ Documentation build failed${NC}"
+        failures=$((failures+1))
+    else
+        echo -e "${GREEN}✅ Documentation build passed${NC}"
+    fi
+fi
+
 echo -e "${BLUE}======================================================================${NC}"
 if [ $failures -eq 0 ]; then
     echo -e "${GREEN}All checks passed! 🎉${NC}"
@@ -71,6 +82,7 @@ else
     echo -e "  - Run 'poetry run black .' to auto-format code"
     echo -e "  - Run 'poetry run isort .' to auto-sort imports"
     echo -e "  - Run 'poetry run tox -e lint' to see specific linting errors"
+    echo -e "  - Run 'poetry run tox -e mkdocs-check' to check documentation build"
     echo -e "  - Run 'poetry run pre-commit run --all-files' to run all pre-commit hooks"
     exit 1
 fi
