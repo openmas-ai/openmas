@@ -1,8 +1,8 @@
 # OpenMAS
 
-[![PyPI version](https://img.shields.io/pypi/v/chesspal-mcp-engine.svg)](https://pypi.org/project/chesspal-mcp-engine/)
+[![PyPI version](https://img.shields.io/pypi/v/openmas.svg)](https://pypi.org/project/openmas/)
 [![Python Version](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Poetry](https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json)](https://python-poetry.org/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![CI/CD](https://github.com/openmas-ai/openmas/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/openmas-ai/openmas/actions)
@@ -45,32 +45,33 @@ Here's a basic agent:
 # hello_agent.py
 import asyncio
 from openmas.agent import BaseAgent
-from openmas.logging import configure_logging, get_logger
 
-configure_logging()
-logger = get_logger(__name__)
-
-class HelloAgent(BaseAgent):
+class HelloWorldAgent(BaseAgent):
     async def setup(self) -> None:
-        logger.info(f"Agent '{self.name}' setting up.")
-        await self.communicator.register_handler("greet", self.handle_greet)
+        """Initialize the agent."""
+        self.logger.info(f"Setting up the {self.name}")
 
     async def run(self) -> None:
-        logger.info(f"Agent '{self.name}' running...")
-        while True: await asyncio.sleep(3600)
+        """Run the agent."""
+        self.logger.info("Hello from OpenMAS!")
+
+        # Example: Sleep for a while then exit
+        await asyncio.sleep(5)
+
+        # Or for production agents that should run until stopped:
+        # while True:
+        #     await asyncio.sleep(3600)
 
     async def shutdown(self) -> None:
-        logger.info(f"Agent '{self.name}' shutting down.")
-
-    async def handle_greet(self, name: str = "world") -> dict:
-        return {"message": f"Hello, {name}!"}
+        """Clean up resources when the agent is stopped."""
+        self.logger.info(f"Shutting down the {self.name}")
 
 async def main():
-    agent = HelloAgent(name="hello-007") # Uses HttpCommunicator by default
+    agent = HelloWorldAgent(name="hello-agent")  # Uses HttpCommunicator by default
     try:
         await agent.start()
     except KeyboardInterrupt:
-        logger.info("Shutdown signal received.")
+        pass
     finally:
         await agent.stop()
 
