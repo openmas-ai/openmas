@@ -1,4 +1,5 @@
 """Tests for the generate_dockerfile CLI command."""
+
 import os
 import shutil
 from pathlib import Path

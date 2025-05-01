@@ -1,4 +1,5 @@
 """Integration tests for the CLI init command."""
+
 import os
 import shutil
 from unittest.mock import patch

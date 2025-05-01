@@ -1,4 +1,5 @@
 """Tests for communicator discovery precedence."""
+
 # flake8: noqa: E402
 
 import sys

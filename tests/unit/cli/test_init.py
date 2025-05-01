@@ -1,4 +1,5 @@
 """Tests for the CLI init command."""
+
 import os
 import shutil
 

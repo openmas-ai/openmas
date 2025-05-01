@@ -41,10 +41,10 @@ def test_validate_valid_config(valid_config):
     """Test validate command with a valid configuration."""
     runner = CliRunner()
 
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data=yaml.dump(valid_config))
-    ), patch(
-        "openmas.cli.main.Path.exists", return_value=True
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data=yaml.dump(valid_config))),
+        patch("openmas.cli.main.Path.exists", return_value=True),
     ):  # Make all path checks succeed
         result = runner.invoke(validate)
 
@@ -70,8 +70,9 @@ def test_validate_missing_required_field():
 
     runner = CliRunner()
 
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data=yaml.dump(invalid_config))
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data=yaml.dump(invalid_config))),
     ):
         result = runner.invoke(validate)
 
@@ -95,8 +96,9 @@ def test_validate_invalid_agent_config():
 
     runner = CliRunner()
 
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data=yaml.dump(invalid_config))
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data=yaml.dump(invalid_config))),
     ):
         result = runner.invoke(validate)
 
@@ -173,8 +175,9 @@ def test_validate_with_dependencies():
 
     runner = CliRunner()
 
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data=yaml.dump(config))
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data=yaml.dump(config))),
     ):
         result = runner.invoke(validate)
 
@@ -202,8 +205,9 @@ def test_validate_with_invalid_dependencies():
 
     runner = CliRunner()
 
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data=yaml.dump(config))
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data=yaml.dump(config))),
     ):
         result = runner.invoke(validate)
 
@@ -216,8 +220,9 @@ def test_validate_yaml_error():
     """Test validate command with invalid YAML."""
     runner = CliRunner()
 
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data="invalid: yaml: content:")
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="invalid: yaml: content:")),
     ):
         result = runner.invoke(validate)
 

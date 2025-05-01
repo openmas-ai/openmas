@@ -208,9 +208,12 @@ def test_add_package_paths_to_sys_path():
     mock_sys_path: list[str] = []
 
     # Patch the necessary functions and modules
-    with patch("os.path.isdir", side_effect=mock_isdir), patch("os.listdir", side_effect=mock_listdir), patch(
-        "sys.path", mock_sys_path
-    ), patch.dict("sys.modules", {"openmas.cli.run": MagicMock(add_package_paths_to_sys_path=mock_add_package_paths)}):
+    with (
+        patch("os.path.isdir", side_effect=mock_isdir),
+        patch("os.listdir", side_effect=mock_listdir),
+        patch("sys.path", mock_sys_path),
+        patch.dict("sys.modules", {"openmas.cli.run": MagicMock(add_package_paths_to_sys_path=mock_add_package_paths)}),
+    ):
         # Import the function directly from the mocked module
         import sys
 

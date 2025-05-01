@@ -1,4 +1,5 @@
 """Tests for the CLI main module."""
+
 import importlib
 import os
 import sys
@@ -90,8 +91,9 @@ class TestAgent(BaseAgent):
     def test_run_command_missing_project(self, cli_runner, temp_test_dir):
         """Test run command when no project root is found."""
         # Mock _find_project_root to return None, indicating no project found
-        with patch("openmas.config._find_project_root", return_value=None), patch(
-            "openmas.cli.run._find_project_root", return_value=None
+        with (
+            patch("openmas.config._find_project_root", return_value=None),
+            patch("openmas.cli.run._find_project_root", return_value=None),
         ):
             # Execute the command in the temporary directory without creating a project file
             result = cli_runner.invoke(cli, ["run", "agent"])

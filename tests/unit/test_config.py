@@ -181,8 +181,9 @@ def test_load_config_extension_paths():
     # Mock the project config to ensure we have a valid config with all required fields
     mock_project_data = {"name": "test-project", "version": "0.1.0", "agents": {"agent1": "agents/agent1"}}
 
-    with patch("openmas.config._load_project_config", return_value=mock_project_data), mock.patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": extension_paths_json}
+    with (
+        patch("openmas.config._load_project_config", return_value=mock_project_data),
+        mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": extension_paths_json}),
     ):
         config = load_config(AgentConfig)
         assert config.extension_paths == extension_paths
@@ -193,8 +194,9 @@ def test_load_config_extension_paths_invalid_json():
     # Mock the project config to ensure we have a valid config with all required fields
     mock_project_data = {"name": "test-project", "version": "0.1.0", "agents": {"agent1": "agents/agent1"}}
 
-    with patch("openmas.config._load_project_config", return_value=mock_project_data), mock.patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": "not-json"}
+    with (
+        patch("openmas.config._load_project_config", return_value=mock_project_data),
+        mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": "not-json"}),
     ):
         with pytest.raises(ConfigurationError) as exc_info:
             load_config(AgentConfig)
@@ -206,8 +208,9 @@ def test_load_config_extension_paths_not_list():
     # Mock the project config to ensure we have a valid config with all required fields
     mock_project_data = {"name": "test-project", "version": "0.1.0", "agents": {"agent1": "agents/agent1"}}
 
-    with patch("openmas.config._load_project_config", return_value=mock_project_data), mock.patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": '{"not": "list"}'}
+    with (
+        patch("openmas.config._load_project_config", return_value=mock_project_data),
+        mock.patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": '{"not": "list"}'}),
     ):
         with pytest.raises(ConfigurationError) as exc_info:
             load_config(AgentConfig)
@@ -246,8 +249,10 @@ def test_load_project_config_from_env():
 
 def test_load_project_config_from_file(mock_project_config):
     """Test loading project config from file."""
-    with patch.dict(os.environ, {}, clear=True), patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data=yaml.dump(mock_project_config))
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data=yaml.dump(mock_project_config))),
     ):
         config = _load_project_config()
 
@@ -266,12 +271,12 @@ def test_load_project_config_file_not_found():
 
 def test_load_project_config_invalid_yaml():
     """Test loading project config with invalid YAML."""
-    with patch.dict(os.environ, {}, clear=True), patch(
-        "openmas.config._find_project_root", return_value=Path("/project")
-    ), patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data="invalid: yaml: content:")
-    ), patch(
-        "yaml.safe_load", side_effect=yaml.YAMLError("Invalid YAML")
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("openmas.config._find_project_root", return_value=Path("/project")),
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="invalid: yaml: content:")),
+        patch("yaml.safe_load", side_effect=yaml.YAMLError("Invalid YAML")),
     ):
         with pytest.raises(ConfigurationError) as exc_info:
             _load_project_config()
@@ -280,8 +285,9 @@ def test_load_project_config_invalid_yaml():
 
 def test_load_config_with_default_config(mock_project_config):
     """Test load_config with default config from project config."""
-    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
-        os.environ, {"AGENT_NAME": "test_agent"}
+    with (
+        patch("openmas.config._load_project_config", return_value=mock_project_config),
+        patch.dict(os.environ, {"AGENT_NAME": "test_agent"}),
     ):
         config = load_config(AgentConfig)
 
@@ -293,13 +299,16 @@ def test_load_config_with_default_config(mock_project_config):
 
 def test_load_config_env_overrides_default(mock_project_config):
     """Test that environment variables override default config."""
-    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
-        os.environ,
-        {
-            "AGENT_NAME": "test_agent",
-            "LOG_LEVEL": "INFO",  # Override default DEBUG
-            "COMMUNICATOR_TYPE": "mcp_stdio",  # Override default http
-        },
+    with (
+        patch("openmas.config._load_project_config", return_value=mock_project_config),
+        patch.dict(
+            os.environ,
+            {
+                "AGENT_NAME": "test_agent",
+                "LOG_LEVEL": "INFO",  # Override default DEBUG
+                "COMMUNICATOR_TYPE": "mcp_stdio",  # Override default http
+            },
+        ),
     ):
         config = load_config(AgentConfig)
 
@@ -317,8 +326,9 @@ def test_load_config_json_overrides_default(mock_project_config):
         "communicator_options": {"timeout": 60, "new_option": "value"},
     }
 
-    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
-        os.environ, {"CONFIG": json.dumps(json_config)}, clear=True
+    with (
+        patch("openmas.config._load_project_config", return_value=mock_project_config),
+        patch.dict(os.environ, {"CONFIG": json.dumps(json_config)}, clear=True),
     ):
         config = load_config(AgentConfig)
 
@@ -333,8 +343,9 @@ def test_load_config_extension_paths_merged(mock_project_config):
     """Test that extension paths from project config are merged with env config."""
     env_extension_paths = ["custom/path1", "custom/path2"]
 
-    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
-        os.environ, {"AGENT_NAME": "test_agent", "EXTENSION_PATHS": json.dumps(env_extension_paths)}
+    with (
+        patch("openmas.config._load_project_config", return_value=mock_project_config),
+        patch.dict(os.environ, {"AGENT_NAME": "test_agent", "EXTENSION_PATHS": json.dumps(env_extension_paths)}),
     ):
         config = load_config(AgentConfig)
 
@@ -348,8 +359,9 @@ def test_load_config_no_default_config():
     """Test load_config when there's no default config in project config."""
     project_config = {"name": "test_project", "version": "0.1.0", "agents": {}}
 
-    with patch("openmas.config._load_project_config", return_value=project_config), patch.dict(
-        os.environ, {"AGENT_NAME": "test_agent"}
+    with (
+        patch("openmas.config._load_project_config", return_value=project_config),
+        patch.dict(os.environ, {"AGENT_NAME": "test_agent"}),
     ):
         config = load_config(AgentConfig)
 
@@ -365,8 +377,9 @@ def test_load_config_validation_error():
     class CustomConfigWithRequiredField(AgentConfig):
         required_field: str  # Required field not provided in config
 
-    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent"}, clear=True
+    with (
+        patch("openmas.config._load_project_config", return_value={}),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent"}, clear=True),
     ):
         with pytest.raises(ConfigurationError, match="Configuration validation failed"):
             load_config(CustomConfigWithRequiredField)
@@ -374,9 +387,16 @@ def test_load_config_validation_error():
 
 def test_load_config_with_individual_service_urls(mock_project_config):
     """Test load_config with individual service URLs."""
-    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
-        os.environ,
-        {"AGENT_NAME": "test_agent", "SERVICE_URL_API": "http://api:8000", "SERVICE_URL_DATABASE": "http://db:5432"},
+    with (
+        patch("openmas.config._load_project_config", return_value=mock_project_config),
+        patch.dict(
+            os.environ,
+            {
+                "AGENT_NAME": "test_agent",
+                "SERVICE_URL_API": "http://api:8000",
+                "SERVICE_URL_DATABASE": "http://db:5432",
+            },
+        ),
     ):
         config = load_config(AgentConfig)
 
@@ -386,9 +406,12 @@ def test_load_config_with_individual_service_urls(mock_project_config):
 
 def test_load_config_with_individual_communicator_options(mock_project_config):
     """Test load_config with individual communicator options."""
-    with patch("openmas.config._load_project_config", return_value=mock_project_config), patch.dict(
-        os.environ,
-        {"AGENT_NAME": "test_agent", "COMMUNICATOR_OPTION_RETRY": "true", "COMMUNICATOR_OPTION_MAX_RETRIES": "5"},
+    with (
+        patch("openmas.config._load_project_config", return_value=mock_project_config),
+        patch.dict(
+            os.environ,
+            {"AGENT_NAME": "test_agent", "COMMUNICATOR_OPTION_RETRY": "true", "COMMUNICATOR_OPTION_MAX_RETRIES": "5"},
+        ),
     ):
         config = load_config(AgentConfig)
 
@@ -433,16 +456,20 @@ def test_find_project_root_explicit_dir():
     from openmas.config import _find_project_root
 
     # Case 1: Explicit project directory with openmas_project.yml
-    with patch("pathlib.Path.resolve", return_value=Path("/explicit/path")), patch(
-        "pathlib.Path.__truediv__", return_value=Path("/explicit/path/openmas_project.yml")
-    ), patch("pathlib.Path.exists", return_value=True):
+    with (
+        patch("pathlib.Path.resolve", return_value=Path("/explicit/path")),
+        patch("pathlib.Path.__truediv__", return_value=Path("/explicit/path/openmas_project.yml")),
+        patch("pathlib.Path.exists", return_value=True),
+    ):
         result = _find_project_root(Path("/explicit/path"))
         assert result == Path("/explicit/path")
 
     # Case 2: Explicit project directory without openmas_project.yml
-    with patch("pathlib.Path.resolve", return_value=Path("/explicit/path")), patch(
-        "pathlib.Path.__truediv__", return_value=Path("/explicit/path/openmas_project.yml")
-    ), patch("pathlib.Path.exists", return_value=False):
+    with (
+        patch("pathlib.Path.resolve", return_value=Path("/explicit/path")),
+        patch("pathlib.Path.__truediv__", return_value=Path("/explicit/path/openmas_project.yml")),
+        patch("pathlib.Path.exists", return_value=False),
+    ):
         result = _find_project_root(Path("/explicit/path"))
         assert result is None
 
@@ -497,8 +524,9 @@ def test_load_yaml_config():
     test_config: Dict[str, Any] = {"name": "test", "log_level": "DEBUG"}
 
     # Test successful load
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data=yaml.dump(test_config))
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data=yaml.dump(test_config))),
     ):
         config = _load_yaml_config(Path("/config/test.yml"))
         assert config["name"] == "test"
@@ -510,9 +538,11 @@ def test_load_yaml_config():
         assert config == {}
 
     # Test invalid YAML
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data="invalid: yaml: content:")
-    ), patch("yaml.safe_load", side_effect=yaml.YAMLError("Invalid YAML")):
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="invalid: yaml: content:")),
+        patch("yaml.safe_load", side_effect=yaml.YAMLError("Invalid YAML")),
+    ):
         with pytest.raises(ConfigurationError):
             _load_yaml_config(Path("/config/invalid.yml"))
 
@@ -543,13 +573,14 @@ def test_load_environment_config_files():
     env_config: Dict[str, Any] = {"log_level": "DEBUG", "service_urls": {"service2": "http://env"}}
 
     # Test loading both default and env configs
-    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
-        "pathlib.Path.exists", return_value=True
-    ), patch(
-        "openmas.config._load_yaml_config",
-        side_effect=lambda p: default_config if p.name == "default.yml" else env_config,
-    ), patch.dict(
-        os.environ, {"OPENMAS_ENV": "dev"}
+    with (
+        patch("openmas.config._find_project_root", return_value=Path("/project")),
+        patch("pathlib.Path.exists", return_value=True),
+        patch(
+            "openmas.config._load_yaml_config",
+            side_effect=lambda p: default_config if p.name == "default.yml" else env_config,
+        ),
+        patch.dict(os.environ, {"OPENMAS_ENV": "dev"}),
     ):
         config = cast(Dict[str, Any], _load_environment_config_files())
         assert config["log_level"] == "DEBUG"  # From env config
@@ -557,9 +588,12 @@ def test_load_environment_config_files():
         assert config["service_urls"]["service2"] == "http://env"  # From env config
 
     # Test loading only default config (no OPENMAS_ENV)
-    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
-        "pathlib.Path.exists", return_value=True
-    ), patch("openmas.config._load_yaml_config", return_value=default_config), patch.dict(os.environ, {}, clear=True):
+    with (
+        patch("openmas.config._find_project_root", return_value=Path("/project")),
+        patch("pathlib.Path.exists", return_value=True),
+        patch("openmas.config._load_yaml_config", return_value=default_config),
+        patch.dict(os.environ, {}, clear=True),
+    ):
         config = cast(Dict[str, Any], _load_environment_config_files())
         assert config["log_level"] == "INFO"
         assert config["service_urls"]["service1"] == "http://default"
@@ -585,8 +619,9 @@ def test_load_config_env_overrides_yaml():
         # Mock just what we need - YAML config with a name value that should be overridden
         yaml_config = {"name": "from-yaml", "communicator_type": "mcp"}
 
-        with patch("openmas.config._load_project_config", return_value={}), patch(
-            "openmas.config._load_environment_config_files", return_value=yaml_config
+        with (
+            patch("openmas.config._load_project_config", return_value={}),
+            patch("openmas.config._load_environment_config_files", return_value=yaml_config),
         ):
             # Load config and verify env var overrides YAML
             config = load_config(AgentConfig)
@@ -605,17 +640,21 @@ def test_load_config_with_service_urls_in_yaml():
         "service_urls": {"service1": "http://service1.example.com", "service2": "http://service2.example.com"}
     }
 
-    with patch("openmas.config._load_project_config", return_value={}), patch(
-        "openmas.config._load_environment_config_files", return_value=yaml_config
-    ), patch.dict(os.environ, {"AGENT_NAME": "test-agent"}):
+    with (
+        patch("openmas.config._load_project_config", return_value={}),
+        patch("openmas.config._load_environment_config_files", return_value=yaml_config),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent"}),
+    ):
         config = load_config(AgentConfig)
         assert config.service_urls["service1"] == "http://service1.example.com"
         assert config.service_urls["service2"] == "http://service2.example.com"
 
     # Test env vars override YAML config
-    with patch("openmas.config._load_project_config", return_value={}), patch(
-        "openmas.config._load_environment_config_files", return_value=yaml_config
-    ), patch.dict(os.environ, {"AGENT_NAME": "test-agent", "SERVICE_URL_SERVICE1": "http://override.example.com"}):
+    with (
+        patch("openmas.config._load_project_config", return_value={}),
+        patch("openmas.config._load_environment_config_files", return_value=yaml_config),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent", "SERVICE_URL_SERVICE1": "http://override.example.com"}),
+    ):
         config = load_config(AgentConfig)
         assert config.service_urls["service1"] == "http://override.example.com"
         assert config.service_urls["service2"] == "http://service2.example.com"
@@ -626,8 +665,9 @@ def test_load_config_with_communicator_options_in_yaml():
     yaml_config: Dict[str, Any] = {"communicator_options": {"timeout": 30, "retries": 3}}
 
     # Test with YAML config only
-    with patch("openmas.config._load_project_config", return_value={}), patch(
-        "openmas.config._load_environment_config_files", return_value=yaml_config
+    with (
+        patch("openmas.config._load_project_config", return_value={}),
+        patch("openmas.config._load_environment_config_files", return_value=yaml_config),
     ):
         os.environ["AGENT_NAME"] = "test-agent"
         try:
@@ -639,8 +679,9 @@ def test_load_config_with_communicator_options_in_yaml():
                 del os.environ["AGENT_NAME"]
 
     # Test env vars override YAML config while preserving keys not in env var
-    with patch("openmas.config._load_project_config", return_value={}), patch(
-        "openmas.config._load_environment_config_files", return_value=yaml_config
+    with (
+        patch("openmas.config._load_project_config", return_value={}),
+        patch("openmas.config._load_environment_config_files", return_value=yaml_config),
     ):
         os.environ["AGENT_NAME"] = "test-agent"
         os.environ["COMMUNICATOR_OPTIONS"] = '{"timeout": 60, "max_connections": 10}'
@@ -678,9 +719,11 @@ def test_load_config_full_precedence_chain():
     # 5. Environment variables (highest precedence)
     env_vars = {"AGENT_NAME": "test-agent", "LOG_LEVEL": "TRACE", "SERVICE_URL_SERVICE2": "http://env.example.com"}
 
-    with patch("openmas.config._load_project_config", return_value=project_config), patch(
-        "openmas.config._load_environment_config_files", return_value=yaml_config
-    ), patch.dict(os.environ, env_vars):
+    with (
+        patch("openmas.config._load_project_config", return_value=project_config),
+        patch("openmas.config._load_environment_config_files", return_value=yaml_config),
+        patch.dict(os.environ, env_vars),
+    ):
         config = load_config(AgentConfig)
 
         # From env vars (highest precedence)
@@ -769,25 +812,31 @@ def test_load_yaml_config_missing_file():
 def test_load_yaml_config_none_or_not_dict():
     """Test loading a YAML configuration file that does not contain a dictionary."""
     # Test with None result from yaml.safe_load
-    with patch("pathlib.Path.exists", return_value=True), patch("builtins.open", mock_open(read_data="")), patch(
-        "yaml.safe_load", return_value=None
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="")),
+        patch("yaml.safe_load", return_value=None),
     ):
         config = _load_yaml_config(Path("/config/empty.yml"))
         assert config == {}
 
     # Test with non-dictionary result from yaml.safe_load
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data="- list item")
-    ), patch("yaml.safe_load", return_value=["list item"]):
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="- list item")),
+        patch("yaml.safe_load", return_value=["list item"]),
+    ):
         config = _load_yaml_config(Path("/config/list.yml"))
         assert config == {}
 
 
 def test_load_yaml_config_yaml_error():
     """Test loading a YAML configuration file with invalid YAML."""
-    with patch("pathlib.Path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data="invalid: : yaml")
-    ), patch("yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")):
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="invalid: : yaml")),
+        patch("yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")),
+    ):
         with pytest.raises(ConfigurationError) as exc_info:
             _load_yaml_config(Path("/config/invalid.yml"))
         assert "Failed to parse YAML" in str(exc_info.value)
@@ -796,10 +845,11 @@ def test_load_yaml_config_yaml_error():
 
 def test_load_project_config_yaml_error():
     """Test loading a project configuration file with invalid YAML."""
-    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
-        "pathlib.Path.exists", return_value=True
-    ), patch("builtins.open", mock_open(read_data="invalid: : yaml")), patch(
-        "yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")
+    with (
+        patch("openmas.config._find_project_root", return_value=Path("/project")),
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="invalid: : yaml")),
+        patch("yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")),
     ):
         with pytest.raises(ConfigurationError) as exc_info:
             _load_project_config()
@@ -809,8 +859,9 @@ def test_load_project_config_yaml_error():
 
 def test_load_project_config_from_env_yaml_error():
     """Test loading project config from environment variable with invalid YAML."""
-    with patch.dict(os.environ, {"OPENMAS_PROJECT_CONFIG": "invalid: : yaml"}), patch(
-        "yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")
+    with (
+        patch.dict(os.environ, {"OPENMAS_PROJECT_CONFIG": "invalid: : yaml"}),
+        patch("yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")),
     ):
         with pytest.raises(ConfigurationError) as exc_info:
             _load_project_config()
@@ -819,8 +870,9 @@ def test_load_project_config_from_env_yaml_error():
 
 def test_load_environment_config_files_missing_config_dir():
     """Test loading environment config files when config directory doesn't exist."""
-    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
-        "pathlib.Path.exists", return_value=False
+    with (
+        patch("openmas.config._find_project_root", return_value=Path("/project")),
+        patch("pathlib.Path.exists", return_value=False),
     ):
         config = _load_environment_config_files()
         assert config == {}
@@ -835,9 +887,11 @@ def test_load_environment_config_files_default_yaml_error():
                 raise ConfigurationError("YAML error")
             return {}
 
-    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
-        "pathlib.Path.exists", return_value=True
-    ), patch("openmas.config._load_yaml_config", side_effect=YamlErrorRaiser()):
+    with (
+        patch("openmas.config._find_project_root", return_value=Path("/project")),
+        patch("pathlib.Path.exists", return_value=True),
+        patch("openmas.config._load_yaml_config", side_effect=YamlErrorRaiser()),
+    ):
         with pytest.raises(ConfigurationError) as exc_info:
             _load_environment_config_files()
         assert "Error in default config file" in str(exc_info.value)
@@ -852,10 +906,11 @@ def test_load_environment_config_files_env_yaml_error():
                 return {}
             raise ConfigurationError("YAML error")
 
-    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
-        "pathlib.Path.exists", return_value=True
-    ), patch.dict(os.environ, {"OPENMAS_ENV": "prod"}), patch(
-        "openmas.config._load_yaml_config", side_effect=YamlErrorRaiser()
+    with (
+        patch("openmas.config._find_project_root", return_value=Path("/project")),
+        patch("pathlib.Path.exists", return_value=True),
+        patch.dict(os.environ, {"OPENMAS_ENV": "prod"}),
+        patch("openmas.config._load_yaml_config", side_effect=YamlErrorRaiser()),
     ):
         with pytest.raises(ConfigurationError) as exc_info:
             _load_environment_config_files()
@@ -866,14 +921,13 @@ def test_load_environment_config_files_env_yaml_error():
 def test_load_config_with_env_file_error():
     """Test load_config with error loading .env file."""
     # We should continue gracefully if .env file can't be loaded
-    with patch("openmas.config._find_project_root", return_value=Path("/project")), patch(
-        "pathlib.Path.exists", return_value=True
-    ), patch("dotenv.load_dotenv", side_effect=Exception("Failed to load .env")), patch(
-        "openmas.config._load_project_config", return_value={}
-    ), patch(
-        "openmas.config._load_environment_config_files", return_value={}
-    ), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent"}
+    with (
+        patch("openmas.config._find_project_root", return_value=Path("/project")),
+        patch("pathlib.Path.exists", return_value=True),
+        patch("dotenv.load_dotenv", side_effect=Exception("Failed to load .env")),
+        patch("openmas.config._load_project_config", return_value={}),
+        patch("openmas.config._load_environment_config_files", return_value={}),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent"}),
     ):
         # This should not raise an exception
         config = load_config(AgentConfig)
@@ -884,8 +938,9 @@ def test_load_config_shared_paths_from_project():
     """Test loading shared_paths from project config."""
     project_config = {"name": "test_project", "shared_paths": ["shared/utils", "shared/models"]}
 
-    with patch("openmas.config._load_project_config", return_value=project_config), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent"}
+    with (
+        patch("openmas.config._load_project_config", return_value=project_config),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent"}),
     ):
         config = load_config(AgentConfig)
         assert config.shared_paths == ["shared/utils", "shared/models"]
@@ -895,8 +950,9 @@ def test_load_config_shared_paths_from_env():
     """Test loading shared_paths from environment variables."""
     shared_paths = ["env/utils", "env/models"]
 
-    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "SHARED_PATHS": json.dumps(shared_paths)}
+    with (
+        patch("openmas.config._load_project_config", return_value={}),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent", "SHARED_PATHS": json.dumps(shared_paths)}),
     ):
         config = load_config(AgentConfig)
         assert config.shared_paths == shared_paths
@@ -904,8 +960,9 @@ def test_load_config_shared_paths_from_env():
 
 def test_load_config_shared_paths_invalid_json():
     """Test handling invalid JSON in SHARED_PATHS."""
-    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "SHARED_PATHS": "not-json"}
+    with (
+        patch("openmas.config._load_project_config", return_value={}),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent", "SHARED_PATHS": "not-json"}),
     ):
         with pytest.raises(ConfigurationError) as exc_info:
             load_config(AgentConfig)
@@ -914,8 +971,9 @@ def test_load_config_shared_paths_invalid_json():
 
 def test_load_config_shared_paths_not_list():
     """Test handling non-list value in SHARED_PATHS."""
-    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "SHARED_PATHS": '{"not": "list"}'}
+    with (
+        patch("openmas.config._load_project_config", return_value={}),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent", "SHARED_PATHS": '{"not": "list"}'}),
     ):
         with pytest.raises(ConfigurationError) as exc_info:
             load_config(AgentConfig)
@@ -926,8 +984,9 @@ def test_load_config_extension_paths_from_project():
     """Test loading extension_paths from project config."""
     project_config = {"name": "test_project", "extension_paths": ["extensions/custom", "extensions/third-party"]}
 
-    with patch("openmas.config._load_project_config", return_value=project_config), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent"}
+    with (
+        patch("openmas.config._load_project_config", return_value=project_config),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent"}),
     ):
         config = load_config(AgentConfig)
         assert config.extension_paths == ["extensions/custom", "extensions/third-party"]
@@ -937,8 +996,9 @@ def test_load_config_extension_paths_from_env():
     """Test loading extension_paths from environment variables."""
     extension_paths = ["env/custom", "env/third-party"]
 
-    with patch("openmas.config._load_project_config", return_value={}), patch.dict(
-        os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": json.dumps(extension_paths)}
+    with (
+        patch("openmas.config._load_project_config", return_value={}),
+        patch.dict(os.environ, {"AGENT_NAME": "test-agent", "EXTENSION_PATHS": json.dumps(extension_paths)}),
     ):
         config = load_config(AgentConfig)
         assert config.extension_paths == extension_paths
@@ -1069,9 +1129,11 @@ class TestConfigLoader:
         from openmas.config import ConfigLoader
 
         # Create a temporary file with invalid YAML
-        with patch("pathlib.Path.exists", return_value=True), patch(
-            "builtins.open", mock_open(read_data="invalid: : yaml")
-        ), patch("yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")):
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data="invalid: : yaml")),
+            patch("yaml.safe_load", side_effect=yaml.YAMLError("YAML syntax error")),
+        ):
             loader = ConfigLoader()
 
             with pytest.raises(ConfigurationError) as exc_info:

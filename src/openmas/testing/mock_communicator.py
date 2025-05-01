@@ -567,16 +567,18 @@ class MockCommunicator(BaseCommunicator):
         else:
             # Create a message dictionary to pass to the handler
             message = {
-                "sender_id": "test_sender"
-                if not params or not isinstance(params, dict)
-                else params.get("sender_id", "test_sender"),
+                "sender_id": (
+                    "test_sender"
+                    if not params or not isinstance(params, dict)
+                    else params.get("sender_id", "test_sender")
+                ),
                 "recipient_id": self.agent_name,
                 "content": params or {},
                 "message_type": method,
                 "conversation_id": None,
-                "get": lambda key, default=None: (params or {}).get(key, default)
-                if isinstance(params, dict)
-                else default,
+                "get": lambda key, default=None: (
+                    (params or {}).get(key, default) if isinstance(params, dict) else default
+                ),
             }
 
         return await handler(message)

@@ -1,4 +1,5 @@
 """Base communicator interface for OpenMAS."""
+
 # mypy: disable-error-code="assignment"
 
 import abc

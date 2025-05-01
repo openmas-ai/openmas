@@ -273,7 +273,6 @@ def add_to_mock_communicator():
             Returns:
                 Shared MockNetwork instance
             """
-            global _MOCK_NETWORK
             if not _MOCK_NETWORK:
                 _MOCK_NETWORK["network"] = MockNetwork()
             return _MOCK_NETWORK["network"]

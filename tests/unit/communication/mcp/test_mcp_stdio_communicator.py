@@ -290,9 +290,10 @@ class TestMcpStdioCommunicator:
         stdio_communicator._client_managers["test-service"] = mock_manager
 
         # Mock ClientSession and asyncio.create_task
-        with mock.patch("openmas.communication.mcp.stdio_communicator.ClientSession") as mock_session_class, mock.patch(
-            "openmas.communication.mcp.stdio_communicator.asyncio.create_task"
-        ) as mock_create_task:
+        with (
+            mock.patch("openmas.communication.mcp.stdio_communicator.ClientSession") as mock_session_class,
+            mock.patch("openmas.communication.mcp.stdio_communicator.asyncio.create_task") as mock_create_task,
+        ):
             mock_session_class.return_value = mock_session
 
             # Send notification
@@ -337,9 +338,11 @@ class TestMcpStdioCommunicator:
             communicator.server = None
 
         # Mock the FastMCP class, asyncio.create_task, and the stop method
-        with mock.patch("openmas.communication.mcp.stdio_communicator.FastMCP", return_value=mock_server), mock.patch(
-            "openmas.communication.mcp.stdio_communicator.asyncio.create_task", return_value=mock_task
-        ), mock.patch.object(communicator, "stop", patched_stop):
+        with (
+            mock.patch("openmas.communication.mcp.stdio_communicator.FastMCP", return_value=mock_server),
+            mock.patch("openmas.communication.mcp.stdio_communicator.asyncio.create_task", return_value=mock_task),
+            mock.patch.object(communicator, "stop", patched_stop),
+        ):
             # Start the communicator
             await communicator.start()
 

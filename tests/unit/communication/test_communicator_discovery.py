@@ -1,4 +1,5 @@
 """Tests for communicator discovery functionality."""
+
 # flake8: noqa: E402
 
 import sys

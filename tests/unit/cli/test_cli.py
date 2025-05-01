@@ -322,9 +322,12 @@ def test_run_command_with_signal_handling(mock_find_root, mock_get_loop, mock_im
 
     with cli_runner.isolated_filesystem():
         # We need to patch the signal modules too
-        with patch("inspect.isclass", return_value=True), patch("inspect.issubclass", return_value=True), patch(
-            "signal.SIGINT", 2
-        ), patch("signal.SIGTERM", 15):
+        with (
+            patch("inspect.isclass", return_value=True),
+            patch("inspect.issubclass", return_value=True),
+            patch("signal.SIGINT", 2),
+            patch("signal.SIGTERM", 15),
+        ):
             # Here we manually call add_signal_handler to simulate what would happen
             # when the code is executed
             mock_loop.add_signal_handler(2, lambda: None)  # SIGINT
