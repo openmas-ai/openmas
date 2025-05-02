@@ -53,8 +53,29 @@ def test_basic_init(temp_dir):
 
     assert result.exit_code == 0
     assert "OpenMAS project 'test_project' created successfully" in result.output
-    assert (temp_dir / "test_project").exists()
-    assert (temp_dir / "test_project" / "openmas_project.yml").exists()
+
+    # Verify project structure
+    project_path = temp_dir / "test_project"
+    assert project_path.exists()
+    assert (project_path / "openmas_project.yml").exists()
+
+    # Verify __init__.py files are created in the appropriate directories
+    assert (project_path / "agents" / "__init__.py").exists()
+    assert (project_path / "shared" / "__init__.py").exists()
+    assert (project_path / "extensions" / "__init__.py").exists()
+    assert (project_path / "tests" / "__init__.py").exists()
+
+    # Verify sample agent directory and __init__.py
+    assert (project_path / "agents" / "sample_agent").exists()
+    assert (project_path / "agents" / "sample_agent" / "__init__.py").exists()
+    assert (project_path / "agents" / "sample_agent" / "agent.py").exists()
+
+    # Verify content of __init__.py files
+    with open(project_path / "agents" / "__init__.py") as f:
+        assert '"""OpenMAS agents package."""' in f.read()
+
+    with open(project_path / "agents" / "sample_agent" / "__init__.py") as f:
+        assert '"""Sample agent package."""' in f.read()
 
 
 def test_init_existing_directory(temp_dir):
@@ -93,7 +114,16 @@ def test_init_permission_error_file_creation(temp_dir):
 
     assert result.exit_code == 1
     assert "Permission denied" in result.output
-    assert "Error creating project files" in result.output
+    # The error message depends on where the permission error occurs, which could be
+    # during directory creation, __init__.py file creation, or other file creation
+    assert any(
+        message in result.output
+        for message in [
+            "Error creating project structure",
+            "Error creating project files",
+            "Error creating sample agent",
+        ]
+    )
 
 
 def test_init_current_dir_permission_error(temp_dir):
@@ -111,3 +141,25 @@ def test_init_current_dir_permission_error(temp_dir):
     assert result.exit_code == 1
     assert "Permission denied" in result.output
     assert "Error creating project structure" in result.output
+
+
+def test_init_with_template(temp_dir):
+    """Test initialization with template creates __init__.py files."""
+    runner = CliRunner()
+    result = runner.invoke(init, ["test_project_template", "--template", "mcp-server"])
+
+    assert result.exit_code == 0
+    assert "OpenMAS project 'test_project_template' created successfully" in result.output
+
+    # Verify project structure
+    project_path = temp_dir / "test_project_template"
+    assert project_path.exists()
+    assert (project_path / "openmas_project.yml").exists()
+
+    # Verify __init__.py files in the template agent directory
+    assert (project_path / "agents" / "mcp_server").exists()
+    assert (project_path / "agents" / "mcp_server" / "__init__.py").exists()
+
+    # Verify content of the template agent __init__.py file
+    with open(project_path / "agents" / "mcp_server" / "__init__.py") as f:
+        assert '"""MCP Server agent package."""' in f.read()

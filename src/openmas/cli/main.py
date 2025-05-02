@@ -66,7 +66,14 @@ def init(project_name: str, template: Optional[str], name: Optional[str]) -> Non
     subdirs = ["agents", "shared", "extensions", "config", "tests", "packages"]
     try:
         for subdir in subdirs:
-            (project_path / subdir).mkdir(exist_ok=project_path == Path("."))
+            subdir_path = project_path / subdir
+            subdir_path.mkdir(exist_ok=project_path == Path("."))
+
+            # Create __init__.py files in Python package directories (exclude config and packages)
+            if subdir not in ["config", "packages"]:
+                init_file = subdir_path / "__init__.py"
+                with open(init_file, "w") as f:
+                    f.write(f'"""OpenMAS {subdir} package."""\n')
     except (PermissionError, OSError) as e:
         click.echo(f"❌ Error creating project structure: {str(e)}")
         sys.exit(1)
@@ -110,6 +117,10 @@ def init(project_name: str, template: Optional[str], name: Optional[str]) -> Non
                 # Setup an MCP server template
                 agent_dir = project_path / "agents" / "mcp_server"
                 agent_dir.mkdir(parents=True, exist_ok=project_path == Path("."))
+
+                # Create __init__.py file in the agent directory
+                with open(agent_dir / "__init__.py", "w") as f:
+                    f.write('"""MCP Server agent package."""\n')
 
                 # Create agent.py file
                 with open(agent_dir / "agent.py", "w") as f:
@@ -184,6 +195,54 @@ dependencies: []
                 project_config["agents"]["mcp_server"] = "agents/mcp_server"
         except (PermissionError, OSError) as e:
             click.echo(f"❌ Error creating template files: {str(e)}")
+            sys.exit(1)
+    else:
+        # Create a basic sample agent when no template is specified
+        try:
+            # Setup a basic sample agent
+            agent_dir = project_path / "agents" / "sample_agent"
+            agent_dir.mkdir(parents=True, exist_ok=project_path == Path("."))
+
+            # Create __init__.py file in the agent directory
+            with open(agent_dir / "__init__.py", "w") as f:
+                f.write('"""Sample agent package."""\n')
+
+            # Create agent.py file
+            with open(agent_dir / "agent.py", "w") as f:
+                f.write(
+                    """'''Sample Agent.'''
+
+import asyncio
+from openmas.agent import BaseAgent
+
+class Agent(BaseAgent):
+    '''Sample agent implementation.'''
+
+    async def setup(self) -> None:
+        '''Set up the agent.'''
+        self.logger.info("Sample agent initializing...")
+
+    async def run(self) -> None:
+        '''Run the agent.'''
+        self.logger.info("Sample agent running...")
+
+        # Example periodic task
+        for i in range(5):
+            self.logger.info(f"Sample agent tick {i}...")
+            await asyncio.sleep(1)
+
+        self.logger.info("Sample agent completed.")
+
+    async def shutdown(self) -> None:
+        '''Clean up when the agent stops.'''
+        self.logger.info("Sample agent shutting down...")
+"""
+                )
+
+            # Update project config with the agent
+            project_config["agents"]["sample_agent"] = "agents/sample_agent"
+        except (PermissionError, OSError) as e:
+            click.echo(f"❌ Error creating sample agent: {str(e)}")
             sys.exit(1)
 
     # Add dependencies schema comment
