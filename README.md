@@ -39,49 +39,11 @@ See the full [Installation Guide](https://docs.openmas.ai/installation/) for det
 
 ## Quick Start
 
-Here's a basic agent:
+The best way to get started with OpenMAS is by following our detailed tutorial, which guides you through creating and running your first agent using the standard project structure:
 
-```python
-# hello_agent.py
-import asyncio
-from openmas.agent import BaseAgent
+* [**Getting Started Guide**](https://docs.openmas.ai/getting_started/)
 
-class HelloWorldAgent(BaseAgent):
-    async def setup(self) -> None:
-        """Initialize the agent."""
-        self.logger.info(f"Setting up the {self.name}")
-
-    async def run(self) -> None:
-        """Run the agent."""
-        self.logger.info("Hello from OpenMAS!")
-
-        # Example: Sleep for a while then exit
-        await asyncio.sleep(5)
-
-        # Or for production agents that should run until stopped:
-        # while True:
-        #     await asyncio.sleep(3600)
-
-    async def shutdown(self) -> None:
-        """Clean up resources when the agent is stopped."""
-        self.logger.info(f"Shutting down the {self.name}")
-
-async def main():
-    agent = HelloWorldAgent(name="hello-agent")  # Uses HttpCommunicator by default
-    try:
-        await agent.start()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await agent.stop()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-Run it with `python hello_agent.py`.
-
-For a more detailed walkthrough, see the [Getting Started Guide](https://docs.openmas.ai/getting_started/).
+This guide uses the `openmas init` command to set up a project with the proper directory structure and `openmas run` to execute the agent.
 
 ## Contributing
 
