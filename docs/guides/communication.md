@@ -4,6 +4,126 @@ This document provides an overview of the communication protocols in OpenMAS, ex
 
 ## Communication Overview
 
+OpenMAS provides a flexible communication layer that abstracts away the complexity of different communication protocols. The core of this system is the `BaseCommunicator` abstract base class, which defines the standard interface for sending requests (`send_request`), sending notifications (`send_notification`), and registering handlers for incoming messages (`register_handler`). All specific protocol implementations (like `HttpCommunicator`, `McpSseCommunicator`, etc.) inherit from `BaseCommunicator`.
+
+An agent's communicator is typically instantiated automatically by `BaseAgent` based on the `communicator_type` and `communicator_options` specified in the agent's configuration.
+
+## Lazy Loading of Communicators
+
+A key design principle in OpenMAS is **lazy loading** for optional components, especially communicators that require extra dependencies.
+
+* **Core vs. Optional:** The `HttpCommunicator` (using `httpx`) might be considered core or have minimal dependencies. Communicators for MCP (`mcp`), gRPC (`grpcio`), and MQTT (`paho-mqtt`) require specific third-party libraries.
+* **Mechanism:** OpenMAS does *not* require you to install all possible communication libraries just to use the core framework. When `BaseAgent` initializes, it looks at the configured `communicator_type`. If it's a non-core type (e.g., "grpc", "mcp_sse", "mqtt"), the framework attempts to dynamically import the necessary communicator class (`GrpcCommunicator`, `McpSseCommunicator`, etc.) using `importlib`.
+* **Dependency Management:** If the import fails because the required underlying library (e.g., `grpcio` for `GrpcCommunicator`) is not installed in your environment, OpenMAS will raise an `ImportError` or a specific `ConfigurationError` guiding you to install the necessary optional dependency.
+* **Installation:** You install support for optional communicators using pip extras:
+    ```bash
+    # Install core openmas
+    pip install openmas
+
+    # Install support for gRPC
+    pip install 'openmas[grpc]'
+
+    # Install support for MCP (includes mcp-sdk)
+    pip install 'openmas[mcp]'
+
+    # Install support for MQTT
+    pip install 'openmas[mqtt]'
+
+    # Install multiple extras
+    pip install 'openmas[grpc,mcp]'
+
+    # Install all optional communicators and features
+    pip install 'openmas[all]'
+    ```
+    (Use `poetry add 'openmas[extra]'` if using Poetry).
+
+This approach keeps the core `openmas` package lightweight and ensures users only install what they need.
+
+## Available Protocols & Communicators
+
+### HTTP (`HttpCommunicator`)
+
+* **Protocol:** Standard HTTP/1.1 (using `httpx`).
+* **Best For:** RESTful API interactions, web service integration, general-purpose request/response communication between agents/services across processes or machines.
+* **Dependencies:** `httpx` (likely a core dependency).
+* **Configuration:** `communicator_type: http`. Options like `http_port` (server mode), `timeout`, `retries` can be set in `communicator_options`.
+
+### Model Context Protocol (MCP)
+
+MCP is designed for interacting with AI models and tools, particularly from Anthropic. OpenMAS provides two communicators for MCP. Requires `openmas[mcp]`.
+
+1.  **`McpSseCommunicator`**
+    * **Protocol:** MCP over HTTP Server-Sent Events (SSE).
+    * **Best For:** Networked MCP communication. Running an agent as an HTTP-based MCP server (e.g., for a UI to connect to) or connecting to remote HTTP-based MCP services.
+    * **Dependencies:** `mcp` SDK, `fastapi`, `uvicorn`, `httpx`.
+    * **Configuration:** `communicator_type: mcp_sse`. Options: `server_mode` (bool), `http_port` (server mode).
+
+2.  **`McpStdioCommunicator`**
+    * **Protocol:** MCP over standard input/output.
+    * **Best For:** Running an agent as an MCP service interacted with via stdin/stdout (e.g., as a CLI tool or managed subprocess). Connecting to external tools/engines that expose an MCP interface via stdio (like Stockfish configured for MCP).
+    * **Dependencies:** `mcp` SDK.
+    * **Configuration:** `communicator_type: mcp_stdio`. Options: `server_mode` (bool).
+
+### gRPC (`GrpcCommunicator`)
+
+* **Protocol:** gRPC (using `grpcio`).
+* **Best For:** High-performance, low-latency RPC between services, potentially across different languages. Streaming scenarios. Microservice architectures where gRPC is standard. Requires `openmas[grpc]`.
+* **Dependencies:** `grpcio`, `grpcio-tools`.
+* **Configuration:** `communicator_type: grpc`. Options: `server_mode` (bool), `grpc_port` (server mode).
+* **Note:** The default implementation uses a generic dictionary format. For type-safe communication using Protobuf definitions, customization might be needed.
+
+### MQTT (`MqttCommunicator`)
+
+* **Protocol:** MQTT (using `paho-mqtt`).
+* **Best For:** Publish/subscribe messaging patterns, event-driven architectures, decoupled communication, IoT applications. Requires an external MQTT broker. Requires `openmas[mqtt]`.
+* **Dependencies:** `paho-mqtt`.
+* **Configuration:** `communicator_type: mqtt`. Options: `broker_host`, `broker_port`, `username`, `password`, `client_id`, TLS settings.
+
+## Choosing the Right Protocol
+
+| Scenario                                      | Recommended Communicator(s) | Why?                                                                 |
+| :-------------------------------------------- | :------------------------ | :------------------------------------------------------------------- |
+| General Request/Response between Agents/Services | `HttpCommunicator`        | Standard, widely supported, good for RESTful patterns.               |
+| Interacting with Anthropic Models/MCP Services | `McpSseCommunicator`      | Native MCP support over standard web protocols.                      |
+| Exposing Agent as HTTP-based MCP Server       | `McpSseCommunicator`      | Allows web clients/other services to interact via MCP over HTTP/SSE. |
+| Agent as CLI Tool using MCP                 | `McpStdioCommunicator`    | Uses stdin/stdout for MCP interaction.                               |
+| Connecting to MCP Tool via Subprocess (e.g. Stockfish) | `McpStdioCommunicator`    | Manages subprocess communication via MCP over stdio.                 |
+| High-Performance RPC                          | `GrpcCommunicator`        | Efficient binary protocol, good for low-latency internal comms.      |
+| Publish/Subscribe, Event-Driven Systems       | `MqttCommunicator`        | Decoupled messaging via a broker, suitable for event notifications.  |
+| Agents in the Same Process (Testing/Simple) | `MockCommunicator` (testing) or potentially a future `InMemoryCommunicator` | Lowest latency, avoids network overhead.                             |
+
+## Communicator Configuration Options
+
+Refer to the specific communicator class documentation (or source code) and the [Configuration Guide](configuration.md) for detailed options applicable to each communicator type (e.g., `http_port`, `grpc_port`, `broker_host`, `server_mode`, `timeout`). These are typically set within the `communicator_options` dictionary in your configuration.
+
+## MCP Method Mapping (Client Perspective)
+
+When an OpenMAS agent uses an MCP communicator (`McpSseCommunicator` or `McpStdioCommunicator`) in *client mode* to interact with a remote MCP server, the standard OpenMAS communicator methods (`send_request`, `send_notification`) are mapped to the underlying MCP protocol actions on the remote server:
+
+| Your Agent's Call (`self.communicator.<method>`) | Remote MCP Action Triggered | Description |
+|----------------------------------------------------|-----------------------------|-------------|
+| `send_request(target_service="svc", method="tool/list")` | `list_tools()` | Lists tools on the remote MCP server `svc`. |
+| `send_request(target_service="svc", method="tool/call", params={"name": "calc", "arguments": {"a":1}})` | `call_tool("calc", {"a":1})` | Calls the tool named "calc" on the remote server `svc`. |
+| `send_request(target_service="svc", method="prompt/list")` | `list_prompts()` | Lists prompts on the remote server `svc`. |
+| `send_request(target_service="svc", method="prompt/get", params={"name": "qa", "arguments": {"q":"Hi"}})` | `get_prompt("qa", {"q":"Hi"})` | Gets the prompt named "qa" from the remote server `svc`. |
+| `send_request(target_service="svc", method="resource/list")` | `list_resources()` | Lists resources on the remote server `svc`. |
+| `send_request(target_service="svc", method="resource/read", params={"uri": "/data.json"})` | `read_resource("/data.json")` | Reads the resource at the specified URI from server `svc`. |
+| `send_request(target_service="svc", method="some_custom_name", params={...})` | `call_tool("some_custom_name", {...})` | By convention, non-prefixed methods often map to `call_tool` on the server. |
+| `send_notification(target_service="svc", method="log_event", params={...})` | Async `call_tool("log_event", {...})` | Sends a notification, often mapped to an asynchronous tool call on the server `svc` where no response is expected by the caller. |
+
+**Note:** This mapping applies when your OpenMAS agent is acting as an *MCP client*. When your agent acts as an *MCP server* (using `MCPServerAgent` or a communicator in `server_mode=True`), incoming MCP requests trigger the methods decorated with `@mcp_tool`, `@mcp_prompt`, or `@mcp_resource` within your agent. See the [MCP Integration Guide](mcp_integration.md).
+
+## Extending with Custom Protocols
+
+OpenMAS allows you to create custom protocol implementations by extending the `BaseCommunicator` class and potentially leveraging the communicator extension system (see `communicator_extensions.md`).
+
+
+# Communication in OpenMAS (OLD)
+
+This document provides an overview of the communication protocols in OpenMAS, explaining when and how to use each one.
+
+## Communication Overview
+
 OpenMAS provides a flexible communication layer that abstracts away the complexity of different communication protocols. The core of this system is the `BaseCommunicator` interface, which all protocol implementations extend.
 
 ## Available Protocols

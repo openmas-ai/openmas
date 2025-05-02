@@ -5,6 +5,7 @@ repo_name: openmas-ai/openmas
 
 theme:
   name: material
+  custom_dir: docs/overrides
   logo: assets/logo.svg
   favicon: assets/logo.svg
   features:
@@ -18,12 +19,12 @@ theme:
     - content.code.copy
   palette:
     - scheme: default
-      primary: custom
+      primary: custom # Uses colors defined in extra.css
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: custom
+      primary: custom # Uses colors defined in extra.css
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -34,35 +35,40 @@ theme:
 nav:
   - Home: index.md
   - Guides:
-    - Installation: installation.md
-    - Getting Started: getting_started.md
-    - Configuration: configuration.md
-    - Communication: communication.md
-    - LLM Integration: llm_integration.md
-    - MCP Integration: mcp_integration.md
-    - Testing Utilities: testing-utilities.md
-    - Deployment: deployment.md
-    # - Reasoning Integration: reasoning_integration.md # Deferred for now
+      - Installation: guides/installation.md
+      - Getting Started: guides/getting_started.md
+      - Configuration: guides/configuration.md
+      - Communication: guides/communication.md
+      - LLM Integration: guides/llm_integration.md
+      - MCP Integration: guides/mcp_integration.md
+      - Reasoning Integration (BDI): guides/reasoning_integration.md
+      - Agent Patterns: guides/patterns.md
+      - Testing Your Agents: guides/testing-utilities.md
+      - Deployment: guides/deployment.md
   - Core Concepts:
-    - Architecture: architecture.md
-    - Design Philosophy: design.md
-    - Agent Patterns: patterns.md
+      - Architecture: architecture.md
+      - Design Philosophy: design.md
+      - Project Structure: project_structure.md # Added here
+  - Examples & Use Cases: # Added section
+      - Overview: examples.md # Added
+      - Chesspal.ai Refactoring: use_cases/chesspal_ai.md # Added
   - Extending OpenMAS:
-    - Custom Communicators: communicator_extensions.md
-    # - Custom Agent Patterns: # Placeholder
-    # - Custom Reasoning: # Placeholder
+      - Custom Communicators: communicator_extensions.md
+      # - Custom Agent Patterns: # Placeholder
+      # - Custom Reasoning: # Placeholder
   - Command Line Interface:
-    - Overview: cli/index.md
-    - init: cli/init.md
-    - validate: cli/validate.md
-    - list: cli/list.md
-    - run: cli/run.md
-    - deps: cli/deps.md
-    - generate-dockerfile: cli/generate-dockerfile.md
+      - Overview: cli/index.md
+      - init: cli/init.md
+      - validate: cli/validate.md
+      - list: cli/list.md
+      - run: cli/run.md
+      - deps: cli/deps.md
+      - generate-dockerfile: cli/generate-dockerfile.md
+      - generate-compose: cli/generate-compose.md # Added
   - Contributing:
-    - Guidelines: contributing.md
-    - Development Workflow: development_workflow.md
-    - Docstring Policy: docstring_policy.md
+      - Guidelines: contributing.md
+      - Development Workflow: development_workflow.md
+      - Docstring Policy: docstring_policy.md
   - API Reference: api_reference.md
 
 plugins:
@@ -93,4 +99,4 @@ markdown_extensions:
       permalink: true
 
 extra_css:
-  - stylesheets/extra.css?v=1
+  - stylesheets/extra.css # Removed version query string for simplicity

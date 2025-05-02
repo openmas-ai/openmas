@@ -37,4 +37,4 @@ Running agents using the CLI requires:
 2. A `openmas_project.yml` file in the project root
 3. Agent directories containing `agent.py` files with `BaseAgent` subclasses
 
-For more details on project structure and conventions, see the [Getting Started](../getting_started.md) guide.
+For more details on project structure and conventions, see the [Getting Started](../guides/getting_started.md) guide.

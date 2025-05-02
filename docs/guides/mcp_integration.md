@@ -446,4 +446,4 @@ async def test_mcp_tool_calls(mcp_agent_harness):
         pass
 ```
 
-For more information on testing, see the [Testing Utilities Guide](./testing-utilities.md) documentation.
+For more information on testing, see the [Testing Utilities Guide](testing-utilities.md) documentation.
