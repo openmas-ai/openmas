@@ -1,100 +1,134 @@
 # Installation
 
-Install OpenMAS using pip:
-
-```bash
-pip install openmas
-```
+This guide explains how to install the `openmas` package.
 
 ## Prerequisites
 
-*   Python 3.9+
+* Python 3.10 or newer.
 
-## Virtual Environments
+## Standard Installation
 
-It is highly recommended to install OpenMAS within a virtual environment to avoid conflicts with other packages.
-
-Using `venv`:
+The quickest way to install OpenMAS is using pip:
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 pip install openmas
 ```
 
-Using `conda`:
+## Using Virtual Environments (Recommended)
 
-```bash
-conda create -n openmas-env python=3.10
-conda activate openmas-env
-pip install openmas
-```
+=== "venv (Built-in)"
 
-Using `Poetry` (for managing project dependencies):
+    Python's built-in tool for creating lightweight virtual environments.
 
-Poetry manages environments automatically. If you are starting a new project with Poetry that will use OpenMAS:
+    1.  **Create the environment:**
+        ```bash
+        python -m venv .venv # Or choose a different name like 'venv'
+        ```
 
-```bash
-# Initialize your project (if new)
-poetry new my-openmas-project
-cd my-openmas-project
+    2.  **Activate the environment:**
+        * macOS/Linux: `source .venv/bin/activate`
+        * Windows (Command Prompt): `.venv\Scripts\activate.bat`
+        * Windows (PowerShell): `.venv\Scripts\Activate.ps1`
 
-# Add openmas - Poetry handles the virtualenv
-poetry add openmas
+    3.  **Install OpenMAS:**
+        ```bash
+        pip install openmas
+        ```
 
-# Activate the environment (optional, needed for direct script execution)
-poetry shell
-# Now you can run python scripts or use openmas commands directly
-```
-If adding to an existing Poetry project, simply run `poetry add openmas` within the project directory.
+=== "Poetry"
 
-Using `uv` (a fast Python package installer and resolver):
+    A modern tool for Python dependency management and packaging, which automatically handles virtual environments.
 
-```bash
-# Create a virtual environment using uv
-uv venv
+    1.  **Add OpenMAS to your Poetry project:**
+        (Run this command inside your project directory where `pyproject.toml` is located)
+        ```bash
+        poetry add openmas
+        ```
+        * Poetry will create a virtual environment if one doesn't exist for the project and install `openmas` into it.
+        * If you haven't initialized your project with Poetry yet, run `poetry init` first or `poetry new your-project-name`.
 
-# Activate the environment
-source .venv/bin/activate # On Windows use `.venv\Scripts\activate`
+    2.  **Run commands within the environment:**
+        * Either prefix commands with `poetry run` (e.g., `poetry run python your_script.py`)
+        * Or activate the shell explicitly: `poetry shell`
 
-# Install openmas using uv
-uv pip install openmas
-```
+=== "uv"
+
+    An extremely fast Python package installer and resolver, capable of replacing pip and venv.
+
+    1.  **Create the environment:**
+        ```bash
+        uv venv
+        ```
+
+    2.  **Activate the environment:**
+        * macOS/Linux: `source .venv/bin/activate`
+        * Windows (Command Prompt): `.venv\Scripts\activate.bat`
+        * Windows (PowerShell): `.venv\Scripts\Activate.ps1`
+
+    3.  **Install OpenMAS using uv:**
+        ```bash
+        uv pip install openmas
+        ```
+
+=== "conda"
+
+    A popular package and environment manager, often used in data science.
+
+    1.  **Create the environment:**
+        ```bash
+        conda create -n openmas-env python=3.10 # Or your preferred Python version
+        ```
+
+    2.  **Activate the environment:**
+        ```bash
+        conda activate openmas-env
+        ```
+
+    3.  **Install OpenMAS:**
+        ```bash
+        pip install openmas
+        # Note: You can use pip within a conda environment.
+        ```
+
+---
 
 ## Optional Dependencies
 
-OpenMAS has a modular design. The core package is lightweight, and you can install optional features based on your needs:
+OpenMAS is modular. Install optional features as needed:
 
-*   **MCP Integration:** For using the Model Context Protocol.
-*   **gRPC Communication:** For using gRPC for agent communication.
-*   **MQTT Communication:** For using MQTT for agent communication.
+* `mcp`: Model Context Protocol integration.
+* `grpc`: gRPC communication support.
+* `mqtt`: MQTT communication support.
+* `all`: All optional dependencies.
 
-Install optional dependencies using brackets:
+Install these extras using brackets `[]`. The specific command depends on how you manage your environment:
+
+* **If using `pip` or `uv`:**
+    ```bash
+    # Example: Install MCP and gRPC support
+    pip install 'openmas[mcp,grpc]'
+    # Or using uv:
+    # uv pip install 'openmas[mcp,grpc]'
+
+    # Example: Install all extras
+    pip install 'openmas[all]'
+    # Or using uv:
+    # uv pip install 'openmas[all]'
+    ```
+
+* **If using `Poetry`:**
+    ```bash
+    # Example: Add MCP and gRPC support (Poetry handles the environment)
+    poetry add 'openmas[mcp,grpc]'
+
+    # Example: Add all extras
+    poetry add 'openmas[all]'
+    ```
+
+## Verify Installation (Optional)
+
+After installation, you can often verify it by trying to import the package or running a basic command provided by the package (if any).
 
 ```bash
-# Install MCP support
-pip install 'openmas[mcp]'
-
-# Install gRPC support
-pip install 'openmas[grpc]'
-
-# Install MQTT support
-pip install 'openmas[mqtt]'
-
-# Install multiple optional dependencies
-pip install 'openmas[mcp,grpc]'
-
-# Install all optional dependencies
-pip install 'openmas[all]'
-```
-
-If you are using Poetry in your project:
-
-```bash
-# Add core openmas
-poetry add openmas
-
-# Add optional dependencies
-poetry add 'openmas[mcp]'
-poetry add 'openmas[mcp,grpc,mqtt]'
+python -c "import openmas; print(openmas.__version__)"
 ```
