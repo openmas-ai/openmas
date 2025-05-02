@@ -1120,6 +1120,124 @@ class TestProjectConfig:
                     name="test-project", version="0.1.0", agents={name: {"module": "agents.test", "class": "TestAgent"}}
                 )
 
+    def test_path_format_agents(self):
+        """Test that ProjectConfig successfully parses agents defined using path format."""
+        config_data = {
+            "name": "test-project",
+            "version": "0.1.0",
+            "agents": {"agent1": "agents/agent1", "agent2": "agents/agent2.py", "agent3": "path/to/agent3"},
+        }
+
+        config = ProjectConfig(**config_data)
+
+        # Check that all agents were processed correctly
+        assert len(config.agents) == 3
+
+        # Verify agents are converted to AgentConfigEntry objects
+        assert config.agents["agent1"].module == "agents.agent1"
+        assert config.agents["agent1"].class_ == "Agent"
+
+        # Path with .py extension should have it removed
+        assert config.agents["agent2"].module == "agents.agent2"
+        assert config.agents["agent2"].class_ == "Agent"
+
+        # Deeper paths should be handled correctly
+        assert config.agents["agent3"].module == "path.to.agent3"
+        assert config.agents["agent3"].class_ == "Agent"
+
+    def test_dictionary_format_agents(self):
+        """Test that ProjectConfig successfully parses agents defined using dictionary format."""
+        config_data = {
+            "name": "test-project",
+            "version": "0.1.0",
+            "agents": {
+                "agent1": {"module": "agents.agent1", "class": "CustomAgent"},
+                "agent2": {
+                    "module": "agents.agent2",
+                    "class": "Agent2",
+                    "communicator": "http",
+                    "options": {"timeout": 30},
+                },
+                "agent3": {"module": "path.to.agent3", "class": "Agent3", "deploy_config_path": "deploy/agent3.yml"},
+            },
+        }
+
+        config = ProjectConfig(**config_data)
+
+        # Check that all agents were processed correctly
+        assert len(config.agents) == 3
+
+        # Verify all fields were transferred correctly
+        assert config.agents["agent1"].module == "agents.agent1"
+        assert config.agents["agent1"].class_ == "CustomAgent"
+        assert config.agents["agent1"].communicator is None
+        assert config.agents["agent1"].options == {}
+
+        assert config.agents["agent2"].module == "agents.agent2"
+        assert config.agents["agent2"].class_ == "Agent2"
+        assert config.agents["agent2"].communicator == "http"
+        assert config.agents["agent2"].options == {"timeout": 30}
+
+        assert config.agents["agent3"].module == "path.to.agent3"
+        assert config.agents["agent3"].class_ == "Agent3"
+        assert config.agents["agent3"].deploy_config_path == "deploy/agent3.yml"
+
+    def test_mixed_format_agents(self):
+        """Test that ProjectConfig handles a mix of path and dictionary format agents correctly."""
+        config_data = {
+            "name": "test-project",
+            "version": "0.1.0",
+            "agents": {
+                "agent1": "agents/agent1",
+                "agent2": {"module": "agents.agent2", "class": "CustomAgent2"},
+            },
+        }
+
+        config = ProjectConfig(**config_data)
+
+        # Check both formats were processed correctly
+        assert config.agents["agent1"].module == "agents.agent1"
+        assert config.agents["agent1"].class_ == "Agent"
+
+        assert config.agents["agent2"].module == "agents.agent2"
+        assert config.agents["agent2"].class_ == "CustomAgent2"
+
+    def test_normalization_in_model_post_init(self):
+        """Test the normalization logic in model_post_init method."""
+        # Test with various path formats
+        test_cases = [
+            ("simple/path", "simple.path", "Agent"),
+            ("path/with/extension.py", "path.with.extension", "Agent"),
+            ("dot.notation.path", "dot.notation.path", "Agent"),  # Should remain unchanged
+            ("mixed/path.with.dots", "mixed.path.with.dots", "Agent"),
+        ]
+
+        for input_path, expected_module, expected_class in test_cases:
+            config = ProjectConfig(name="test-project", version="0.1.0", agents={"test_agent": input_path})
+
+            assert config.agents["test_agent"].module == expected_module
+            assert config.agents["test_agent"].class_ == expected_class
+
+    def test_invalid_agent_config_type(self):
+        """Test that ProjectConfig raises an error for invalid agent config type."""
+        config_data = {
+            "name": "test-project",
+            "version": "0.1.0",
+            "agents": {"agent1": 12345},  # Invalid type (integer)
+        }
+
+        with pytest.raises(ValidationError):
+            ProjectConfig(**config_data)
+
+        config_data = {
+            "name": "test-project",
+            "version": "0.1.0",
+            "agents": {"agent2": [1, 2, 3]},  # Invalid type (list)
+        }
+
+        with pytest.raises(ValidationError):
+            ProjectConfig(**config_data)
+
 
 class TestConfigLoader:
     """Tests for the ConfigLoader class."""

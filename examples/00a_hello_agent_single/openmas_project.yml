@@ -1,9 +1,7 @@
 name: examples/00a_hello_agent_single
 version: 0.1.0
 agents:
-  hello_agent_single:
-    module: agents.hello_agent_single.agent
-    class: HelloWorldAgent
+  hello_agent_single: "agents/hello_agent_single"
 shared_paths:
 - shared
 extension_paths:

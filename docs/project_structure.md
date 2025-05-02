@@ -107,7 +107,20 @@ default_config:
 
 * **`name`**: The name of your MAS project.
 * **`version`**: The version of your project.
-* **`agents`**: A mapping where keys are the logical names used to refer to agents (e.g., in `openmas run orchestrator` or in `service_urls`) and values are the relative paths to the agent's code directory from the project root.
+* **`agents`**: A mapping where keys are the logical names used to refer to agents (e.g., in `openmas run orchestrator` or in `service_urls`) and values are the relative paths to the agent's code directory from the project root. For example:
+  ```yaml
+  agents:
+    orchestrator: "agents/orchestrator"
+    data_fetcher: "agents/fetcher"
+    analyzer: "agents/analyzer"
+  ```
+  Note: While the path-based format is recommended for simplicity, OpenMAS also supports a more explicit dictionary format (e.g., `agent_name: {module: 'path.to.module', class: 'ClassName'}`). This can be useful in advanced scenarios, such as when an agent's main class is not named `Agent` or is not located within an `agent.py` file inside the specified directory. Example:
+  ```yaml
+  agents:
+    custom_agent:
+      module: "agents.custom_path.custom_module"
+      class: "CustomAgentClass"
+  ```
 * **`shared_paths`**: A list of relative paths (from the project root) to directories containing shared Python modules accessible by agents and extensions.
 * **`extension_paths`**: A list of relative paths to directories containing project-local framework extensions (like custom communicators or base agents).
 * **`dependencies`**: A list defining external OpenMAS package dependencies. Currently supports `git` dependencies with an optional `revision`. Used by the `openmas deps` command to populate the `packages/` directory.
