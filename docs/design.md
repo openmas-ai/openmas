@@ -1,6 +1,6 @@
 # Design Philosophy
 
-OpenMAS is built upon a set of core principles aimed at simplifying the development of Multi-Agent Systems (MAS) while maintaining flexibility and transparency.
+OpenMAS is built to enable the rapid development and deployment of robust Multi-Agent Systems (MAS). The design philosophy prioritizes a Pythonic, modular, and transparent environment, reducing complexity and accelerating the MAS development lifecycle.
 
 ## Goals
 
@@ -23,12 +23,18 @@ The primary goal of the OpenMAS ecosystem is to provide a cohesive Pythonic envi
     * **SDK (`openmas` library):** Core abstractions (`BaseAgent`, `BaseCommunicator`), lifecycle management, configuration interfaces, core exceptions.
     * **Application Structure (Project Layout):** Organizes developer code (`agents/`, `shared/`, `extensions/`), dependencies (`packages/`), and configuration (`openmas_project.yml`, `config/`). See [Project Structure](project_structure.md).
     * **CLI Tooling (`openmas` command):** Aids developer workflow (init, run, validate, deps, generate-*). See [CLI Docs](cli/index.md).
-    * **Configuration Layering:** Separation of development from operational concerns. See [Deployment Guide](guides/deployment.md).
-    * **Communication Abstraction:** Eliminates protocol details from agent code, making necessary package installations for users. See [Architecture Overview](architecture.md) and [Communication Guide](guides/communication.md).
-* **Lazy Loading:** Optional components, especially those with extra dependencies (like specific communicators for gRPC, MCP, MQTT), are loaded dynamically using `importlib` only when configured and needed. This keeps the core library lightweight and minimizes unnecessary package installations for users. See [Architecture Overview](architecture.md) and [Communication Guide](guides/communication.md).
+    * **Deployment:** Facilitated by generated artifacts (e.g., Dockerfiles, Compose files via `openmas generate-*`), separating development from operational concerns. See [Deployment Guide](deployment.md).
+* **Lazy Loading:** Optional components, especially those with extra dependencies (like specific communicators for gRPC, MCP, MQTT), are loaded dynamically using `importlib` only when configured and needed. This keeps the core library lightweight and minimizes unnecessary package installations for users. See [Architecture Overview](architecture.md) and [Communication Guide](communication.md).
 
-## Inspiration
+## Inspiration & Vision
 
-The structure and tooling aspects of OpenMAS draw inspiration from various successful developer tools in other domains, which emphasizes project structure, configuration management, and command-line workflows to enhance developer productivity and project maintainability.
+The creation of OpenMAS was driven by the desire to **democratize the development of sophisticated agentic solutions**. We observed the increasing power of agent-based systems but also the significant engineering effort often required to build them effectively.
 
-*(Note: Specific design decisions and their rationale may be found within the documentation for relevant components or guides, such as the Communication or Configuration sections.)*
+Key inspirations include:
+
+1.  **The Power of Agentic Tools:** Witnessing the capabilities of modern tools like Cursor IDE, where advanced LLMs (e.g., Claude, Gemini) work behind the scenes as agents to perform complex tasks like code generation, editing, and command execution, highlighted the potential for specialized, capable agents. OpenMAS aims to provide the foundation for building such powerful, task-specific agents more easily.
+2.  **Addressing Practical Challenges:** Our own experience building `Chesspal.ai` – an agent designed for chess playing with personality and competence – revealed the challenges and repetitive nature of implementing complex agent behaviors, communication, and lifecycle management from scratch. This underscored the need for a reusable framework to handle these common infrastructure concerns.
+3.  **Enabling an Ecosystem via MCP:** The emergence of the Model Context Protocol (MCP) presents a significant opportunity. OpenMAS is designed with MCP integration in mind, envisioning a future where a vast ecosystem of community-built MCP servers, each offering unique capabilities (like specific tools, data access, or reasoning modules), can be easily packaged and integrated into OpenMAS agents. This allows developers to rapidly assemble agents with diverse skills by leveraging community contributions.
+4.  **Developer Productivity Frameworks:** We also draw inspiration from successful developer tools in other domains which enhance productivity and project maintainability through clear structure, configuration management, and command-line workflows. OpenMAS adopts similar principles to streamline the MAS development process.
+
+Ultimately, OpenMAS aims to provide the building blocks and structure necessary for developers to readily create, combine, and deploy powerful and diverse agentic systems.
