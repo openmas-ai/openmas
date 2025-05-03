@@ -339,7 +339,7 @@ def test_cli_run_invalid_agent_class_integration(sample_project):
             assert result.returncode != 0
 
             # Check output contains expected error message about the class not being found
-            assert "Specified agent class 'NonExistentClass' not found in agent module" in result.stdout
+            assert "Error finding agent class: Specified agent class 'NonExistentClass' not found." in result.stdout
 
         except subprocess.TimeoutExpired:
             pytest.fail("Command timed out")

@@ -56,7 +56,7 @@ jobs:
       run: poetry run tox -e unit
 
     - name: Run mock integration tests
-      run: poetry run tox -e integration-mock
+      run: poetry run tox -r -e integration-mock
 
     - name: Run tests with coverage check (fail < 50%)
       run: poetry run tox -e coverage # This env generates coverage.xml and fails if below threshold
