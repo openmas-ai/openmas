@@ -149,8 +149,9 @@ class MockMcpSseCommunicator:
         self.resources_to_register = resources
 
 
-class TestMcpServerAgent(McpServerAgent):
-    """Test server agent with decorated methods."""
+@pytest.mark.no_collect
+class MockMcpServerAgent(McpServerAgent):
+    """Mock MCP server agent."""
 
     @mcp_tool(name="calculate", description="Calculate a mathematical expression")
     async def calculate(self, expression: str) -> Dict[str, Any]:
@@ -217,7 +218,7 @@ class TestMcpServerAgentIntegration:
     async def test_server_agent_tool_registration(self):
         """Test registration of tools in server mode."""
         # Create a test harness
-        harness = AgentTestHarness(TestMcpServerAgent)
+        harness = AgentTestHarness(MockMcpServerAgent)
 
         # Create an agent
         agent = await harness.create_agent(name="test-server")
@@ -256,7 +257,7 @@ class TestMcpServerAgentIntegration:
     async def test_server_agent_prompt_registration(self):
         """Test registration of prompts in server mode."""
         # Create a test harness
-        harness = AgentTestHarness(TestMcpServerAgent)
+        harness = AgentTestHarness(MockMcpServerAgent)
 
         # Create an agent
         agent = await harness.create_agent(name="test-server")
@@ -290,7 +291,7 @@ class TestMcpServerAgentIntegration:
     async def test_server_agent_resource_registration(self):
         """Test registration of resources in server mode."""
         # Create a test harness
-        harness = AgentTestHarness(TestMcpServerAgent)
+        harness = AgentTestHarness(MockMcpServerAgent)
 
         # Create an agent
         agent = await harness.create_agent(name="test-server")

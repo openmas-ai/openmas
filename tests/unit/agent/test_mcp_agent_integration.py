@@ -9,14 +9,16 @@ from openmas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
 from openmas.testing.harness import AgentTestHarness
 
 
-class TestInputModel(BaseModel):
+@pytest.mark.no_collect
+class ModelInput(BaseModel):
     """Test input model for tools."""
 
     param1: str
     param2: int
 
 
-class TestOutputModel(BaseModel):
+@pytest.mark.no_collect
+class ModelOutput(BaseModel):
     """Test output model for tools."""
 
     result: str
@@ -246,26 +248,27 @@ class MockMcpCommunicator:
         self.resources_to_register = resources
 
 
-class TestAgent(McpAgent):
-    """Test agent with decorated methods."""
+@pytest.mark.no_collect
+class MockTestAgent(McpAgent):
+    """Test agent for MCP integration tests."""
 
     @mcp_tool(
         name="test_tool",
         description="A test tool",
-        input_model=TestInputModel,
-        output_model=TestOutputModel,
+        input_model=ModelInput,
+        output_model=ModelOutput,
     )
     async def test_tool(self, param1: str, param2: int) -> Dict[str, Any]:
-        """Execute a test tool.
+        """Test tool implementation.
 
         Args:
             param1: First parameter
             param2: Second parameter
 
         Returns:
-            Tool execution result
+            Result dictionary
         """
-        return cast(Dict[str, Any], {"result": f"Processed {param1} and {param2}", "code": 200})
+        return {"result": f"Processed: {param1}-{param2}", "code": 200}
 
     @mcp_prompt(
         name="test_prompt",
@@ -328,7 +331,7 @@ class TestMcpAgentIntegration:
     async def test_server_mode_registration(self, mock_communicator_class):
         """Test registration of decorated methods in server mode."""
         # Create a test harness for the TestAgent
-        harness = AgentTestHarness(TestAgent)
+        harness = AgentTestHarness(MockTestAgent)
 
         # Create an agent
         agent = await harness.create_agent(name="test-agent")
@@ -363,7 +366,7 @@ class TestMcpAgentIntegration:
     async def test_client_mode_delegation(self, mock_communicator_class):
         """Test delegation to communicator methods in client mode."""
         # Create a test harness for the TestAgent
-        harness = AgentTestHarness(TestAgent)
+        harness = AgentTestHarness(MockTestAgent)
 
         # Create an agent
         agent = await harness.create_agent(name="test-agent")
@@ -418,7 +421,7 @@ class TestMcpAgentIntegration:
     async def test_model_validation(self, mock_communicator_class):
         """Test that Pydantic models from decorators are used correctly."""
         # Create a test harness for the TestAgent
-        harness = AgentTestHarness(TestAgent)
+        harness = AgentTestHarness(MockTestAgent)
 
         # Create an agent
         agent = await harness.create_agent(name="test-agent")
@@ -428,10 +431,10 @@ class TestMcpAgentIntegration:
         metadata = tool_data["metadata"]
 
         # Verify input model
-        assert metadata["input_model"] == TestInputModel
+        assert metadata["input_model"] == ModelInput
 
         # Verify output model
-        assert metadata["output_model"] == TestOutputModel
+        assert metadata["output_model"] == ModelOutput
 
         # Verify that prompt template was stored
         prompt_data = agent._prompts["test_prompt"]

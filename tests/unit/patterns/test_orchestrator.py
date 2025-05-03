@@ -21,6 +21,7 @@ class TestOrchestratorAgent:
         communicator.register_handler = AsyncMock()
         return communicator
 
+    @pytest.mark.no_collect
     class TestOrchestrator(BaseOrchestratorAgent):
         """Test implementation of the orchestrator with required methods."""
 
@@ -210,6 +211,7 @@ class TestWorkerAgent:
         communicator.register_handler = AsyncMock()
         return communicator
 
+    @pytest.mark.no_collect
     class TestWorker(BaseWorkerAgent):
         """Test worker implementation with task handlers."""
 

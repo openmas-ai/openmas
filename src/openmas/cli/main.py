@@ -4,6 +4,7 @@ import json
 import platform
 import sys
 import traceback
+from importlib import metadata
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -641,20 +642,21 @@ def info(output_json: bool = False) -> None:
 
     # Try to safely determine if optional modules are available
     try:
-        # Import pkg_resources without failing if not available
-        pkg_resources = __import__("pkg_resources")
-
-        # Check for extras (if pkg_resources is available)
-        dist = pkg_resources.get_distribution("openmas")
+        # Check for extras using importlib.metadata
+        dist = metadata.distribution("openmas")
         if dist:
             # Check extras
             modules_dict = info_data["modules"]
             if isinstance(modules_dict, dict):
-                if "mcp" in str(dist):
+                # Check requires_dist attribute for extras
+                requires_dist = getattr(dist, "requires_dist", []) or []
+                requires_str = " ".join(requires_dist)
+
+                if "mcp" in requires_str:
                     modules_dict["mcp"] = True
-                if "grpc" in str(dist):
+                if "grpc" in requires_str:
                     modules_dict["grpc"] = True
-                if "mqtt" in str(dist):
+                if "mqtt" in requires_str:
                     modules_dict["mqtt"] = True
     except Exception:
         # If we can't determine extras, that's fine - just use defaults

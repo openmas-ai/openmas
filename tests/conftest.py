@@ -145,3 +145,14 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "mqtt: marks tests that require mqtt dependencies")
     config.addinivalue_line("markers", "mcp: marks tests that require mcp dependencies")
     config.addinivalue_line("markers", "integration: marks integration tests")
+    config.addinivalue_line("markers", "no_collect: marks classes that should not be collected as test classes")
+
+    # Add filter for RuntimeWarning about coroutines never awaited
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore::RuntimeWarning:unittest.mock",
+    )
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore::RuntimeWarning:asyncio.base_events",
+    )

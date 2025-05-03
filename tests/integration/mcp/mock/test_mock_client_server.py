@@ -16,6 +16,7 @@ from openmas.agent.mcp import mcp_prompt, mcp_resource, mcp_tool
 from openmas.testing.harness import AgentTestHarness
 
 
+@pytest.mark.no_collect
 class TaskInput(BaseModel):
     """Input model for task processing."""
 
@@ -24,6 +25,7 @@ class TaskInput(BaseModel):
     data: Dict[str, Any]
 
 
+@pytest.mark.no_collect
 class TaskOutput(BaseModel):
     """Output model for task processing."""
 
@@ -32,8 +34,9 @@ class TaskOutput(BaseModel):
     result: Any
 
 
-class TestServerAgent(McpServerAgent):
-    """Test server agent with tool definitions."""
+@pytest.mark.no_collect
+class MockServerAgent(McpServerAgent):
+    """Mock server agent with tool definitions."""
 
     def __init__(self, *args, **kwargs):
         """Initialize the server agent."""
@@ -128,8 +131,9 @@ class TestServerAgent(McpServerAgent):
         return json.dumps(self.processed_tasks).encode("utf-8")
 
 
-class TestClientAgent(McpClientAgent):
-    """Test client agent for interacting with the server."""
+@pytest.mark.no_collect
+class MockClientAgent(McpClientAgent):
+    """Mock client agent for interacting with the server."""
 
     async def submit_calculation_task(
         self, service_name: str, task_id: str, numbers: list, operation: str
@@ -242,8 +246,8 @@ class TestMcpClientServerIntegration:
     async def test_client_server_tool_interaction(self):
         """Test client calling a tool on the server using linked mock communicators."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(TestServerAgent)
-        client_harness = AgentTestHarness(TestClientAgent)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")
@@ -333,8 +337,8 @@ class TestMcpClientServerIntegration:
     async def test_client_server_simple_tool_interaction(self):
         """Test client calling a simple tool on the server."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(TestServerAgent)
-        client_harness = AgentTestHarness(TestClientAgent)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")
@@ -396,8 +400,8 @@ class TestMcpClientServerIntegration:
     async def test_client_server_prompt_interaction(self):
         """Test client getting a prompt from the server."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(TestServerAgent)
-        client_harness = AgentTestHarness(TestClientAgent)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")
@@ -436,8 +440,8 @@ class TestMcpClientServerIntegration:
     async def test_client_server_resource_interaction(self):
         """Test client reading a resource from the server."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(TestServerAgent)
-        client_harness = AgentTestHarness(TestClientAgent)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")
@@ -507,8 +511,8 @@ class TestMcpClientServerIntegration:
     async def test_multiple_client_requests(self):
         """Test multiple client requests to the server."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(TestServerAgent)
-        client_harness = AgentTestHarness(TestClientAgent)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")

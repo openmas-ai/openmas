@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class ComponentSpec(BaseModel):
@@ -30,10 +30,12 @@ class DockerSpec(BaseModel):
     build: Optional[DockerBuildSpec] = Field(None, description="Docker build configuration")
     image: Optional[str] = Field(None, description="Docker image to use instead of building")
 
-    @validator("image", "build")
-    def validate_image_or_build(cls, v: Any, values: Dict[str, Any]) -> Any:
+    @field_validator("image", "build", mode="after")
+    @classmethod
+    def validate_image_or_build(cls, v: Any, info: Any) -> Any:
         """Validate that either image or build is specified."""
-        if "image" in values and values["image"] is not None and v is not None:
+        values = info.data
+        if "image" in values and values["image"] is not None and "build" in values and values["build"] is not None:
             raise ValueError("Cannot specify both 'image' and 'build'")
         return v
 

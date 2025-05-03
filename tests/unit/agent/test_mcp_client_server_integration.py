@@ -17,21 +17,24 @@ from tests.unit.communication.mcp.mcp_mocks import apply_mcp_mocks
 apply_mcp_mocks()
 
 
-class SampleInput(BaseModel):
+@pytest.mark.no_collect
+class ModelInput(BaseModel):
     """Sample input model for MCP tool."""
 
     name: str
     value: int
 
 
-class SampleOutput(BaseModel):
+@pytest.mark.no_collect
+class ModelOutput(BaseModel):
     """Sample output model for MCP tool."""
 
     result: str
     status: int
 
 
-class TestServerAgent(McpServerAgent):
+@pytest.mark.no_collect
+class MockServerAgent(McpServerAgent):
     """Test server agent with decorated methods."""
 
     @mcp_tool(name="add_numbers", description="Add two numbers together")
@@ -49,7 +52,7 @@ class TestServerAgent(McpServerAgent):
         return {"result": result}
 
     @mcp_tool(
-        name="process_sample", description="Process a sample input", input_model=SampleInput, output_model=SampleOutput
+        name="process_sample", description="Process a sample input", input_model=ModelInput, output_model=ModelOutput
     )
     async def process_sample(self, name: str, value: int) -> Dict[str, Any]:
         """Process a sample input.
@@ -87,7 +90,8 @@ class TestServerAgent(McpServerAgent):
         return b'{"message": "This is a test resource"}'
 
 
-class TestClientAgent(McpClientAgent):
+@pytest.mark.no_collect
+class MockClientAgent(McpClientAgent):
     """Test client agent for interacting with the server."""
 
     async def call_add_numbers(self, service_name: str, a: int, b: int) -> Dict[str, Any]:
@@ -159,7 +163,7 @@ class TestClientAgent(McpClientAgent):
 
 
 @pytest.fixture
-async def server_client_agents() -> Tuple[TestServerAgent, TestClientAgent]:
+async def server_client_agents() -> Tuple[MockServerAgent, MockClientAgent]:
     """Create and setup a server and client agent pair with mock communicators.
 
     Returns:
@@ -167,11 +171,11 @@ async def server_client_agents() -> Tuple[TestServerAgent, TestClientAgent]:
     """
     # Create server agent
     server_config = AgentConfig(name="test_server")
-    server_agent = TestServerAgent(config=server_config)
+    server_agent = MockServerAgent(config=server_config)
 
     # Create client agent
     client_config = AgentConfig(name="test_client")
-    client_agent = TestClientAgent(config=client_config)
+    client_agent = MockClientAgent(config=client_config)
 
     # Create a mock communicator for the server
     server_communicator = MockCommunicator(agent_name="test_server", service_urls={"test_client": "mock://test_client"})

@@ -30,6 +30,7 @@ from openmas.exceptions import ConfigurationError, DependencyError
 from openmas.testing import MockCommunicator
 
 
+@pytest.mark.no_collect
 class TestCommunicator(BaseCommunicator):
     """Test communicator for testing discovery."""
 

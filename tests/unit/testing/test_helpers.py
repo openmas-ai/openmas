@@ -17,7 +17,7 @@ from openmas.testing import (
 )
 
 
-# Create minimal agent classes for testing
+@pytest.mark.no_collect
 class TestSenderAgent(BaseAgent):
     """Test sender agent for helper tests."""
 
@@ -53,6 +53,7 @@ class TestSenderAgent(BaseAgent):
         await self.shutdown()
 
 
+@pytest.mark.no_collect
 class TestReceiverAgent(BaseAgent):
     """Test receiver agent for helper tests."""
 

@@ -439,7 +439,8 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
 
     # Run the agent
     try:
-        loop.run_until_complete(run_agent())
+        # We use asyncio.run instead of loop.run_until_complete to ensure proper cleanup
+        asyncio.run(run_agent())
     except KeyboardInterrupt:
         # Handle the case where the user rapidly presses Ctrl+C multiple times
         click.echo("\nForced exit.")
@@ -448,25 +449,5 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
         traceback.print_exc()
         raise typer.Exit(code=1)
     finally:
-        # Ensure event loop is properly cleaned up
-        try:
-            # Cancel any pending tasks
-            pending_tasks = [task for task in asyncio.all_tasks(loop) if not task.done()]
-            if pending_tasks:
-                click.echo(f"Cancelling {len(pending_tasks)} pending tasks...")
-                for task in pending_tasks:
-                    task.cancel()
-
-                # Give them a moment to shut down
-                if pending_tasks:
-                    loop.run_until_complete(asyncio.gather(*pending_tasks, return_exceptions=True))
-        except Exception as e:
-            click.echo(f"Error cleaning up tasks: {e}")
-
-        # Close the event loop cleanly
-        if hasattr(loop, "shutdown_asyncgens"):
-            loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
-
         # Restore original sys.path
         sys.path = original_sys_path
