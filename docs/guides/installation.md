@@ -127,7 +127,42 @@ Install these extras using brackets `[]`. The specific command depends on how yo
 
 ## Verify Installation (Optional)
 
-After installation, you can often verify it by trying to import the package or running a basic command provided by the package (if any).
+After installation, you can verify it using one of these methods:
+
+1. Use the `--version` flag to quickly check the installed version:
+
+```bash
+openmas --version
+```
+
+2. Use the `info` command which shows detailed information about the installation including version and module information:
+
+```bash
+openmas info
+```
+
+Example output:
+```
+OpenMAS version: 0.1.0
+Python version: 3.10.17 (CPython)
+Platform: macOS-15.4.1-arm64-arm-64bit
+
+Optional modules:
+  base       ✓
+  http       ✓
+  mcp        ✓
+  grpc       ✗
+  mqtt       ✓
+
+For more information, visit: https://docs.openmas.ai/
+```
+
+For JSON output (useful for scripting), use:
+```bash
+openmas info --json
+```
+
+3. You can also verify installation by importing the package:
 
 ```bash
 python -c "import openmas; print(openmas.__version__)"

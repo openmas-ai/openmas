@@ -1,5 +1,7 @@
 """Main CLI module for OpenMAS."""
 
+import json
+import platform
 import sys
 import traceback
 from pathlib import Path
@@ -9,6 +11,7 @@ import click
 import typer
 import yaml
 
+from openmas import __version__
 from openmas.cli.validate import validate_config
 from openmas.logging import get_logger
 
@@ -20,7 +23,7 @@ logger = get_logger(__name__)
 
 
 @click.group()
-@click.version_option()
+@click.version_option(version=__version__, prog_name="OpenMAS")
 def cli() -> None:
     """Provide CLI tools for managing OpenMAS projects."""
     pass
@@ -610,6 +613,69 @@ def generate_dockerfile(
     except Exception as e:
         click.echo(f"❌ Error generating Dockerfile: {e}")
         sys.exit(1)
+
+
+@cli.command()
+@click.option("--json", "output_json", is_flag=True, help="Output information in JSON format")
+def info(output_json: bool = False) -> None:
+    """Show information about the OpenMAS installation.
+
+    This command displays the OpenMAS version, Python version,
+    and information about installed optional modules.
+    """
+    # Gather system information
+    info_data: Dict[str, Any] = {
+        "version": __version__,
+        "python_version": f"{platform.python_version()} ({platform.python_implementation()})",
+        "platform": platform.platform(),
+        "modules": {
+            # Indicate which modules are included in the base package
+            "base": True,
+            "http": True,
+            # Check if optional modules are available using version detection
+            "mcp": False,
+            "grpc": False,
+            "mqtt": False,
+        },
+    }
+
+    # Try to safely determine if optional modules are available
+    try:
+        # Import pkg_resources without failing if not available
+        pkg_resources = __import__("pkg_resources")
+
+        # Check for extras (if pkg_resources is available)
+        dist = pkg_resources.get_distribution("openmas")
+        if dist:
+            # Check extras
+            modules_dict = info_data["modules"]
+            if isinstance(modules_dict, dict):
+                if "mcp" in str(dist):
+                    modules_dict["mcp"] = True
+                if "grpc" in str(dist):
+                    modules_dict["grpc"] = True
+                if "mqtt" in str(dist):
+                    modules_dict["mqtt"] = True
+    except Exception:
+        # If we can't determine extras, that's fine - just use defaults
+        pass
+
+    # Output in requested format
+    if output_json:
+        click.echo(json.dumps(info_data, indent=2))
+    else:
+        click.echo(f"OpenMAS version: {info_data['version']}")
+        click.echo(f"Python version: {info_data['python_version']}")
+        click.echo(f"Platform: {info_data['platform']}")
+        click.echo("\nOptional modules:")
+
+        modules_dict = info_data["modules"]
+        if isinstance(modules_dict, dict):
+            for module_name, is_installed in modules_dict.items():
+                status = "✓" if is_installed else "✗"
+                click.echo(f"  {module_name:10} {status}")
+
+        click.echo("\nFor more information, visit: https://docs.openmas.ai/")
 
 
 def main() -> int:
