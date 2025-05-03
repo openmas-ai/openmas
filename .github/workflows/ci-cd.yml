@@ -114,7 +114,8 @@ jobs:
 
     - name: Publish package to PyPI
       # Using PyPI trusted publishing (OIDC) - configure this in PyPI project settings
-      run: poetry publish --username __token__ --password ${{ secrets.PYPI_TOKEN }}
+      run: poetry publish
+      # run: poetry publish --username __token__ --password ${{ secrets.PYPI_TOKEN }}
       # Fallback using API token (less secure):
       # env:
       #   POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
