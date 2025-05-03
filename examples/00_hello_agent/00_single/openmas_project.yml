@@ -1,4 +1,4 @@
-name: examples/00a_hello_agent_single
+name: examples/00_hello_agent/00_single
 version: 0.1.0
 agents:
   hello_agent_single: "agents/hello_agent_single"

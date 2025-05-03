@@ -2,8 +2,6 @@
 
 The `examples/` directory within the OpenMAS source code repository plays a crucial role in the development and usability of the framework.
 
-*(Based on Section 10 of the OpenMAS Design Document v0.2.3)*
-
 ## Purpose of Examples
 
 The examples serve multiple key purposes:
@@ -28,27 +26,26 @@ Examples are organized by topic or feature within the `examples/` directory. Eac
 
     examples/
     ├── 00_hello_agent/
-    │   ├── hello_agent/          # Leaf example: Single basic agent
-    │   │   ├── agents/hello_agent/agent.py # The agent code
-    │   │   ├── openmas_project.yml # Minimal project config for this example
-    │   │   ├── requirements.txt      # Example-specific Python deps (often empty)
-    │   │   ├── test_example.py       # Internal test script (uses pytest)
-    │   │   └── README.md             # How to run THIS specific example manually
-    │   └── hello_multiagent/     # Leaf example: Two agents communicating
+    │   ├── 00_single/                               # Leaf example: Single basic agent
+    │   │   ├── agents/hello_agent_single/agent.py   # The agent code
+    │   │   ├── openmas_project.yml                  # Minimal project config for this example
+    │   │   ├── requirements.txt                     # Example-specific Python deps (often empty)
+    │   │   ├── test_example.py                      # Internal test script (uses pytest)
+    │   │   └── README.md                            # How to run THIS specific example manually
+    │   └── 01_multi_mock/                           # Leaf example: Two agents communicating
     │       └── ... (similar files: agents/, openmas_project.yml, etc.)
     ├── 01_communication_basics/
-    │   ├── http_client_server/   # Leaf example: HTTP request/response
+    │   ├── 00_http_client_server/                    # Leaf example: HTTP request/response
     │   │   └── ...
-    │   └── mcp/
-    │       ├── mcp_sse_client_server/ # Leaf example: MCP over SSE
-    │       │   └── ...
-    │       └── mcp_stdio_tool/      # Leaf example: MCP over stdio
-    │           └── ...
+    │   ├── 01_mcp_sse_client_server/                 # Leaf example: MCP over SSE
+    │   │   └── ...
+    │   └── 02_mcp_stdio_tool/                        # Leaf example: MCP over stdio
+    │        └── ...
     ├── 02_configuration/
-    │   └── layered_config/       # Leaf example: Demonstrating config sources
+    │   └── 01_layered_config/                        # Leaf example: Demonstrating config sources
     │       └── ...
     ├── ... (other categories like patterns, specific integrations) ...
-    └── README.md                   # Explains overall example structure & how to run tests
+    └── README.md                                  # Explains overall example structure & how to run tests
 
 Each leaf example directory typically contains:
 * An `agents/` subdirectory with the agent code (`agent.py`).

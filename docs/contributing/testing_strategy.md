@@ -87,6 +87,175 @@ Example tests run the actual example applications end-to-end, primarily for fram
 - **Execution:** Run via dedicated `tox` environments (e.g., `tox -e example-00a-hello-single`).
 - **Note:** These validate that the framework enables the creation of working applications for specific scenarios.
 
+## Using the Testing Harness and Mock Communicator
+
+OpenMAS provides powerful testing utilities that are used across all test levels:
+
+### MockCommunicator Overview
+
+`MockCommunicator` is used to mock agent communication in isolation. Key aspects:
+
+1. **Expectation Based Testing:** It uses an expectations pattern - you define what calls are expected and with what parameters, then verify they were made.
+
+2. **Available Methods:**
+   - `expect_request()`: Set up an expected outgoing request with a predefined response
+   - `expect_notification()`: Set up an expected outgoing notification
+   - `trigger_handler()`: Directly trigger an agent's registered handler for testing
+   - `verify()`: Check that all expected requests/notifications were made
+
+3. **Common Pattern:**
+   ```python
+   # Set expectation for outgoing calls
+   communicator.expect_request(
+       target_service="service",
+       method="operation",
+       params={"expected": "params"},
+       response={"mock": "response"}
+   )
+
+   # Run agent code that should make that call
+   await agent.do_something()
+
+   # Verify expectations
+   communicator.verify()
+   ```
+
+### AgentTestHarness Overview
+
+`AgentTestHarness` manages agent lifecycle with mocked communicators. Key aspects:
+
+1. **Agent Class Requirements:** You must pass in an agent class (not instance) that implements all abstract methods from `BaseAgent` (`setup`, `run`, `shutdown`).
+
+2. **Agent Creation Pattern:**
+   ```python
+   # Create harness with your agent class
+   harness = AgentTestHarness(MyAgent)
+
+   # Create an agent instance
+   agent = await harness.create_agent(name="test-agent")
+
+   # The harness provides a MockCommunicator
+   agent.communicator.expect_request(...)
+
+   # Context manager to start/stop the agent
+   async with harness.running_agent(agent):
+       # Agent is now running
+       # Test interactions here
+   ```
+
+3. **Multi-Agent Testing:** For multiple agents, create separate harnesses for each agent type:
+   ```python
+   sender_harness = AgentTestHarness(SenderAgent)
+   receiver_harness = AgentTestHarness(ReceiverAgent)
+
+   sender = await sender_harness.create_agent(name="sender")
+   receiver = await receiver_harness.create_agent(name="receiver")
+
+   # Set up expectations for what sender will send
+   sender.communicator.expect_request(...)
+
+   # Run both agents in context managers
+   async with sender_harness.running_agent(sender), receiver_harness.running_agent(receiver):
+       # Test interactions
+   ```
+
+### Common Testing Patterns
+
+1. **Testing an agent's outgoing messages:**
+   ```python
+   # Set up expectation
+   agent.communicator.expect_request(
+       target_service="service", method="operation",
+       params={"key": "value"}, response={"result": "success"}
+   )
+
+   # Run the agent logic that should make this call
+   await agent.do_work()
+
+   # Verify all expected calls were made
+   agent.communicator.verify()
+   ```
+
+2. **Testing an agent's handler logic:**
+   ```python
+   # Register handlers (usually happens in agent.setup())
+   await agent.setup()
+
+   # Trigger the handler directly
+   response = await agent.communicator.trigger_handler(
+       method="handle_request",
+       params={"data": "test"}
+   )
+
+   # Verify the response
+   assert response == {"status": "success", "result": "processed"}
+   ```
+
+3. **Testing agent state after operations:**
+   ```python
+   # Run some agent logic
+   await agent.process_data(test_input)
+
+   # Verify state changes
+   assert agent.data_processed == True
+   assert len(agent.results) == 1
+   ```
+
+For detailed examples and advanced usage, refer to the unit/integration tests in the codebase.
+
+### Helper Functions for Common Testing Patterns
+
+For common testing scenarios, OpenMAS provides high-level helper functions that significantly reduce boilerplate code:
+
+1. **`setup_sender_receiver_test()`**: Creates and configures a sender-receiver test scenario in a single call.
+
+   ```python
+   # Instead of manually creating two harnesses and agents:
+   sender_harness, receiver_harness, sender, receiver = await setup_sender_receiver_test(
+       SenderAgent, ReceiverAgent
+   )
+   ```
+
+2. **`expect_sender_request()`**: Sets up request expectations with a cleaner interface:
+
+   ```python
+   # Instead of directly using communicator.expect_request:
+   expect_sender_request(
+       sender,
+       "receiver",
+       "handle_message",
+       {"greeting": "hello"},
+       {"status": "received", "message": "Hello received!"}
+   )
+   ```
+
+3. **`expect_notification()`**: Sets up notification expectations with a cleaner interface:
+
+   ```python
+   expect_notification(
+       sender,
+       "logging-service",
+       "log_event",
+       {"level": "info", "message": "Test completed"}
+   )
+   ```
+
+4. **`multi_running_agents()`**: Manages multiple agent lifecycles in a single context manager:
+
+   ```python
+   # Instead of nested context managers:
+   async with multi_running_agents(sender_harness, sender, receiver_harness, receiver):
+       # Both agents are now running
+       await sender.run()
+   ```
+
+**When to Use Helpers vs. Direct Approach:**
+
+- **Use helpers** for standard test scenarios and when readability is a priority
+- **Use direct harness/communicator** for tests that need custom configuration, complex state assertions, or non-standard patterns
+
+For examples demonstrating OpenMAS functionality (like those in `examples/`), the helper functions are generally preferred for clarity and conciseness.
+
 ## Running Tests via `tox`
 
 `tox` is the **required** way to run tests for contribution, ensuring isolated environments and correct dependencies based on targeted directories. Use `poetry run tox ...` to ensure tox uses the project's Poetry environment.
@@ -145,6 +314,42 @@ OpenMAS handles optional dependencies primarily through:
 - **Mocked integration tests (`tests/integration/.../mock/`):** Use the feature's library but mock the actual network/service interaction (e.g., using `MockCommunicator` or specific mocking utilities like `McpTestHarness` configured for mocking).
 - **Real service integration tests (`tests/integration/.../real/`):** Use the real libraries and attempt to connect to real services (or test harnesses simulating them).
 - **Example tests (`examples/*/`):** Run actual example code, potentially against real services depending on the example.
+
+## Common Testing Challenges
+
+Here are some common issues you might encounter when writing tests:
+
+### 1. "Cannot instantiate abstract class X with abstract methods..."
+
+This means your agent class doesn't implement all required abstract methods from BaseAgent. At minimum, implement:
+- `async def setup(self) -> None`
+- `async def run(self) -> None`
+- `async def shutdown(self) -> None`
+
+### 2. "AttributeError: 'MockCommunicator' object has no attribute 'send'"
+
+The method is named `send_request()`, not `send()`. Use:
+
+```python
+await communicator.send_request(
+    target_service="service_name",
+    method="method_name",
+    params={"key": "value"}
+)
+```
+
+### 3. "Unexpected request: X:Y with params: Z. Available requests: none"
+
+You need to set up expectations for all requests:
+
+```python
+communicator.expect_request(
+    target_service="X",
+    method="Y",
+    params={"key": "value"},
+    response={"result": "success"}
+)
+```
 
 ## Contribution Guide
 

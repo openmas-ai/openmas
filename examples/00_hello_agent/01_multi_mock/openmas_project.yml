@@ -1,0 +1,14 @@
+name: examples/00_hello_agent/01_multi_mock
+version: 0.1.0
+agents:
+  sender: "agents/sender"
+  receiver: "agents/receiver"
+shared_paths:
+- shared
+extension_paths:
+- extensions
+default_config:
+  log_level: INFO
+communicator_defaults:
+  type: mock
+dependencies: []

@@ -4,6 +4,38 @@ OpenMAS provides utilities to help you write robust unit and integration tests f
 
 These utilities allow you to test your agent's logic and interactions in isolation, without needing to run real dependent services or manage complex network setups during testing.
 
+## Important Testing Concepts to Understand First
+
+Before diving into the specifics of OpenMAS testing utilities, it's important to understand the core testing approach:
+
+### 1. Expectation-Based Testing (NOT Direct Communication)
+
+When using `MockCommunicator` for testing, you're **not** establishing real communication between agents. Instead, you're:
+
+- Setting up **expectations** for what messages should be sent
+- Having your agent code execute and attempt to send those messages
+- **Verifying** that the expected messages were sent with the correct parameters
+
+This pattern is different from trying to simulate real message passing between agents. The mock is primarily a validation tool.
+
+### 2. Required Agent Implementation
+
+All agent classes in OpenMAS must implement specific abstract methods from `BaseAgent`:
+
+- `setup()`: Initialize the agent
+- `run()`: The main agent logic
+- `shutdown()`: Clean up resources
+
+If you don't implement these methods in your agent classes, you'll receive errors when trying to use them with the testing harness.
+
+### 3. Test Harness vs. Direct Agent Creation
+
+There are two main approaches to testing:
+- Using `AgentTestHarness` to manage agent lifecycle and provide mocked communicators
+- Creating agents directly and manually configuring mocked communicators
+
+The examples below will show both approaches.
+
 ## Using `MockCommunicator`
 
 The `MockCommunicator` (`openmas.testing.MockCommunicator`) is a powerful tool for testing individual agents. It acts as a stand-in for a real communicator (like `HttpCommunicator` or `McpSseCommunicator`), allowing you to:
@@ -146,7 +178,7 @@ async def test_agent_registers_and_handles_greet(mock_communicator, agent):
     await agent.setup()
 
     # 2. Check if the handler was registered
-    assert mock_communicator.is_handler_registered("greet")
+    assert "greet" in mock_communicator._handlers  # Access internal _handlers dict
 
     # 3. Trigger the registered handler with test data
     # This simulates an incoming request to the agent's 'greet' method
@@ -188,14 +220,21 @@ async def test_agent_handles_service_not_found(mock_communicator, agent):
 
 ## Using `AgentTestHarness`
 
-The `AgentTestHarness` (`openmas.testing.AgentTestHarness`) builds upon `MockCommunicator` to provide a higher-level way to manage and test one or more agent instances within your tests.
+The `AgentTestHarness` (`openmas.testing.AgentTestHarness`) builds upon `MockCommunicator` to provide a higher-level way to manage and test agents within your tests.
 
 **Key Benefits:**
 
 *   **Lifecycle Management:** Easily create, start (`setup`, `run`), and stop (`shutdown`) agents within tests.
 *   **Automatic Mocking:** Automatically creates and injects `MockCommunicator` instances into the agents it manages.
 *   **Multi-Agent Testing:** Manages multiple agents and their mock communicators, simplifying the testing of interactions.
-*   **Communication Simulation:** Provides helpers to simulate requests *between* agents managed by the harness.
+
+### Important Notes About AgentTestHarness
+
+1. **Agent Class Requirements**: `AgentTestHarness` requires you to pass the agent class, not an instance. The harness will create instances for you. Your agent class must implement all abstract methods from `BaseAgent` (`setup`, `run`, `shutdown`).
+
+2. **No Automatic Agent Linking**: The harness doesn't automatically establish communication between agents. You must set up appropriate expectations for each agent's communicator.
+
+3. **Using Expectations Not Direct Communication**: Remember that you're testing with expectations rather than real communication. This means setting up what messages you expect agents to send, not trying to make them talk to each other directly.
 
 ### Basic Single Agent Testing
 
@@ -205,75 +244,259 @@ from openmas.testing import AgentTestHarness
 from my_project.agents import MyAgent # Your agent class
 
 @pytest.mark.asyncio
-asnyc def test_my_agent_behavior():
-    harness = AgentTestHarness()
+async def test_my_agent_behavior():
+    # Create a harness for the agent class
+    harness = AgentTestHarness(MyAgent)
 
-    # Create an agent instance managed by the harness
-    # The harness will automatically provide a MockCommunicator
-    agent_instance = await harness.create_agent(agent_cls=MyAgent, name="test-agent-1")
+    # Create an agent instance (with a mock communicator)
+    agent = await harness.create_agent(name="test-agent")
 
-    # Get the mock communicator for this agent if needed for expectations
-    mock_comm = harness.get_communicator("test-agent-1")
-    mock_comm.expect_request(target_service="other", method="ping", response={})
+    # Set up expectations for messages the agent will send
+    agent.communicator.expect_request(
+        target_service="data-service",
+        method="get_data",
+        params={"id": "12345"},
+        response={"data": "test result"}
+    )
 
-    # Start the agent (runs setup and run in the background)
-    async with harness.start_agents():
-        # Agent is now running
-        # You can interact with it, e.g., by triggering its handlers
-        response = await mock_comm.trigger_handler("internal_task", {"data": 123})
-        assert response["status"] == "processed"
+    # Use the running_agent context manager to manage lifecycle
+    async with harness.running_agent(agent):
+        # The agent is now set up and running
 
-        # Or simulate requests coming from outside
-        # await harness.simulate_external_request("test-agent-1", "some_method", {})
+        # Trigger some behavior that causes the agent to send a request
+        await agent.process_item("12345")
 
-    # Agent is stopped automatically when exiting the 'async with' block
+        # Verify that the expected communication happened
+        agent.communicator.verify()
 
-    # Verify communicator expectations
-    mock_comm.verify()
+        # Make assertions about the agent's state
+        assert agent.processed_items == ["12345"]
 ```
 
-### Multi-Agent Interaction Testing
+## Simplified Multi-Agent Testing Helpers
 
-This is where `AgentTestHarness` shines.
+OpenMAS provides several helper utilities to make multi-agent testing easier and more concise. These utilities are particularly useful for common testing patterns like testing communication between a sender and receiver agent.
+
+### Setting Up Sender-Receiver Tests
+
+The `setup_sender_receiver_test` function simplifies creating a pair of connected test agents:
 
 ```python
 import pytest
-from openmas.testing import AgentTestHarness
-from my_project.agents import RequestAgent, WorkerAgent
+from openmas.testing import setup_sender_receiver_test, expect_sender_request, multi_running_agents
 
 @pytest.mark.asyncio
-async def test_request_worker_interaction():
-    harness = AgentTestHarness()
-
-    # Create multiple agents
-    requester = await harness.create_agent(agent_cls=RequestAgent, name="requester")
-    worker = await harness.create_agent(agent_cls=WorkerAgent, name="worker")
-
-    # Get their mock communicators
-    req_comm = harness.get_communicator("requester")
-    worker_comm = harness.get_communicator("worker")
-
-    # Set expectations: Requester calls Worker's 'do_work' method
-    # Note: Harness automatically routes calls between mocked agents
-    worker_comm.expect_handler_call(
-        method="do_work",
-        params={"task_id": "task-abc"},
-        # Define the response the Worker's handler should give
-        response={"result": "work complete for task-abc"}
+async def test_sender_receiver_communication():
+    # Create both agents with a single call
+    sender_harness, receiver_harness, sender, receiver = await setup_sender_receiver_test(
+        SenderAgent, ReceiverAgent
     )
 
-    async with harness.start_agents():
-        # Trigger the Requester agent to start the interaction
-        # Assuming Requester has a method 'start_task' that calls worker.do_work
-        final_result = await req_comm.trigger_handler("start_task", {"id": "task-abc"})
+    # Set up expectations for the sender's communication
+    expect_sender_request(
+        sender,
+        "receiver",  # target agent name
+        "process_data",  # method to call
+        {"message": "hello"},  # expected parameters
+        {"status": "ok", "processed": True}  # response to return
+    )
 
-        # Assert the final result received by the requester
-        assert final_result == {"status": "success", "worker_result": "work complete for task-abc"}
+    # Run both agents in a single context manager
+    async with multi_running_agents(sender_harness, sender, receiver_harness, receiver):
+        # Trigger the sender's logic
+        await sender.send_message("hello")
 
-    # Verify expectations on both communicators
-    req_comm.verify()
-    worker_comm.verify()
-
+        # Verify expectations were met
+        sender.communicator.verify()
 ```
 
-By using `MockCommunicator` for single-agent unit tests and `AgentTestHarness` for integration tests (especially multi-agent scenarios), you can build confidence in the correctness of your OpenMAS applications.
+### Setting Message Expectations
+
+Instead of directly calling `agent.communicator.expect_request()`, you can use these more intuitive helper functions:
+
+```python
+from openmas.testing import expect_sender_request, expect_notification
+
+# Set up a request expectation
+expect_sender_request(
+    agent,  # the agent that will send the request
+    "target-service",  # name of the target service/agent
+    "method-name",  # method to call
+    {"param1": "value1"},  # expected parameters
+    {"result": "success"}  # response to return
+)
+
+# Set up a notification expectation
+expect_notification(
+    agent,  # the agent that will send the notification
+    "logger-service",  # target service
+    "log_event",  # notification method
+    {"level": "info", "message": "test"}  # expected parameters
+)
+```
+
+### Running Multiple Agents
+
+The `multi_running_agents` function provides a single context manager for running multiple agents:
+
+```python
+from openmas.testing import multi_running_agents
+
+# Instead of nested context managers:
+# async with harness1.running_agent(agent1):
+#     async with harness2.running_agent(agent2):
+#         # test code here
+
+# Use the simpler multi_running_agents:
+async with multi_running_agents(harness1, agent1, harness2, agent2, harness3, agent3):
+    # All agents are now running
+
+    # Trigger agent behavior
+    await agent1.do_something()
+
+    # Verify expectations
+    agent1.communicator.verify()
+    agent2.communicator.verify()
+    agent3.communicator.verify()
+```
+
+### Complete Multi-Agent Test Example
+
+Here's a complete example showing how the helpers simplify multi-agent testing:
+
+```python
+import pytest
+from openmas.testing import (
+    setup_sender_receiver_test,
+    expect_sender_request,
+    multi_running_agents
+)
+from my_project.agents import DataSenderAgent, DataProcessorAgent
+
+@pytest.mark.asyncio
+async def test_data_processing_flow():
+    # Set up sender and receiver agents
+    sender_harness, processor_harness, sender, processor = await setup_sender_receiver_test(
+        DataSenderAgent, DataProcessorAgent,
+        sender_name="data-sender",
+        receiver_name="data-processor"
+    )
+
+    # Set up expectations for the communication
+    expect_sender_request(
+        sender,
+        "data-processor",
+        "process_data",
+        {"data": {"id": "123", "value": "test"}},
+        {"status": "processed", "result": "SUCCESS"}
+    )
+
+    # Run both agents
+    async with multi_running_agents(sender_harness, sender, processor_harness, processor):
+        # Trigger the sender to send data
+        await sender.send_data_item("123", "test")
+
+        # Verify the communication happened as expected
+        sender.communicator.verify()
+
+        # Check agent state if needed
+        assert sender.sent_items == ["123"]
+        assert processor.processed_items == ["123"]
+```
+
+## Best Practices for Testing Multi-Agent Systems
+
+When testing OpenMAS multi-agent systems, especially with mocked communicators, consider these best practices:
+
+1. **Keep Tests Focused**: Test one specific interaction or behavior in each test case.
+
+2. **Separate Unit vs. Integration Tests**: Use `MockCommunicator` for unit tests of individual agents, and real communicators (or a mix of real and mock) for integration tests.
+
+3. **Use Helper Functions**: Leverage the helper functions (`setup_sender_receiver_test`, `expect_sender_request`, etc.) for cleaner, more maintainable test code.
+
+4. **Prefer Clear Expectations**: Set specific expectations rather than using `params=None` when possible, to catch bugs in parameter handling.
+
+5. **Verify All Communicators**: Remember to call `verify()` on every mock communicator to ensure all expected communications happened.
+
+6. **Test Error Handling**: Use `expect_request_exception` to verify your agents handle errors gracefully.
+
+7. **Lifecycle Management**: Use `running_agents` (or `harness.running_agent`) to properly manage agent lifecycle, ensuring `setup`, `run`, and `shutdown` methods are called.
+
+8. **Check for Clear Error Messages**: If you expect a test to fail, assert on the specific error message rather than just the error type. This helps maintain helpful error reporting.
+
+By following these patterns, you can build robust tests for your OpenMAS agents that are easier to maintain and provide better verification of your system's behavior.
+
+## Choosing the Right Testing Approach
+
+OpenMAS provides different levels of testing utilities, from low-level mocks to high-level helpers. Here's how to choose which approach is right for your needs:
+
+### Helper Functions (Highest Level)
+
+**Examples:** `setup_sender_receiver_test`, `expect_sender_request`, `multi_running_agents`
+
+**Best for:**
+- Quick setup of standard sender-receiver test scenarios
+- Minimal boilerplate code
+- Clear, readable tests
+- Most common testing patterns
+
+```python
+# Example using helper functions
+sender_harness, receiver_harness, sender, receiver = await setup_sender_receiver_test(
+    SenderAgent, ReceiverAgent
+)
+expect_sender_request(sender, "receiver", "process", params, response)
+async with multi_running_agents(sender_harness, sender, receiver_harness, receiver):
+    await sender.run()
+```
+
+### AgentTestHarness (Middle Level)
+
+**Best for:**
+- Custom agent configurations
+- Non-standard test scenarios
+- When you need more control over agent lifecycle
+- Testing agents individually
+
+```python
+# Example using AgentTestHarness directly
+harness = AgentTestHarness(MyAgent)
+agent = await harness.create_agent(name="test-agent", config={"custom": True})
+# Set up expectations manually
+agent.communicator.expect_request(...)
+async with harness.running_agent(agent):
+    await agent.custom_method()
+```
+
+### MockCommunicator (Low Level)
+
+**Best for:**
+- Complex mocking scenarios
+- Custom parameter matching
+- Testing handler behavior directly
+- When you need maximum control over mocking
+
+```python
+# Example using MockCommunicator directly
+communicator = MockCommunicator(agent_name="test")
+# Attach to an agent manually
+agent.communicator = communicator
+# Advanced expectation setup
+communicator.expect_request(
+    target_service="service",
+    method="operation",
+    params={"id": re.compile(r"\d+")},  # Regex matching
+    response={"result": "data"}
+)
+```
+
+### Decision Table
+
+| If you need to... | Use this approach |
+|-------------------|-------------------|
+| Test a simple sender-receiver pattern | Helper functions (`setup_sender_receiver_test`, etc.) |
+| Run multiple agents in a test | `multi_running_agents` |
+| Configure agents with custom settings | Direct `AgentTestHarness` |
+| Test complex parameter matching | Direct `MockCommunicator` |
+| Assert agent state changes | Direct `AgentTestHarness` |
+| Trigger handlers directly | Direct `MockCommunicator.trigger_handler()` |
