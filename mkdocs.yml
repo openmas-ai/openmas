@@ -1,5 +1,5 @@
 site_name: OpenMAS
-site_url: https://openmas.ai
+site_url: https://docs.openmas.ai/
 repo_url: https://github.com/openmas-ai/openmas
 repo_name: openmas-ai/openmas
 
@@ -73,6 +73,7 @@ nav:
       - Development Workflow: contributing/development_workflow.md
       - Docstring Policy: contributing/docstring_policy.md
   - API Reference: api_reference.md
+  - OpenMAS Home: https://www.openmas.ai/
 
 plugins:
   - search
