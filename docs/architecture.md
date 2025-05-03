@@ -51,8 +51,8 @@ This abstract base class defines the interface for all communication methods, de
     * `HttpCommunicator`: Standard request/response over HTTP.
     * `McpSseCommunicator`: Client for interacting with MCP servers via Server-Sent Events.
     * `McpStdioCommunicator`: Client for interacting with MCP servers via standard input/output.
-    * `GrpcCommunicator`: For gRPC-based communication.
-    * `MqttCommunicator`: For MQTT publish/subscribe patterns.
+    * `GrpcCommunicator`: **Experimental** support for gRPC-based communication (v0.1.0).
+    * `MqttCommunicator`: **Experimental** support for MQTT publish/subscribe patterns (v0.1.0).
     * *(Extensibility: Developers can add custom communicators.)*
 * **Selection & Instantiation:** The specific communicator for an agent is determined by its configuration (`communicator_type` and `communicator_options` in `openmas_project.yml` or environment-specific config). `BaseAgent` automatically instantiates the configured communicator during its initialization.
 

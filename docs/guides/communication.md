@@ -66,6 +66,9 @@ MCP is designed for interacting with AI models and tools, particularly from Anth
 
 ### gRPC (`GrpcCommunicator`)
 
+!!! warning "Experimental Feature"
+    Please note that the `GrpcCommunicator` is considered **experimental** in OpenMAS v0.1.0. While providing basic gRPC functionality, it has undergone limited testing compared to the core HTTP and MCP communicators and may have an unstable API subject to change in future releases. It may lack comprehensive error handling or support for advanced gRPC features like streaming patterns. **It is not recommended for use in production environments at this stage.** Feedback and contributions to improve gRPC integration are welcome.
+
 * **Protocol:** gRPC (using `grpcio`).
 * **Best For:** High-performance, low-latency RPC between services, potentially across different languages. Streaming scenarios. Microservice architectures where gRPC is standard. Requires `openmas[grpc]`.
 * **Dependencies:** `grpcio`, `grpcio-tools`.
@@ -73,6 +76,9 @@ MCP is designed for interacting with AI models and tools, particularly from Anth
 * **Note:** The default implementation uses a generic dictionary format. For type-safe communication using Protobuf definitions, customization might be needed.
 
 ### MQTT (`MqttCommunicator`)
+
+!!! warning "Experimental Feature"
+    Please note that the `MqttCommunicator` is considered **experimental** in OpenMAS v0.1.0. While providing basic MQTT connectivity, it has undergone limited testing compared to the core HTTP and MCP communicators and may have an unstable API subject to change in future releases. Known limitations might include incomplete support for all MQTT QoS levels or specific broker configurations. **It is not recommended for use in production environments at this stage.** Feedback and contributions to enhance MQTT support are welcome.
 
 * **Protocol:** MQTT (using `paho-mqtt`).
 * **Best For:** Publish/subscribe messaging patterns, event-driven architectures, decoupled communication, IoT applications. Requires an external MQTT broker. Requires `openmas[mqtt]`.
