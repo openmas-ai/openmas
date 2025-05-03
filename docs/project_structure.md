@@ -59,7 +59,7 @@ A typical OpenMAS project, initialized via `openmas init your_mas_project_name`,
     * **Contents:** Typically includes `default.yml` (base configuration) and files for different environments like `local.yml`, `development.yml`, `production.yml`.
 
 * **`tests/`**:
-    * **Purpose:** Contains project-level tests (unit, integration) for your agents and shared code. These are distinct from the internal tests used for [developing the OpenMAS framework itself](contributing.md).
+    * **Purpose:** Contains project-level tests (unit, integration) for your agents and shared code. These are distinct from the internal tests used for [developing the OpenMAS framework itself](contributing/contributing.md).
 
 ## Central Configuration (`openmas_project.yml`)
 

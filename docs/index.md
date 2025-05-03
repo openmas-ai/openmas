@@ -42,7 +42,7 @@ Dive deeper into specific aspects of OpenMAS:
     * [Reasoning Integration (BDI)](guides/reasoning_integration.md)
     * [Testing Your Agents](guides/testing-utilities.md)
     * [Deploying OpenMAS Systems](guides/deployment.md)
-    * [Development Workflow (Contributing)](development_workflow.md)
+    * [Development Workflow (Contributing)](contributing/development_workflow.md)
 * **Examples:** See practical, runnable code examples.
     * [Examples Overview](examples.md)
     * [Use Case: Chesspal.ai Refactoring](use_cases/chesspal_ai.md)

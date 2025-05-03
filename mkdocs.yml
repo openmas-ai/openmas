@@ -34,6 +34,7 @@ theme:
 
 nav:
   - Home: index.md
+  - Why OpenMAS?: why_openmas.md
   - Guides:
       - Installation: guides/installation.md
       - Getting Started: guides/getting_started.md
@@ -41,17 +42,18 @@ nav:
       - Communication: guides/communication.md
       - LLM Integration: guides/llm_integration.md
       - MCP Integration: guides/mcp_integration.md
+      - MCP Developer Guide: guides/mcp_developer_guide.md
       - Reasoning Integration (BDI): guides/reasoning_integration.md
       - Agent Patterns: guides/patterns.md
       - Testing Your Agents: guides/testing-utilities.md
       - Deployment: guides/deployment.md
   - Core Concepts:
-      - Architecture: architecture.md
       - Design Philosophy: design.md
-      - Project Structure: project_structure.md # Added here
-  - Examples & Use Cases: # Added section
-      - Overview: examples.md # Added
-      - Chesspal.ai Refactoring: use_cases/chesspal_ai.md # Added
+      - Architecture: architecture.md
+      - Project Structure: project_structure.md
+  - Examples & Use Cases:
+      - Overview: examples.md
+      - Chesspal.ai Refactoring: use_cases/chesspal_ai.md
   - Extending OpenMAS:
       - Custom Communicators: communicator_extensions.md
       # - Custom Agent Patterns: # Placeholder
@@ -64,11 +66,12 @@ nav:
       - run: cli/run.md
       - deps: cli/deps.md
       - generate-dockerfile: cli/generate-dockerfile.md
-      - generate-compose: cli/generate-compose.md # Added
+      - generate-compose: cli/generate-compose.md
   - Contributing:
-      - Guidelines: contributing.md
-      - Development Workflow: development_workflow.md
-      - Docstring Policy: docstring_policy.md
+      - Guidelines: contributing/contributing.md
+      - Testing: contributing/testing_strategy.md
+      - Development Workflow: contributing/development_workflow.md
+      - Docstring Policy: contributing/docstring_policy.md
   - API Reference: api_reference.md
 
 plugins:
