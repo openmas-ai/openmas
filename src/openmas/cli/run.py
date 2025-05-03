@@ -8,15 +8,16 @@ import os
 import signal
 import sys
 import traceback
+import types
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Type
 
 import click
 import typer
 import yaml
 
 from openmas.agent.base import BaseAgent
-from openmas.config import AgentConfigEntry, ConfigLoader, ProjectConfig, _find_project_root
+from openmas.config import AgentConfigEntry, ConfigLoader, ProjectConfig, _find_project_root, logger
 from openmas.exceptions import ConfigurationError, LifecycleError
 
 
@@ -56,6 +57,70 @@ def add_package_paths_to_sys_path(packages_dir: str | Path) -> None:
             # Otherwise add the package root
             if str(package_path) not in sys.path:
                 sys.path.insert(0, str(package_path))
+
+
+def _find_agent_class(agent_module: types.ModuleType, expected_class_name: Optional[str] = None) -> Type[BaseAgent]:
+    """Find the appropriate BaseAgent subclass within the agent module.
+
+    Args:
+        agent_module: The loaded agent module.
+        expected_class_name: Optional specific class name from config.
+
+    Returns:
+        The found BaseAgent subclass.
+
+    Raises:
+        ConfigurationError: If no suitable class is found or the expected class is invalid.
+    """
+    agent_class = None
+    found_classes = []
+
+    # Treat expected_class_name="Agent" the same as None (find first subclass)
+    if expected_class_name and expected_class_name != "Agent":
+        # If class name is specified in config (and not just "Agent"), look for that specific class
+        logger.info(f"Looking for specified agent class: {expected_class_name}")
+        for name, obj in inspect.getmembers(agent_module):
+            if inspect.isclass(obj):
+                found_classes.append(name)
+                if name == expected_class_name:
+                    if issubclass(obj, BaseAgent) and obj is not BaseAgent:
+                        agent_class = obj
+                        logger.info(f"Found specified agent class: {name}")
+                        break
+                    else:
+                        # Found the name, but it's not a valid BaseAgent subclass
+                        logger.error(
+                            f"❌ Specified class '{expected_class_name}' found, "
+                            f"but it does not inherit from BaseAgent or is BaseAgent itself."
+                        )
+                        raise ConfigurationError(
+                            f"Specified class '{expected_class_name}' is not a valid BaseAgent subclass."
+                        )
+        if agent_class is None:
+            logger.error(
+                f"❌ Specified agent class '{expected_class_name}' not found in module {agent_module.__name__}."
+            )
+            logger.error(f"Found classes: {found_classes}")
+            raise ConfigurationError(f"Specified agent class '{expected_class_name}' not found.")
+    else:
+        # Otherwise, find the first class inheriting from BaseAgent
+        logger.info("Looking for first BaseAgent subclass in module...")
+        for name, obj in inspect.getmembers(agent_module):
+            if inspect.isclass(obj):
+                found_classes.append(name)
+                if issubclass(obj, BaseAgent) and obj is not BaseAgent:
+                    agent_class = obj
+                    logger.info(f"Found agent class: {name}")
+                    break  # Use the first one found
+        if agent_class is None:
+            logger.error("❌ No BaseAgent subclass found in agent module")
+            logger.error(
+                "Make sure the agent file contains exactly one class that inherits from openmas.agent.BaseAgent"
+            )
+            logger.error(f"Found classes: {found_classes}")
+            raise ConfigurationError("No BaseAgent subclass found in module.")
+
+    return agent_class
 
 
 def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Optional[str] = None) -> None:
@@ -249,48 +314,19 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
         click.echo("Check that all dependencies are installed and the agent code is valid.")
         raise typer.Exit(code=1)
 
-    # Find the BaseAgent subclass in the module
-    agent_class = None
-    try:
-        # First see if we can get the agent class by name
-        if hasattr(agent_module, "SimpleAgent") and inspect.isclass(getattr(agent_module, "SimpleAgent")):
-            agent_class = getattr(agent_module, "SimpleAgent")
-        elif hasattr(agent_module, "Agent") and inspect.isclass(getattr(agent_module, "Agent")):
-            agent_class = getattr(agent_module, "Agent")
-        else:
-            # Fall back to searching all members
-            for name, obj in inspect.getmembers(agent_module):
-                if inspect.isclass(obj) and hasattr(obj, "__mro__") and BaseAgent in obj.__mro__ and obj != BaseAgent:
-                    agent_class = obj
-                    break
+    # Find the agent class using the helper function
+    expected_class_name = agent_config_entry.class_ if agent_config_entry else None
 
-        if agent_class is None:
-            click.echo("❌ No BaseAgent subclass found in agent module")
-            click.echo("Make sure the agent file contains a class that inherits from openmas.agent.BaseAgent")
-            raise typer.Exit(code=1)
-    except Exception as e:
-        click.echo(f"❌ Error finding agent class: {e}")
-        traceback.print_exc()
+    try:
+        agent_class = _find_agent_class(agent_module, expected_class_name)
+    except ConfigurationError as e:
+        logger.error(f"❌ Error finding agent class: {e}")
         raise typer.Exit(code=1)
+
+    logger.info(f"Using agent class: {agent_class.__name__}")
 
     # Initialize the agent with error handling
     try:
-        # Use the class_name from the config if it's specified
-        if agent_config_entry.class_ != "Agent" and agent_class.__name__ != agent_config_entry.class_:
-            # Look for the specified class
-            for name, obj in inspect.getmembers(agent_module):
-                if (
-                    inspect.isclass(obj)
-                    and issubclass(obj, BaseAgent)
-                    and obj != BaseAgent
-                    and name == agent_config_entry.class_
-                ):
-                    agent_class = obj
-                    break
-            else:
-                click.echo(f"❌ Specified agent class '{agent_config_entry.class_}' not found in agent module")
-                raise typer.Exit(code=1)
-
         # Initialize agent with configuration
         click.echo(f"Starting agent '{agent_name}' ({agent_class.__name__})")
         agent = agent_class(name=agent_name)
