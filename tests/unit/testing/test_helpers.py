@@ -17,9 +17,8 @@ from openmas.testing import (
 )
 
 
-@pytest.mark.no_collect
-class TestSenderAgent(BaseAgent):
-    """Test sender agent for helper tests."""
+class MockSenderAgent(BaseAgent):
+    """Mock sender agent for helper tests."""
 
     def __init__(self, name="test-sender", config=None):
         """Initialize with a mocked config to avoid config loading issues."""
@@ -53,9 +52,8 @@ class TestSenderAgent(BaseAgent):
         await self.shutdown()
 
 
-@pytest.mark.no_collect
-class TestReceiverAgent(BaseAgent):
-    """Test receiver agent for helper tests."""
+class MockReceiverAgent(BaseAgent):
+    """Mock receiver agent for helper tests."""
 
     def __init__(self, name="test-receiver", config=None):
         """Initialize with a mocked config to avoid config loading issues."""
@@ -101,7 +99,7 @@ async def mock_communicator():
 @pytest_asyncio.fixture
 async def sender_agent():
     """Create a test sender agent with a mock communicator."""
-    agent = TestSenderAgent(name="sender")
+    agent = MockSenderAgent(name="sender")
     agent.communicator = MockCommunicator(agent_name="sender")
     return agent
 
@@ -109,7 +107,7 @@ async def sender_agent():
 @pytest_asyncio.fixture
 async def receiver_agent():
     """Create a test receiver agent with a mock communicator."""
-    agent = TestReceiverAgent(name="receiver")
+    agent = MockReceiverAgent(name="receiver")
     agent.communicator = MockCommunicator(agent_name="receiver")
     return agent
 
@@ -120,11 +118,11 @@ async def test_setup_sender_receiver_test():
     # Mock the create_agent method to avoid config issues
     with patch("openmas.testing.harness.AgentTestHarness.create_agent") as mock_create:
         # For the sender
-        sender = TestSenderAgent(name="sender")
+        sender = MockSenderAgent(name="sender")
         sender.communicator = MockCommunicator(agent_name="sender")
 
         # For the receiver
-        receiver = TestReceiverAgent(name="receiver")
+        receiver = MockReceiverAgent(name="receiver")
         receiver.communicator = MockCommunicator(agent_name="receiver")
 
         # Set up expected returns
@@ -132,12 +130,12 @@ async def test_setup_sender_receiver_test():
 
         # Call the function
         sender_harness, receiver_harness, sender_result, receiver_result = await setup_sender_receiver_test(
-            TestSenderAgent, TestReceiverAgent
+            MockSenderAgent, MockReceiverAgent
         )
 
         # Verify the harnesses were created with the correct agent classes
-        assert sender_harness.agent_class is TestSenderAgent
-        assert receiver_harness.agent_class is TestReceiverAgent
+        assert sender_harness.agent_class is MockSenderAgent
+        assert receiver_harness.agent_class is MockReceiverAgent
 
         # Verify the agents are our mocked instances
         assert sender_result is sender
@@ -176,8 +174,8 @@ async def test_expect_notification(sender_agent):
 async def test_running_agents():
     """Test that multi_running_agents correctly manages agent lifecycles."""
     # Create test agents directly (no config loading)
-    sender = TestSenderAgent(name="sender")
-    receiver = TestReceiverAgent(name="receiver")
+    sender = MockSenderAgent(name="sender")
+    receiver = MockReceiverAgent(name="receiver")
 
     # Use AsyncMock instead of manually creating async functions
     sender_context = AsyncMock()

@@ -21,9 +21,8 @@ class TestOrchestratorAgent:
         communicator.register_handler = AsyncMock()
         return communicator
 
-    @pytest.mark.no_collect
-    class TestOrchestrator(BaseOrchestratorAgent):
-        """Test implementation of the orchestrator with required methods."""
+    class MockOrchestratorAgent(BaseOrchestratorAgent):
+        """Mock implementation of the orchestrator with required methods."""
 
         async def run(self) -> None:
             """Run implementation."""
@@ -36,7 +35,7 @@ class TestOrchestratorAgent:
     @pytest.fixture
     def orchestrator(self, mock_communicator):
         # Pass config as a dict to avoid using environment variables
-        orchestrator = self.TestOrchestrator(
+        orchestrator = self.MockOrchestratorAgent(
             name="test_orchestrator", config={"name": "test_orchestrator", "communicator_type": "mock"}
         )
         orchestrator.set_communicator(mock_communicator)
@@ -198,7 +197,7 @@ class TestOrchestratorAgent:
         orchestrator.delegate_task = original_delegate
 
 
-class TestWorkerAgent:
+class MockWorkerAgent:
     """Test the BaseWorkerAgent class."""
 
     @pytest.fixture
@@ -211,9 +210,8 @@ class TestWorkerAgent:
         communicator.register_handler = AsyncMock()
         return communicator
 
-    @pytest.mark.no_collect
-    class TestWorker(BaseWorkerAgent):
-        """Test worker implementation with task handlers."""
+    class MockWorker(BaseWorkerAgent):
+        """Mock implementation of worker agent for testing."""
 
         async def run(self) -> None:
             """Run implementation."""
@@ -225,18 +223,18 @@ class TestWorkerAgent:
 
         @TaskHandler(task_type="add", description="Add two numbers")
         async def add(self, a: int, b: int) -> int:
-            """Add two numbers together."""
+            """Add two numbers."""
             return a + b
 
         @TaskHandler(task_type="multiply", description="Multiply two numbers")
         async def multiply(self, a: int, b: int) -> int:
-            """Multiply two numbers together."""
+            """Multiply two numbers."""
             return a * b
 
     @pytest.fixture
     def worker(self, mock_communicator):
         # Pass config dict to avoid loading from environment variables
-        worker = self.TestWorker(name="test_worker", config={"name": "test_worker", "communicator_type": "mock"})
+        worker = self.MockWorker(name="test_worker", config={"name": "test_worker", "communicator_type": "mock"})
         worker.set_communicator(mock_communicator)
         return worker
 

@@ -156,3 +156,12 @@ def pytest_configure(config):
         "filterwarnings",
         "ignore::RuntimeWarning:asyncio.base_events",
     )
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore:coroutine 'McpSseCommunicator.start.<locals>.run_sse_server' was never awaited:RuntimeWarning",
+    )
+    # Add filter for Event.wait coroutine warning in gRPC tests
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore:coroutine 'Event.wait' was never awaited:RuntimeWarning",
+    )

@@ -30,9 +30,8 @@ from openmas.exceptions import ConfigurationError, DependencyError
 from openmas.testing import MockCommunicator
 
 
-@pytest.mark.no_collect
-class TestCommunicator(BaseCommunicator):
-    """Test communicator for testing discovery."""
+class MockBaseCommunicator(BaseCommunicator):
+    """Mock communicator for testing discovery."""
 
     async def send_request(self, target_service, method, params=None, response_model=None, timeout=None):
         """Mock implementation for testing."""
@@ -61,13 +60,13 @@ def test_register_and_get_communicator():
     _COMMUNICATOR_REGISTRY.clear()
 
     # Register a test communicator
-    register_communicator("test", TestCommunicator)
+    register_communicator("test", MockBaseCommunicator)
 
     # Get the registered communicator
     communicator_class = get_communicator_class("test")
 
     # Verify it's the correct class
-    assert communicator_class is TestCommunicator
+    assert communicator_class is MockBaseCommunicator
 
 
 def test_get_nonexistent_communicator():
@@ -76,7 +75,7 @@ def test_get_nonexistent_communicator():
     _COMMUNICATOR_REGISTRY.clear()
 
     # Register a test communicator to have something in the registry
-    register_communicator("test", TestCommunicator)
+    register_communicator("test", MockBaseCommunicator)
 
     # Try to get a non-existent communicator
     with pytest.raises(ValueError) as exc_info:
@@ -88,10 +87,10 @@ def test_get_nonexistent_communicator():
 
 @pytest.fixture
 def mock_entry_point():
-    """Create a mock entry point that returns TestCommunicator."""
+    """Create a mock entry point that returns MockBaseCommunicator."""
     mock_ep = mock.MagicMock()
     mock_ep.name = "mock_communicator"
-    mock_ep.load.return_value = TestCommunicator
+    mock_ep.load.return_value = MockBaseCommunicator
     return mock_ep
 
 
@@ -115,7 +114,7 @@ def test_discover_communicator_extensions(monkeypatch):
     # Setup a mock entry point that will be returned
     mock_entry_point = mock.Mock()
     mock_entry_point.name = "mock_communicator"
-    mock_entry_point.load.return_value = TestCommunicator
+    mock_entry_point.load.return_value = MockBaseCommunicator
 
     # Mock importlib.metadata.entry_points to return our mock entry point
     mock_entry_points = mock.Mock(return_value=[mock_entry_point])
@@ -125,9 +124,9 @@ def test_discover_communicator_extensions(monkeypatch):
     discover_communicator_extensions()
 
     # Verify the communicator was registered correctly
-    assert ("mock_communicator", TestCommunicator) in registered_communicators
+    assert ("mock_communicator", MockBaseCommunicator) in registered_communicators
     assert "mock_communicator" in _COMMUNICATOR_REGISTRY
-    assert _COMMUNICATOR_REGISTRY["mock_communicator"] is TestCommunicator
+    assert _COMMUNICATOR_REGISTRY["mock_communicator"] is MockBaseCommunicator
 
 
 @pytest.fixture
@@ -235,7 +234,7 @@ def test_agent_init_with_communicator_type(monkeypatch):
     """Test initializing an agent with a communicator type."""
     # Register a test communicator
     _COMMUNICATOR_REGISTRY.clear()
-    register_communicator("test_type", TestCommunicator)
+    register_communicator("test_type", MockBaseCommunicator)
 
     # Create a mock agent class
     class MockAgent(BaseAgent):
@@ -252,7 +251,7 @@ def test_agent_init_with_communicator_type(monkeypatch):
     agent = MockAgent(name="test_agent", config={"name": "test_agent", "communicator_type": "test_type"})
 
     # Verify the communicator type was used
-    assert isinstance(agent.communicator, TestCommunicator)
+    assert isinstance(agent.communicator, MockBaseCommunicator)
 
 
 def test_agent_init_with_extension_paths(create_extension_dir, monkeypatch):
