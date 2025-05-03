@@ -258,16 +258,18 @@ class TestAgent(BaseAgent):
 
     @patch("openmas.cli.run._find_project_root")
     @patch("openmas.cli.run._find_agent_class")
-    @patch("openmas.cli.run.asyncio.get_event_loop")
+    @patch("openmas.cli.run.asyncio.new_event_loop")
+    @patch("openmas.cli.run.asyncio.set_event_loop")
     @patch("openmas.communication.discover_communicator_extensions")
     @patch("openmas.communication.discover_local_communicators")
-    @patch("openmas.cli.run.asyncio.Event")  # <<< Patch asyncio.Event
+    @patch("openmas.cli.run.asyncio.Event")
     def test_run_command_keyboard_interrupt(
         self,
-        mock_asyncio_event,  # <<< Add mock arg
+        mock_asyncio_event,
         mock_discover_local,
         mock_discover_ext,
-        mock_get_loop,
+        mock_set_event_loop,
+        mock_new_event_loop,
         mock_find_agent_class,
         mock_find_root,
         cli_runner,
@@ -285,6 +287,26 @@ class TestAgent(BaseAgent):
         mock_shutdown_event_instance = MagicMock(spec=asyncio.Event)
         mock_shutdown_event_instance.set = MagicMock()
         mock_asyncio_event.return_value = mock_shutdown_event_instance
+
+        # Mock the event loop
+        mock_loop = MagicMock()
+        mock_loop.run_until_complete = MagicMock()
+        mock_loop.create_task = MagicMock()
+        mock_loop.add_signal_handler = MagicMock()
+        mock_loop.shutdown_asyncgens = AsyncMock()
+        mock_loop.close = MagicMock()
+
+        # Return our mock loop from new_event_loop
+        mock_new_event_loop.return_value = mock_loop
+
+        captured_signal_handler = None
+
+        def capture_handler(sig, handler):
+            nonlocal captured_signal_handler
+            if sig in [signal.SIGINT, signal.SIGTERM]:
+                captured_signal_handler = handler
+
+        mock_loop.add_signal_handler.side_effect = capture_handler
 
         # Mock config loading, communicator lookup, etc.
         with (
@@ -310,25 +332,6 @@ class TestAgent(BaseAgent):
                 "default_config": {"log_level": "INFO"},
             }
 
-            # Mock the event loop - KeyboardInterrupt no longer needed here
-            mock_loop = MagicMock()
-            mock_loop.run_forever = MagicMock()  # Just mock run_forever
-            mock_loop.create_task = MagicMock()
-            mock_loop.add_signal_handler = MagicMock()
-            mock_loop.shutdown_asyncgens = AsyncMock()
-            mock_loop.close = MagicMock()
-
-            captured_signal_handler = None
-
-            def capture_handler(sig, handler):
-                nonlocal captured_signal_handler
-                if sig in [signal.SIGINT, signal.SIGTERM]:
-                    captured_signal_handler = handler
-
-            mock_loop.add_signal_handler.side_effect = capture_handler
-
-            mock_get_loop.return_value = mock_loop
-
             # Execute the command - Assign to _ since we don't check result output
             _ = cli_runner.invoke(cli, ["run", agent_name])
 
@@ -336,20 +339,13 @@ class TestAgent(BaseAgent):
         assert captured_signal_handler is not None, "Signal handler was not captured"
         captured_signal_handler()  # Call the captured handler
 
-        # Assertions
-        # Exit code might still be non-zero depending on exact execution flow,
-        # focus on verifying the handler logic ran.
-        # assert result.exit_code == 0
-        # Remove checks for stdout message
-        # assert "Received signal" in result.output
-        # assert "shutting down gracefully..." in result.output
-
         # Verify mocks indicating shutdown logic was triggered
         mock_find_agent_class.assert_called_once()
         mock_agent_config_load.assert_called_once()
-        mock_shutdown_event_instance.set.assert_called_once()  # <<< Check event was set
-        # assert MockAgent._stop_called is True # <<< Check agent stop was called
-        # Cannot reliably check agent stop in this test as the asyncio lifecycle isn't fully run
+        mock_shutdown_event_instance.set.assert_called_once()
 
-        # Verify loop cleanup was attempted (might not be called if run_until_complete isn't fully mocked)
-        # mock_loop.run_forever.assert_called_once()
+        # Verify the event loop was properly created and used
+        mock_new_event_loop.assert_called_once()
+        mock_set_event_loop.assert_called_once()
+        # The run_until_complete function should be called at least once
+        assert mock_loop.run_until_complete.call_count >= 1

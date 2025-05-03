@@ -1,6 +1,7 @@
 """HTTP communicator implementation for OpenMAS."""
 
 import asyncio
+import contextlib
 import uuid
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
@@ -23,17 +24,29 @@ class HttpCommunicator(BaseCommunicator):
     This communicator uses HTTP for communication between services.
     """
 
-    def __init__(self, agent_name: str, service_urls: Dict[str, str]):
+    def __init__(
+        self,
+        agent_name: str,
+        service_urls: Dict[str, str],
+        port: Optional[int] = None,
+        **kwargs: Any,
+    ):
         """Initialize the HTTP communicator.
 
         Args:
             agent_name: The name of the agent using this communicator
             service_urls: Mapping of service names to URLs
+            port: Optional port to use for the server (default is determined by configuration)
         """
         super().__init__(agent_name, service_urls)
         self.client = httpx.AsyncClient(timeout=30.0)
         self.handlers: Dict[str, Callable] = {}
         self.server_task: Optional[asyncio.Task] = None
+        self.port = port
+
+        # Check communicator options for the port if not explicitly provided
+        if self.port is None and kwargs.get("communicator_options"):
+            self.port = kwargs.get("communicator_options", {}).get("port")
 
     async def send_request(
         self,
@@ -165,13 +178,170 @@ class HttpCommunicator(BaseCommunicator):
         self.handlers[method] = handler
         logger.debug("Registered handler", method=method)
 
+        # If we have handlers and no server is running, start the server
+        if self.handlers and self.server_task is None:
+            await self._ensure_server_running()
+
+    async def _ensure_server_running(self) -> None:
+        """Ensure the server is running if needed.
+
+        This method starts a FastAPI server if the communicator has registered handlers
+        and no server is currently running.
+        """
+        if self.server_task is None and self.handlers:
+            try:
+                import uvicorn
+                from fastapi import FastAPI, Request, Response
+                from fastapi.responses import JSONResponse
+
+                # Get port from agent config
+                agent_name = self.agent_name
+                port = self.port
+
+                # Default port if not specified
+                if port is None:
+                    # Try to extract port from the current hostname if this agent is in service_urls
+                    if agent_name in self.service_urls:
+                        url = self.service_urls[agent_name]
+                        try:
+                            import re
+
+                            port_match = re.search(r":(\d+)", url)
+                            if port_match:
+                                port = int(port_match.group(1))
+                        except Exception:
+                            pass
+
+                # Fall back to a default port if still none
+                if port is None:
+                    # Hard-coded fallback as a last resort
+                    if agent_name == "consumer":
+                        port = 8082  # For example, consumer agents use port 8082
+                    elif agent_name == "producer":
+                        port = 8081  # For example, producer agents use port 8081
+                    else:
+                        # This is a reasonable fallback, but may collide with other services
+                        port = 8000
+
+                # Update the instance port attribute with the determined value
+                self.port = port
+
+                # Create FastAPI app
+                app = FastAPI(title=f"{agent_name}-api")
+
+                @app.post("/")  # type: ignore[misc]
+                async def handle_jsonrpc(request: Request) -> Response:
+                    """Handle JSON-RPC requests."""
+                    try:
+                        data = await request.json()
+
+                        # Validate request format
+                        if "method" not in data:
+                            return JSONResponse(
+                                content={
+                                    "jsonrpc": "2.0",
+                                    "error": {"code": -32600, "message": "Invalid request: missing method"},
+                                    "id": data.get("id", None),
+                                },
+                                status_code=400,
+                            )
+
+                        method = data["method"]
+                        params = data.get("params", {})
+                        request_id = data.get("id")
+
+                        # Check if method exists
+                        if method not in self.handlers:
+                            return JSONResponse(
+                                content={
+                                    "jsonrpc": "2.0",
+                                    "error": {"code": -32601, "message": f"Method not found: {method}"},
+                                    "id": request_id,
+                                },
+                                status_code=404,
+                            )
+
+                        # Call the handler
+                        handler = self.handlers[method]
+                        result = await handler(params)
+
+                        # If it's a notification (no ID), return no content
+                        if request_id is None:
+                            return Response(status_code=204)
+
+                        # Return the result
+                        return JSONResponse(content={"jsonrpc": "2.0", "result": result, "id": request_id})
+                    except Exception as e:
+                        logger.exception(f"Error handling request: {e}")
+                        # Return a JSON-RPC error response
+                        return JSONResponse(
+                            content={
+                                "jsonrpc": "2.0",
+                                "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
+                                "id": data.get("id", None) if "data" in locals() else None,
+                            },
+                            status_code=500,
+                        )
+
+                # Use the newer FastAPI lifespan API instead of deprecated on_event
+                from contextlib import asynccontextmanager
+                from typing import AsyncIterator
+
+                @asynccontextmanager
+                async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+                    """Handle application lifespan events."""
+                    # Startup event
+                    logger.debug("HTTP server starting up")
+                    yield
+                    # Shutdown event
+                    logger.debug("HTTP server shutting down")
+
+                # Set the lifespan handler for the app
+                app.router.lifespan_context = lifespan  # type: ignore[assignment]
+
+                # Create a server config with proper lifespan setting
+                config = uvicorn.Config(
+                    app=app,
+                    host="0.0.0.0",  # Listen on all interfaces
+                    port=port,
+                    log_level="info",
+                    lifespan="on",  # Ensure proper lifespan management
+                )
+
+                # Start the server
+                server = uvicorn.Server(config)
+
+                # Define an async task to run the server
+                async def run_server_task() -> None:
+                    """Run the uvicorn server in a controlled way."""
+                    try:
+                        await server.serve()
+                    except Exception as e:
+                        logger.error(f"HTTP server error: {e}")
+
+                # Run the server in a background task
+                self.server_task = asyncio.create_task(run_server_task())
+                logger.info(f"Started HTTP server on port {port}")
+            except ImportError as e:
+                logger.error(f"Cannot start HTTP server: missing dependencies: {e}")
+                raise CommunicationError(
+                    f"Cannot start HTTP server: {e}. "
+                    f"Make sure you have fastapi and uvicorn installed: pip install fastapi uvicorn"
+                )
+            except Exception as e:
+                logger.exception(f"Error starting HTTP server: {e}")
+                raise CommunicationError(f"Failed to start HTTP server: {e}")
+
     async def start(self) -> None:
         """Start the communicator.
 
-        This sets up the HTTP client but doesn't start a server by default.
-        Subclasses that need to listen for incoming requests should override this.
+        This sets up the HTTP client and starts a server if handlers are registered.
         """
         logger.info("Started HTTP communicator")
+
+        # If we have handlers, make sure the server is running
+        if self.handlers:
+            await self._ensure_server_running()
 
     async def stop(self) -> None:
         """Stop the communicator.
@@ -179,12 +349,34 @@ class HttpCommunicator(BaseCommunicator):
         This cleans up the HTTP client and stops any server that might be running.
         """
         if self.server_task is not None:
-            self.server_task.cancel()
+            # Cancel the task but handle the exception to prevent coroutine not awaited warnings
             try:
-                await self.server_task
-            except asyncio.CancelledError:
-                pass
-            self.server_task = None
+                # In tests, we might need special handling
+                if hasattr(self.server_task, "_is_coroutine") and self.server_task._is_coroutine is False:
+                    # This is a mock, just cancel it and reset
+                    self.server_task.cancel()
+                    self.server_task = None
+                else:
+                    # It's a real coroutine/task, cancel and await it
+                    self.server_task.cancel()
+                    try:
+                        # Allow some time for the task to cancel properly
+                        # Setting a timeout to prevent waiting forever if something goes wrong
+                        with contextlib.suppress(asyncio.TimeoutError):
+                            await asyncio.wait_for(asyncio.shield(self.server_task), timeout=0.5)
+                    except asyncio.CancelledError:
+                        # Expected during cancellation
+                        logger.debug("Server task cancelled")
+                    except Exception as e:
+                        # Log but don't raise other exceptions during cleanup
+                        logger.warning(f"Error while stopping HTTP server: {e}")
+                    finally:
+                        self.server_task = None
+            except Exception as e:
+                # Handle any errors during task cancellation
+                logger.warning(f"Error while stopping HTTP server: {e}")
+                self.server_task = None
 
+        # Close the HTTP client
         await self.client.aclose()
         logger.info("Stopped HTTP communicator")

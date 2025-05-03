@@ -340,7 +340,8 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
         raise typer.Exit(code=1)
 
     # Set up signal handlers for graceful shutdown
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     shutdown_event = asyncio.Event()
     stop_in_progress = False
 
@@ -388,8 +389,8 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
                 click.echo("")
 
             # Create tasks for the agent's run method and the shutdown signal wait
-            agent_run_task = loop.create_task(agent.run(), name=f"agent_run_{agent_name}")
-            shutdown_wait_task = loop.create_task(shutdown_event.wait(), name=f"shutdown_wait_{agent_name}")
+            agent_run_task = asyncio.create_task(agent.run(), name=f"agent_run_{agent_name}")
+            shutdown_wait_task = asyncio.create_task(shutdown_event.wait(), name=f"shutdown_wait_{agent_name}")
 
             # Wait for either the agent to finish or a shutdown signal
             click.echo("Agent is running. Waiting for completion or Ctrl+C...")
@@ -439,8 +440,8 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
 
     # Run the agent
     try:
-        # We use asyncio.run instead of loop.run_until_complete to ensure proper cleanup
-        asyncio.run(run_agent())
+        # Run the coroutine directly in the loop instead of using asyncio.run
+        loop.run_until_complete(run_agent())
     except KeyboardInterrupt:
         # Handle the case where the user rapidly presses Ctrl+C multiple times
         click.echo("\nForced exit.")
@@ -449,5 +450,22 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
         traceback.print_exc()
         raise typer.Exit(code=1)
     finally:
+        # Clean up the loop properly
+        try:
+            # Cancel all tasks
+            tasks = asyncio.all_tasks(loop)
+            for task in tasks:
+                task.cancel()
+
+            # Allow tasks to terminate with CancelledError
+            if tasks:
+                loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+
+            # Shutdown asyncgens and close the loop
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
+        except Exception as e:
+            click.echo(f"Error during loop cleanup: {e}")
+
         # Restore original sys.path
         sys.path = original_sys_path

@@ -1,0 +1,24 @@
+name: examples/03_patterns/01_agent_chaining
+version: 0.1.0
+agents:
+  producer: "agents/producer"
+  consumer: "agents/consumer"
+shared_paths:
+- shared
+extension_paths:
+- extensions
+default_config:
+  log_level: INFO
+  communicator_type: http
+  agents:
+    producer:
+      communicator:
+        type: http
+        port: 8081
+        service_urls:
+          consumer: "http://localhost:8082"
+    consumer:
+      communicator:
+        type: http
+        port: 8082
+dependencies: []
