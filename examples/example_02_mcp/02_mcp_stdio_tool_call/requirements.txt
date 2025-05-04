@@ -1,0 +1,2 @@
+# MCP is required for the stdio communicator
+mcp>=1.6.0

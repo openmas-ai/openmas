@@ -1,0 +1,42 @@
+name: example_02_mcp_stdio_tool_call
+version: 0.1.0
+description: "Example demonstrating MCP tool calls over standard input/output (stdio)"
+
+# Define the available agents
+agents:
+  tool_provider: "agents/tool_provider"
+  tool_user: "agents/tool_user"
+
+# Default configuration for all agents
+default_config:
+  log_level: INFO
+
+# Default communicator settings
+communicator_defaults:
+  type: mcp-stdio
+  options:
+    server_mode: false
+
+# Agent-specific configurations
+agent_configs:
+  # Tool provider config - run in server mode to expose tools
+  tool_provider:
+    communicator_options:
+      server_mode: true
+      server_instructions: "A service that processes text using an MCP tool"
+
+  # Tool user config - client mode with service URLs to find the tool provider
+  tool_user:
+    service_urls:
+      # For stdio communicator, this is a command to launch the provider
+      # In a real system, this could be a path to an executable or a command line
+      tool_provider: "stdio:openmas"
+
+# Dependencies configuration (for external packages)
+# Examples:
+# dependencies:
+#   # - package: <org_or_user>/<package_name>  # Example: From official repo (Not implemented yet)
+#   #   version: <version_spec>
+#   # - git: <git_url>                         # Example: From Git repo (Implemented)
+#   #   revision: <branch_tag_or_commit>       # Optional
+#   # - local: <relative_path_to_package>      # Example: From local path (Not implemented yet)

@@ -1,0 +1,1 @@
+"""OpenMAS tests package."""
