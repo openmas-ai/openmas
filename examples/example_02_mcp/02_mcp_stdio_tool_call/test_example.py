@@ -8,7 +8,7 @@ from openmas.testing import AgentTestHarness, multi_running_agents
 
 
 @pytest.mark.asyncio
-async def test_mcp_stdio_tool_call():
+async def test_mcp_stdio_tool_call() -> None:
     """Test the MCP stdio tool call example.
 
     This test:
