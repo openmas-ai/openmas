@@ -387,13 +387,302 @@ stdio_server = McpStdioCommunicator(
     service_urls={}
 )
 
-# Client mode (rarely used, as you typically use this as a server)
+# Client mode (for calling tools on other MCP servers)
 stdio_client = McpStdioCommunicator(
     agent_name="stdio-client",
     server_mode=False,
-    service_urls={}
+    service_urls={
+        "tool_provider": "stdio:openmas run tool_provider"
+    }
 )
 ```
+
+#### Working with McpStdioCommunicator
+
+The stdio transport is particularly useful for:
+
+1. **Tool providers as child processes**: A parent process can spawn a child process and communicate with it via stdio
+2. **Command-line tools**: Making existing CLI tools accessible via MCP
+3. **Local development**: Simple setup without network configuration
+4. **Process isolation**: Running tool providers in separate processes for stability
+
+#### Service URL Formats for stdio
+
+When using `McpStdioCommunicator` in client mode, you need to specify service URLs that tell the communicator how to spawn the server process. The general format is:
+
+```
+stdio:<command>
+```
+
+Where `<command>` is the command to execute to start the server process. Several formats are supported:
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| `stdio:openmas` | `"stdio:openmas"` | Uses the OpenMAS CLI to launch the provider with default settings |
+| `stdio:openmas run <agent>` | `"stdio:openmas run tool_provider"` | Explicit run command with agent name |
+| `stdio:openmas run --project <path> <agent>` | `"stdio:openmas run --project /path/to/project tool_provider"` | With project path |
+| `stdio:<executable>` | `"stdio:/path/to/executable"` | Direct path to an executable |
+| `stdio:<interpreter> -m <module>` | `"stdio:python -m my_module"` | Custom interpreter and module command |
+
+In production environments, you might want to use more specific paths:
+```python
+service_urls = {
+    "tool_provider": "stdio:/usr/local/bin/openmas run tool_provider",
+    "python_tool": "stdio:/path/to/venv/bin/python -m my_tool_provider"
+}
+```
+
+#### Complete stdio Tool Call Example
+
+Here's a complete example of a tool provider and user using the stdio transport:
+
+**Tool Provider Agent:**
+
+```python
+from openmas.agent import McpServerAgent, mcp_tool
+
+class ToolProviderAgent(McpServerAgent):
+    def __init__(self, name="tool-provider"):
+        super().__init__(
+            name=name,
+            server_type="stdio",  # Use stdio transport
+        )
+
+    @mcp_tool(description="Process incoming data and return a result")
+    async def process_data(self, text: str = "") -> dict:
+        """Process incoming data and return a result.
+
+        Args:
+            text: The text to process
+
+        Returns:
+            Dictionary with processed results
+        """
+        if text:
+            processed_text = text.upper()
+            word_count = len(text.split())
+
+            return {
+                "processed_text": processed_text,
+                "word_count": word_count,
+                "status": "success"
+            }
+        else:
+            return {
+                "error": "No text provided",
+                "status": "error"
+            }
+
+# Run the server
+if __name__ == "__main__":
+    import asyncio
+
+    async def main():
+        agent = ToolProviderAgent()
+        await agent.setup()
+        await agent.start_server()
+
+        try:
+            # Keep the server running until interrupted
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            await agent.shutdown()
+
+    asyncio.run(main())
+```
+
+**Tool User Agent:**
+
+```python
+from openmas.agent import BaseAgent
+import asyncio
+
+class ToolUserAgent(BaseAgent):
+    def __init__(self, name="tool-user", provider_command="openmas run tool_provider"):
+        super().__init__(name=name)
+
+        # Configure the communicator
+        from openmas.communication.mcp import McpStdioCommunicator
+        communicator = McpStdioCommunicator(
+            agent_name=self.name,
+            server_mode=False,  # Client mode
+            service_urls={
+                "tool_provider": f"stdio:{provider_command}"
+            }
+        )
+        self.set_communicator(communicator)
+
+    async def run(self):
+        try:
+            # Call the process_data tool
+            result = await self.communicator.call_tool(
+                target_service="tool_provider",
+                tool_name="process_data",
+                arguments={"text": "Hello, this is a test message."}
+            )
+
+            print(f"Tool call result: {result}")
+
+            # Check for success
+            if result.get("status") == "success":
+                print(f"Processed text: {result.get('processed_text')}")
+                print(f"Word count: {result.get('word_count')}")
+            else:
+                print(f"Error: {result.get('error')}")
+
+        except Exception as e:
+            print(f"Error calling tool: {e}")
+
+# Run the client
+if __name__ == "__main__":
+    import asyncio
+
+    async def main():
+        agent = ToolUserAgent()
+        await agent.setup()
+        await agent.run()
+        await agent.shutdown()
+
+    asyncio.run(main())
+```
+
+#### Timeout Handling with McpStdioCommunicator
+
+When working with stdio transport, proper timeout handling is essential to avoid hanging or deadlocked processes. There are two main approaches:
+
+1. **Using asyncio.wait_for():**
+
+```python
+import asyncio
+
+try:
+    # Set a timeout for the tool call
+    timeout_seconds = 5.0
+    result = await asyncio.wait_for(
+        self.communicator.call_tool(
+            target_service="tool_provider",
+            tool_name="process_data",
+            arguments={"text": "test message"}
+        ),
+        timeout=timeout_seconds
+    )
+except asyncio.TimeoutError:
+    print(f"Tool call timed out after {timeout_seconds} seconds")
+    # Implement recovery logic here
+```
+
+2. **Implementing a timeout wrapper method:**
+
+```python
+async def call_tool_with_timeout(
+    self, target_service: str, tool_name: str, arguments: dict, timeout: float
+) -> dict:
+    """Call a tool with a timeout to prevent hanging.
+
+    Args:
+        target_service: Service providing the tool
+        tool_name: Name of the tool to call
+        arguments: Tool arguments
+        timeout: Timeout in seconds
+
+    Returns:
+        Tool result
+
+    Raises:
+        asyncio.TimeoutError: If the call times out
+    """
+    return await asyncio.wait_for(
+        self.communicator.call_tool(
+            target_service=target_service,
+            tool_name=tool_name,
+            arguments=arguments
+        ),
+        timeout=timeout
+    )
+```
+
+#### Troubleshooting MCP stdio Communication
+
+When working with stdio transport, you might encounter these common issues:
+
+1. **Process Execution Issues:**
+   - **Symptom:** `FileNotFoundError` or `PermissionError`
+   - **Cause:** Invalid executable path or permissions
+   - **Solution:** Verify the executable path is correct and has execution permissions
+
+2. **Initialization Timeout:**
+   - **Symptom:** Tool calls hang or time out during initialization
+   - **Cause:** The provider process might be starting slowly or not registering tools properly
+   - **Solution:**
+     - Add logging to verify tool registration
+     - Increase initialization timeout
+     - Check for errors in the provider process
+
+3. **Process Termination:**
+   - **Symptom:** `BrokenPipeError` or `ConnectionResetError`
+   - **Cause:** The provider process exited unexpectedly
+   - **Solution:**
+     - Add error handling to restart the process if needed
+     - Verify the provider process stays alive while waiting for tool calls
+
+4. **Tool Name Mismatches:**
+   - **Symptom:** "Tool not found" errors
+   - **Cause:** The name used when calling a tool doesn't match the registered name
+   - **Solution:** Ensure consistent tool naming between registration and calls
+
+#### Debugging Tips for stdio Transport
+
+1. **Enable Debug Logging:**
+   ```python
+   # For OpenMAS communicator
+   communicator = McpStdioCommunicator(
+       agent_name="agent",
+       log_level="DEBUG",
+       # other options...
+   )
+
+   # For underlying MCP
+   import logging
+   logging.basicConfig(
+       level=logging.DEBUG,
+       format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+   )
+   ```
+
+2. **Capture Process Output:**
+   ```python
+   # When starting a process manually
+   process = await asyncio.create_subprocess_exec(
+       *cmd,
+       stdout=asyncio.subprocess.PIPE,
+       stderr=asyncio.subprocess.PIPE,
+   )
+
+   # Read process output for debugging
+   stderr_data = await process.stderr.read(1024)
+   print(f"Process error output: {stderr_data.decode()}")
+   ```
+
+3. **Test with MCP Inspector:**
+   The MCP package includes an inspector tool for debugging:
+   ```bash
+   # Install MCP with CLI tools
+   pip install "mcp[cli]"
+
+   # Run the inspector on your server
+   mcp dev --stdio-command "openmas run tool_provider"
+   ```
+
+4. **Verify Process Management:**
+   ```python
+   # Check if the provider process is still running
+   if provider_process and provider_process.returncode is not None:
+       logger.error(f"Provider process exited with code {provider_process.returncode}")
+       # Implement restart logic if needed
+   ```
 
 ## Best Practices
 

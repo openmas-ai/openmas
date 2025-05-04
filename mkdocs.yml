@@ -43,6 +43,7 @@ nav:
       - LLM Integration: guides/llm_integration.md
       - MCP Integration: guides/mcp_integration.md
       - MCP Developer Guide: guides/mcp_developer_guide.md
+      - MCP stdio Tool Call Tutorial: guides/mcp_stdio_tool_call_tutorial.md
       - Reasoning Integration (BDI): guides/reasoning_integration.md
       - Agent Patterns: guides/patterns.md
       - Testing Your Agents: guides/testing-utilities.md

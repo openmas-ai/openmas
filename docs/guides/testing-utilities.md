@@ -500,3 +500,268 @@ communicator.expect_request(
 | Test complex parameter matching | Direct `MockCommunicator` |
 | Assert agent state changes | Direct `AgentTestHarness` |
 | Trigger handlers directly | Direct `MockCommunicator.trigger_handler()` |
+
+## Testing MCP Agents
+
+### Testing MCP stdio Tools
+
+Testing agents that use the `McpStdioCommunicator` requires some special considerations, as it involves process management and stdin/stdout communication. Here are the recommended approaches:
+
+#### Unit Testing with Mock Communicator
+
+For unit tests, you can mock the `McpStdioCommunicator` to avoid spawning real processes:
+
+```python
+import pytest
+from unittest import mock
+from openmas.agent import BaseAgent
+from openmas.communication.mcp import McpStdioCommunicator
+
+class ToolUserAgent(BaseAgent):
+    # Agent implementation...
+    pass
+
+@pytest.fixture
+def mock_stdio_communicator():
+    """Create a mocked stdio communicator."""
+    communicator = mock.AsyncMock(spec=McpStdioCommunicator)
+
+    # Mock the call_tool method to return a predefined result
+    async def mock_call_tool(target_service, tool_name, arguments):
+        if tool_name == "process_data" and "text" in arguments:
+            text = arguments["text"]
+            return {
+                "processed_text": text.upper(),
+                "word_count": len(text.split()),
+                "status": "success"
+            }
+        return {"status": "error", "error": "Unknown tool or invalid arguments"}
+
+    communicator.call_tool.side_effect = mock_call_tool
+    return communicator
+
+@pytest.mark.asyncio
+async def test_tool_user_with_mock_communicator(mock_stdio_communicator):
+    """Test the tool user agent with a mock communicator."""
+    agent = ToolUserAgent(name="test-agent")
+    agent.set_communicator(mock_stdio_communicator)
+
+    await agent.setup()
+    await agent.run()
+
+    # Verify the tool was called with expected arguments
+    mock_stdio_communicator.call_tool.assert_called_once()
+    call_args = mock_stdio_communicator.call_tool.call_args[1]
+    assert call_args["tool_name"] == "process_data"
+    assert "text" in call_args["arguments"]
+```
+
+#### Integration Testing with Standalone Scripts
+
+For integration testing, create a standalone MCP server script that implements the tool functionality:
+
+```python
+import asyncio
+import json
+import sys
+import tempfile
+import os
+from pathlib import Path
+from mcp.server.fastmcp import Context, FastMCP
+
+def create_tool_server_script() -> str:
+    """Create a standalone MCP server script for testing."""
+    return """
+#!/usr/bin/env python
+
+import asyncio
+import json
+import sys
+from mcp.server.fastmcp import Context, FastMCP
+
+# Create the server
+server = FastMCP("TestToolServer")
+
+@server.tool("process_data", description="Process incoming data")
+async def process_data(context: Context, text: str = "") -> str:
+    # Process the data
+    if text:
+        processed_text = text.upper()
+        word_count = len(text.split())
+
+        result = {
+            "processed_text": processed_text,
+            "word_count": word_count,
+            "status": "success"
+        }
+    else:
+        result = {
+            "error": "No text provided",
+            "status": "error"
+        }
+
+    # Return JSON string
+    return json.dumps(result)
+
+# Run the server
+asyncio.run(server.run_stdio_async())
+"""
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_real_mcp_stdio_tool_call():
+    """Test real MCP stdio tool calls with a standalone server script."""
+    # Create the server script
+    script_content = create_tool_server_script()
+
+    # Write the script to a temp file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+        tmp.write(script_content)
+        script_path = tmp.name
+
+    # Make it executable
+    os.chmod(script_path, 0o755)
+
+    # Process handle for cleanup
+    process = None
+
+    try:
+        from openmas.agent import BaseAgent
+        from openmas.communication.mcp import McpStdioCommunicator
+
+        # Create a tool user agent
+        agent = BaseAgent(name="test-tool-user")
+
+        # Configure the communicator to use the script
+        communicator = McpStdioCommunicator(
+            agent_name=agent.name,
+            server_mode=False,
+            service_urls={
+                "test_tool_server": f"stdio:{sys.executable} {script_path}"
+            }
+        )
+        agent.set_communicator(communicator)
+
+        # Call the tool
+        await agent.setup()
+
+        # Test the tool call
+        result = await communicator.call_tool(
+            target_service="test_tool_server",
+            tool_name="process_data",
+            arguments={"text": "Hello, test!"}
+        )
+
+        # Verify the result
+        assert result["status"] == "success"
+        assert result["processed_text"] == "HELLO, TEST!"
+        assert result["word_count"] == 2
+
+    finally:
+        # Clean up
+        if process and process.returncode is None:
+            try:
+                process.terminate()
+                await asyncio.sleep(0.5)
+                if process.returncode is None:
+                    process.kill()
+            except Exception:
+                pass
+
+        # Clean up the temp file
+        try:
+            os.unlink(script_path)
+        except Exception:
+            pass
+```
+
+#### Testing Timeout Handling
+
+Properly testing timeout handling is important for robust MCP stdio communication:
+
+```python
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_timeout_handling():
+    """Test timeout handling with MCP stdio tool calls."""
+    # Create a script that implements a slow tool
+    slow_tool_script = """
+#!/usr/bin/env python
+
+import asyncio
+import json
+import sys
+from mcp.server.fastmcp import Context, FastMCP
+
+server = FastMCP("SlowToolServer")
+
+@server.tool("slow_process", description="A tool that takes a long time")
+async def slow_process(context: Context, text: str = "") -> str:
+    # Simulate a slow operation
+    await asyncio.sleep(10.0)  # Sleep for 10 seconds
+
+    result = {
+        "processed_text": text.upper(),
+        "status": "success"
+    }
+    return json.dumps(result)
+
+asyncio.run(server.run_stdio_async())
+"""
+
+    # Write the script to a temp file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+        tmp.write(slow_tool_script)
+        script_path = tmp.name
+
+    # Make it executable
+    os.chmod(script_path, 0o755)
+
+    try:
+        from openmas.agent import BaseAgent
+        from openmas.communication.mcp import McpStdioCommunicator
+
+        # Create a tool user agent
+        agent = BaseAgent(name="test-timeout-user")
+
+        # Configure the communicator
+        communicator = McpStdioCommunicator(
+            agent_name=agent.name,
+            server_mode=False,
+            service_urls={
+                "slow_tool_server": f"stdio:{sys.executable} {script_path}"
+            }
+        )
+        agent.set_communicator(communicator)
+
+        # Set up the agent
+        await agent.setup()
+
+        # Call the slow tool with a short timeout
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(
+                communicator.call_tool(
+                    target_service="slow_tool_server",
+                    tool_name="slow_process",
+                    arguments={"text": "This should time out"}
+                ),
+                timeout=2.0  # 2-second timeout (shorter than the 10-second sleep)
+            )
+
+    finally:
+        # Clean up the temp file
+        try:
+            os.unlink(script_path)
+        except Exception:
+            pass
+```
+
+#### Best Practices for Testing MCP stdio
+
+1. **Use temporary files** for server scripts to avoid leaving artifacts
+2. **Clean up processes** explicitly to avoid orphaned processes
+3. **Implement proper timeout handling** in both tests and production code
+4. **Capture stderr output** from subprocesses for better debugging
+5. **Test both success and error cases** to ensure robust error handling
+6. **Use mocks for unit tests** and real processes for integration tests
+7. **Include process management edge cases** in your test suite
