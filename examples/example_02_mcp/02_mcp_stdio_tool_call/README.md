@@ -24,6 +24,58 @@ This example consists of two agents:
    - Calls the "process_data" tool with a text payload
    - Processes and displays the result
 
+## Choosing Between MCP Transports
+
+MCP supports multiple transport mechanisms for communication between agents. The two most common are:
+
+### stdio Transport (This Example)
+
+**Best for:**
+- Local inter-process communication
+- Child process tool providers
+- Simple deployment scenarios
+- Development and testing
+- Situations where network setup would be complex
+
+**Advantages:**
+- No network configuration required
+- Lower overhead than HTTP-based transports
+- Simple process-based isolation
+- Works well for parent-child process relationships
+- No port conflicts or firewall issues
+
+**Limitations:**
+- Limited to processes on the same machine
+- Cannot scale across network boundaries
+- Less flexible for dynamic discovery
+- Requires careful process management
+
+### SSE Transport (Server-Sent Events)
+
+**Best for:**
+- Distributed agent systems
+- Multi-machine deployments
+- Cloud-based environments
+- Systems requiring horizontal scaling
+- Public-facing agent services
+
+**Advantages:**
+- Works across network boundaries
+- Can be load-balanced
+- Supports many concurrent connections
+- More discoverable (via HTTP endpoints)
+- Better suited for containerized environments
+
+**Limitations:**
+- Requires network configuration
+- Additional HTTP overhead
+- More complex setup and security considerations
+- Potential port conflicts
+
+**Choose stdio transport when:** You need simple, local communication between processes without network complexity.
+
+**Choose SSE transport when:** You need distributed agents communicating across network boundaries or in cloud environments.
+
 ## Running the Example
 
 To run this example, you'll need to have OpenMAS installed with the MCP extras:
@@ -60,6 +112,43 @@ INFO     Received tool result: {'processed_text': 'HELLO, THIS IS A SAMPLE TEXT 
 INFO     Successfully processed text. Word count: 9
 INFO     Processed text: HELLO, THIS IS A SAMPLE TEXT THAT NEEDS PROCESSING.
 INFO     ToolUserAgent completed its run method
+```
+
+## Communication Flow
+
+The following sequence diagram illustrates the communication flow between the ToolUserAgent and ToolProviderAgent:
+
+```
+┌─────────────┐                     ┌─────────────┐
+│ ToolUserAgent│                     │ToolProviderAgent│
+└──────┬──────┘                     └───────┬─────┘
+       │                                    │
+       │                                    │
+       │                                    │ setup()
+       │                                    │ ┌─┐
+       │                                    │ │ │ register_tool("process_data")
+       │                                    │ │ │
+       │                                    │ └─┘
+       │                                    │
+       │ run()                              │
+       │ ┌─┐                                │
+       │ │ │ call_tool("process_data")      │
+       │ │ │ -------------------------------->
+       │ │ │                                │ process_data_handler()
+       │ │ │                                │ ┌─┐
+       │ │ │                                │ │ │ process payload
+       │ │ │                                │ │ │ prepare response
+       │ │ │                                │ └─┘
+       │ │ │                                │
+       │ │ │ response                       │
+       │ │ │ <--------------------------------
+       │ │ │ process response               │
+       │ │ │ display results                │
+       │ └─┘                                │
+       │                                    │
+┌──────┴──────┐                     ┌───────┴─────┐
+│ ToolUserAgent│                     │ToolProviderAgent│
+└─────────────┘                     └─────────────┘
 ```
 
 ## Code Explanation
@@ -110,6 +199,59 @@ The `openmas_project.yml` file configures:
 1. The tool provider to use the McpStdioCommunicator in server mode
 2. The tool user to use the McpStdioCommunicator in client mode
 3. The service URL for the tool user to find the tool provider
+
+## Troubleshooting MCP Connections
+
+If you encounter issues with MCP communication over stdio, here are some common problems and solutions:
+
+### Common Issues
+
+1. **Initialization Timeout**:
+   - **Symptom**: Tool calls hang or time out during initialization
+   - **Cause**: The provider agent may not be properly starting or registering tools
+   - **Solution**: Check that both agents are starting correctly and the provider is registering the tool with exactly the same name the user is calling
+
+2. **Service URL Issues**:
+   - **Symptom**: "Service not found" errors
+   - **Cause**: Incorrect service URL format in the project configuration
+   - **Solution**: For stdio, service URLs should be prefixed with "stdio:" followed by a command or executable path
+
+3. **Tool Name Mismatch**:
+   - **Symptom**: "Tool not found" errors
+   - **Cause**: The user agent is calling a tool with a different name than what's registered
+   - **Solution**: Ensure the tool name in `register_tool()` matches exactly what's used in `call_tool()`
+
+4. **Serialization Errors**:
+   - **Symptom**: Error messages about invalid JSON or serialization failures
+   - **Cause**: Tool arguments or return values aren't properly serializable
+   - **Solution**: Ensure all data passed to and from tools is JSON-serializable
+
+### Debugging Tips
+
+1. **Enable Debug Logging**:
+   ```python
+   # In your project configuration
+   default_config:
+     log_level: DEBUG
+   ```
+
+2. **Check Stderr Output**:
+   - MCP stdio communicator uses stderr for logging, so check stderr output for error messages
+   - A common pattern is server processes printing "ready" signals to stderr
+
+3. **Use the MCP Inspector**:
+   ```bash
+   # Install MCP with CLI tools
+   pip install "mcp[cli]"
+   # Run the inspector on your server
+   mcp dev --stdio-command "openmas run tool_provider"
+   ```
+
+4. **Manual Process Testing**:
+   Run the provider agent separately and note the output for any error messages:
+   ```bash
+   openmas run tool_provider --log-level=DEBUG
+   ```
 
 ## Testing
 

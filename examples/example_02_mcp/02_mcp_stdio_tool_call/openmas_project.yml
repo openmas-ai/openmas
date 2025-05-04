@@ -28,8 +28,24 @@ agent_configs:
   # Tool user config - client mode with service URLs to find the tool provider
   tool_user:
     service_urls:
-      # For stdio communicator, this is a command to launch the provider
-      # In a real system, this could be a path to an executable or a command line
+      # Service URL format for MCP stdio:
+      #
+      # "stdio:<command>" - The command to launch the provider process
+      #
+      # Available formats:
+      # - "stdio:openmas" - Uses the OpenMAS CLI to launch the provider with default settings
+      # - "stdio:openmas run tool_provider" - Explicit run command with agent name
+      # - "stdio:openmas run --project /path/to/project tool_provider" - With project path
+      # - "stdio:/path/to/executable" - Direct path to an executable
+      # - "stdio:python -m my_module" - Custom Python module command
+      #
+      # In production, you might want to use more specific paths:
+      # - "stdio:/usr/local/bin/openmas run tool_provider"
+      # - "stdio:/path/to/venv/bin/python -m my_tool_provider"
+      #
+      # The service URL is used by the MCP stdio communicator to spawn the provider
+      # process when the user agent starts. The provider process runs as a child
+      # process of the user agent and communicates over standard input/output.
       tool_provider: "stdio:openmas"
 
 # Dependencies configuration (for external packages)
