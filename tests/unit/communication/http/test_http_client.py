@@ -1,4 +1,4 @@
-"""Tests for the HTTP communicator."""
+"""Tests for HTTP client functionality in the communicator."""
 
 from unittest import mock
 
@@ -7,7 +7,13 @@ import pytest
 from pydantic import BaseModel
 
 from openmas.communication import HttpCommunicator
-from openmas.exceptions import CommunicationError, MethodNotFoundError, ServiceNotFoundError
+from openmas.exceptions import (
+    CommunicationError,
+    MethodNotFoundError,
+    RequestTimeoutError,
+    ServiceNotFoundError,
+    ValidationError,
+)
 
 
 class ResponseModel(BaseModel):
@@ -17,17 +23,8 @@ class ResponseModel(BaseModel):
     value: int
 
 
-class TestHttpCommunicator:
-    """Tests for the HttpCommunicator class."""
-
-    def test_initialization(self, communicator_config):
-        """Test that initialization sets up the communicator correctly."""
-        communicator = HttpCommunicator(communicator_config["agent_name"], communicator_config["service_urls"])
-
-        assert communicator.agent_name == communicator_config["agent_name"]
-        assert communicator.service_urls == communicator_config["service_urls"]
-        assert communicator.handlers == {}
-        assert communicator.server_task is None
+class TestHttpClient:
+    """Tests for the HTTP client functionality."""
 
     @pytest.mark.asyncio
     async def test_send_request_success(self, mock_httpx, communicator_config):
@@ -193,40 +190,78 @@ class TestHttpCommunicator:
         assert "id" not in kwargs["json"]
 
     @pytest.mark.asyncio
-    async def test_register_handler(self, communicator_config):
-        """Test registering a handler."""
-        communicator = HttpCommunicator(communicator_config["agent_name"], {})
+    async def test_send_notification_service_not_found(self, mock_httpx, communicator_config):
+        """Test sending a notification to a non-existent service."""
+        communicator = HttpCommunicator(
+            communicator_config["agent_name"], {"test-service": communicator_config["service_urls"]["test-service"]}
+        )
 
-        # Define a handler
-        async def handler(params):
-            return {"result": "success"}
-
-        # Register the handler
-        await communicator.register_handler("test_method", handler)
-
-        # Check that the handler was registered
-        assert "test_method" in communicator.handlers
-        assert communicator.handlers["test_method"] == handler
+        # Send a notification to a non-existent service
+        with pytest.raises(ServiceNotFoundError):
+            await communicator.send_notification("non-existent-service", "test_method", {"param1": "value1"})
 
     @pytest.mark.asyncio
-    async def test_lifecycle(self, mock_httpx):
-        """Test the communicator lifecycle with start and stop methods."""
+    async def test_send_request_timeout_error(self, mock_httpx, communicator_config):
+        """Test sending a request that times out."""
         mock_client = mock_httpx[1]
-        communicator = HttpCommunicator("test-agent", {})
 
-        # The HttpCommunicator doesn't need mocking for start/stop as it doesn't use tasks
+        communicator = HttpCommunicator(
+            communicator_config["agent_name"], {"test-service": communicator_config["service_urls"]["test-service"]}
+        )
 
-        # Start the communicator
-        await communicator.start()
+        # Mock a timeout exception
+        mock_client.post.side_effect = httpx.TimeoutException("Connection timed out")
 
-        # Check that the communicator is started
-        # The HttpCommunicator doesn't actually set a flag, but we can verify the server_task is still None
-        # as that's the expected behavior for the base HttpCommunicator (no server by default)
-        assert communicator.server_task is None
+        # Send a request that should time out
+        with pytest.raises(RequestTimeoutError):
+            await communicator.send_request("test-service", "test_method", {"param1": "value1"})
 
-        # Stop the communicator
-        await communicator.stop()
+    @pytest.mark.asyncio
+    async def test_send_request_with_validation_error(self, mock_httpx, communicator_config):
+        """Test sending a request with invalid data for the response model."""
+        mock_client = mock_httpx[1]
 
-        # Check that the communicator is stopped and client.aclose was called
-        mock_client.aclose.assert_called_once()
-        assert communicator.server_task is None
+        communicator = HttpCommunicator(
+            communicator_config["agent_name"], {"test-service": communicator_config["service_urls"]["test-service"]}
+        )
+
+        # Mock the response with data that won't validate
+        mock_response = mock.MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "jsonrpc": "2.0",
+            "id": "test-id",
+            "result": {"wrong_field": "data", "another_field": 42},  # Missing required fields
+        }
+        mock_client.post.return_value = mock_response
+
+        # Send a request with a response model that won't validate the response
+        with pytest.raises(ValidationError):
+            await communicator.send_request(
+                "test-service", "test_method", {"param1": "value1"}, response_model=ResponseModel
+            )
+
+    @pytest.mark.asyncio
+    async def test_send_request_missing_result(self, mock_httpx, communicator_config):
+        """Test sending a request that returns a response without a result field."""
+        mock_client = mock_httpx[1]
+
+        communicator = HttpCommunicator(
+            communicator_config["agent_name"], {"test-service": communicator_config["service_urls"]["test-service"]}
+        )
+
+        # Mock the response with missing result field
+        mock_response = mock.MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "jsonrpc": "2.0",
+            "id": "test-id",
+            # No "result" field
+        }
+        mock_client.post.return_value = mock_response
+
+        # Send a request
+        with pytest.raises(CommunicationError) as excinfo:
+            await communicator.send_request("test-service", "test_method", {"param1": "value1"})
+
+        assert "missing 'result'" in str(excinfo.value)

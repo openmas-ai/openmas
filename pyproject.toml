@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "openmas"
-version = "0.1.3"
+version = "0.1.4"
 description = "OpenMAS: Easily Build Smart Multi-Agent Systems"
 authors = ["Wilson Urdaneta <wilson.urdaneta@gmail.com>"]
 license = "MIT"

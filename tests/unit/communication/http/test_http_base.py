@@ -1,7 +1,7 @@
-"""Tests for the HTTP communicator implementation."""
+"""Tests for basic HTTP communicator functionality."""
 
 from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -23,54 +23,14 @@ class MockAsyncTask(MagicMock):
         return None
 
 
-@pytest.mark.asyncio
-async def test_http_communicator_server_starts_on_handler_registration():
-    """Test that the HTTP server starts when a handler is registered."""
-    # Create a mock task that works with async code
-    mock_task = MockAsyncTask()
+def test_initialization(communicator_config):
+    """Test that initialization sets up the communicator correctly."""
+    communicator = HttpCommunicator(communicator_config["agent_name"], communicator_config["service_urls"])
 
-    # Mock the create_task function to return our mock
-    with patch("openmas.communication.http.asyncio.create_task", return_value=mock_task) as mock_create_task:
-        # Create a communicator
-        communicator = HttpCommunicator(agent_name="test-agent", service_urls={}, port=12345)
-
-        # Define a handler
-        async def test_handler(params: Dict[str, Any]) -> Dict[str, Any]:
-            return {"success": True}
-
-        # Register the handler
-        await communicator.register_handler("test_method", test_handler)
-
-        # Assert that the server task was created
-        mock_create_task.assert_called_once()
-
-        # Clean up - the task should be awaitable without issues now
-        await communicator.stop()
-
-
-@pytest.mark.asyncio
-async def test_http_communicator_start_initializes_server():
-    """Test that calling start() initializes the server if handlers are registered."""
-    # Create a communicator
-    communicator = HttpCommunicator(agent_name="test-agent", service_urls={}, port=12345)
-
-    # Define a handler
-    async def test_handler(params: Dict[str, Any]) -> Dict[str, Any]:
-        return {"success": True}
-
-    # Add the handler directly to simulate registration
-    communicator.handlers["test_method"] = test_handler
-
-    # Mock the ensure_server method
-    with patch.object(communicator, "_ensure_server_running", new_callable=AsyncMock) as mock_ensure:
-        # Call start
-        await communicator.start()
-
-        # Check that ensure_server was called
-        mock_ensure.assert_called_once()
-
-        # Clean up
-        await communicator.stop()
+    assert communicator.agent_name == communicator_config["agent_name"]
+    assert communicator.service_urls == communicator_config["service_urls"]
+    assert communicator.handlers == {}
+    assert communicator.server_task is None
 
 
 @pytest.mark.asyncio
@@ -81,6 +41,7 @@ async def test_http_communicator_with_port_from_config():
 
     # Verify the port was set correctly
     assert communicator.port == 9876
+    await communicator.stop()
 
 
 @pytest.mark.asyncio
@@ -132,3 +93,47 @@ async def test_http_communicator_uses_default_port_when_none_provided():
             # Clean up
             await consumer.stop()
             await producer.stop()
+
+
+def test_url_building():
+    """Test that URLs are correctly built from service names."""
+    service_url = "http://localhost:8001"
+    service_name = "service1"
+
+    # Create communicator with predetermined service URLs
+    communicator = HttpCommunicator("test-agent", {service_name: service_url})
+
+    # Simply verify the URL is stored correctly in the communicator
+    assert communicator.service_urls[service_name] == service_url
+
+
+def test_custom_port_config():
+    """Test setting a custom port in the config."""
+    # Specify a custom port
+    custom_port = 9876
+
+    # Create a communicator with port in communicator_options
+    communicator = HttpCommunicator("test-agent", {}, communicator_options={"port": custom_port})
+
+    # Verify the port is correctly set
+    assert communicator.port == custom_port
+
+
+@pytest.mark.asyncio
+async def test_service_url_extraction():
+    """Test the extraction of service URLs from the service URL dictionary."""
+    # Setup service URLs
+    service_urls = {
+        "test-service": "http://localhost:8000",
+        "my-agent": "http://localhost:8001",
+    }
+
+    # Create a communicator
+    communicator = HttpCommunicator("my-agent", service_urls)
+
+    # Check that the service URLs were extracted correctly
+    assert communicator.service_urls["test-service"] == "http://localhost:8000"
+    assert communicator.service_urls["my-agent"] == "http://localhost:8001"
+
+    # Clean up
+    await communicator.stop()

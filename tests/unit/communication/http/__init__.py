@@ -1,0 +1,1 @@
+"""HTTP communication tests package."""

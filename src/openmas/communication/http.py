@@ -6,7 +6,8 @@ import uuid
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 
 from openmas.communication.base import BaseCommunicator
 from openmas.exceptions import CommunicationError, MethodNotFoundError, RequestTimeoutError, ServiceNotFoundError
@@ -118,7 +119,7 @@ class HttpCommunicator(BaseCommunicator):
             if response_model is not None:
                 try:
                     return response_model.model_validate(response_data)
-                except ValidationError as e:
+                except PydanticValidationError as e:
                     raise OpenMasValidationError(f"Response validation failed: {e}")
 
             return response_data
@@ -189,6 +190,7 @@ class HttpCommunicator(BaseCommunicator):
         and no server is currently running.
         """
         if self.server_task is None and self.handlers:
+            logger.debug("Starting HTTP server")
             try:
                 import uvicorn
                 from fastapi import FastAPI, Request, Response
@@ -209,8 +211,8 @@ class HttpCommunicator(BaseCommunicator):
                             port_match = re.search(r":(\d+)", url)
                             if port_match:
                                 port = int(port_match.group(1))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"Could not extract port from URL: {e}")
 
                 # Fall back to a default port if still none
                 if port is None:
@@ -225,6 +227,7 @@ class HttpCommunicator(BaseCommunicator):
 
                 # Update the instance port attribute with the determined value
                 self.port = port
+                logger.debug(f"Using port {port} for HTTP server")
 
                 # Create FastAPI app
                 app = FastAPI(title=f"{agent_name}-api")
@@ -263,7 +266,19 @@ class HttpCommunicator(BaseCommunicator):
 
                         # Call the handler
                         handler = self.handlers[method]
-                        result = await handler(params)
+                        try:
+                            result = await handler(params)
+                        except Exception as e:
+                            # Convert handler exceptions to JSON-RPC error response
+                            logger.exception(f"Handler error: {e}")
+                            return JSONResponse(
+                                content={
+                                    "jsonrpc": "2.0",
+                                    "error": {"code": -32000, "message": f"Handler error: {str(e)}"},
+                                    "id": request_id,
+                                },
+                                status_code=500,
+                            )
 
                         # If it's a notification (no ID), return no content
                         if request_id is None:
@@ -316,6 +331,8 @@ class HttpCommunicator(BaseCommunicator):
                     """Run the uvicorn server in a controlled way."""
                     try:
                         await server.serve()
+                    except asyncio.CancelledError:
+                        logger.debug("Server cancelled, shutting down gracefully")
                     except Exception as e:
                         logger.error(f"HTTP server error: {e}")
 
@@ -349,7 +366,7 @@ class HttpCommunicator(BaseCommunicator):
         This cleans up the HTTP client and stops any server that might be running.
         """
         if self.server_task is not None:
-            # Cancel the task but handle the exception to prevent coroutine not awaited warnings
+            logger.debug("Stopping HTTP server task")
             try:
                 # In tests, we might need special handling
                 if hasattr(self.server_task, "_is_coroutine") and self.server_task._is_coroutine is False:
@@ -359,24 +376,29 @@ class HttpCommunicator(BaseCommunicator):
                 else:
                     # It's a real coroutine/task, cancel and await it
                     self.server_task.cancel()
+
+                    # Use a very short timeout to avoid hanging in tests
                     try:
-                        # Allow some time for the task to cancel properly
-                        # Setting a timeout to prevent waiting forever if something goes wrong
-                        with contextlib.suppress(asyncio.TimeoutError):
-                            await asyncio.wait_for(asyncio.shield(self.server_task), timeout=0.5)
-                    except asyncio.CancelledError:
-                        # Expected during cancellation
-                        logger.debug("Server task cancelled")
+                        # shield() prevents the wait_for cancellation from propagating to the task
+                        # but we still want to give it a chance to clean up properly
+                        with contextlib.suppress(asyncio.TimeoutError, asyncio.CancelledError):
+                            await asyncio.wait_for(self.server_task, timeout=0.2)
                     except Exception as e:
                         # Log but don't raise other exceptions during cleanup
                         logger.warning(f"Error while stopping HTTP server: {e}")
-                    finally:
-                        self.server_task = None
             except Exception as e:
                 # Handle any errors during task cancellation
                 logger.warning(f"Error while stopping HTTP server: {e}")
+            finally:
+                # Always ensure the task reference is cleared
                 self.server_task = None
+                logger.debug("HTTP server task stopped")
 
         # Close the HTTP client
-        await self.client.aclose()
+        try:
+            await self.client.aclose()
+            logger.debug("HTTP client closed")
+        except Exception as e:
+            logger.warning(f"Error closing HTTP client: {e}")
+
         logger.info("Stopped HTTP communicator")
