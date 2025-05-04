@@ -1,0 +1,42 @@
+name: example_02_mcp_sse_tool_call
+version: 0.1.0
+description: "Example demonstrating MCP tool calls over Server-Sent Events (SSE)"
+
+# Define the available agents
+agents:
+  tool_provider: "agents/tool_provider"
+  tool_user: "agents/tool_user"
+
+# Default configuration for all agents
+default_config:
+  log_level: INFO
+
+# Default communicator settings
+communicator_defaults:
+  type: mock
+  options:
+    server_mode: false
+
+# Agent-specific configurations
+agent_configs:
+  # Tool provider config - run McpSseCommunicator in server mode to expose MCP tools via HTTP/SSE
+  tool_provider:
+    communicator_type: mcp-sse
+    communicator_options:
+      server_mode: true
+      http_port: 8000
+      server_instructions: "A service that processes text using MCP tools over SSE"
+
+  # Tool user config - use McpSseCommunicator in client mode
+  tool_user:
+    communicator_type: mcp-sse
+    communicator_options:
+      server_mode: false
+    service_urls:
+      # The tool provider exposes an MCP SSE endpoint at /sse
+      tool_provider: "http://localhost:8000/sse"
+
+# Dependencies configuration (for external packages)
+dependencies:
+  - package: "mcp"
+    version: ">=1.6.0"

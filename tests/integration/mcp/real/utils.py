@@ -1,7 +1,6 @@
 """Test utilities for MCP integration tests."""
 
 import asyncio
-import contextlib
 import logging
 import os
 import random
@@ -175,19 +174,21 @@ class McpTestHarness:
         logger.info(f"Waiting for server URL in stderr (timeout: {timeout}s)...")
         while not found_server_url and (asyncio.get_event_loop().time() - start_time) < timeout:
             if self.transport_type == TransportType.STDIO:
-                # STDIO doesn't need URL check, proceed to basic verification (if any needed)
-                # For now, assume STDIO is ready faster or verified differently.
-                # If STDIO needs verification, add pattern checks here.
-                logger.info("STDIO transport does not require URL check. Assuming ready.")
-                self.verified = True  # Mark as verified for STDIO
-                self.verification_results["startup"] = {"status": "Assumed ready for STDIO"}
-                return True
+                # Check if the process is still alive for basic STDIO check
+                if self.process.returncode is None:
+                    logger.info("STDIO process is running. Assuming ready.")
+                    self.verified = True
+                    self.verification_results["startup"] = {"status": "Assumed ready for STDIO"}
+                    return True
+                else:
+                    logger.error(f"STDIO process exited prematurely with code {self.process.returncode}")
+                    return False
 
             if self.process.stderr:
                 try:
                     remaining_time = timeout - (asyncio.get_event_loop().time() - start_time)
                     stderr_data = await asyncio.wait_for(
-                        self.process.stderr.readline(),
+                        self.process.stderr.readline(),  # This won't work with Popen
                         timeout=min(1.0, remaining_time) if remaining_time > 0 else 0.1,
                     )
                     stderr_line = stderr_data.decode("utf-8").strip()
@@ -416,16 +417,19 @@ class McpTestHarness:
             timeout: Maximum time to wait for process termination
         """
         if self.process and self.process.returncode is None:
-            logger.info("Terminating server process")
-            with contextlib.suppress(Exception):
-                self.process.terminate()
-                try:
-                    await asyncio.wait_for(self.process.wait(), timeout=timeout)
-                except asyncio.TimeoutError:
-                    logger.warning("Process did not terminate, killing")
-                    with contextlib.suppress(Exception):
-                        self.process.kill()
-                        await self.process.wait()
+            logger.info(f"Terminating server process {self.process.pid}...")
+            self.process.terminate()
+            try:
+                await asyncio.wait_for(self.process.wait(), timeout=timeout)
+                logger.info(f"Server process {self.process.pid} terminated gracefully.")
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Process {self.process.pid} did not terminate gracefully within {timeout} seconds, forcing kill"
+                )
+                self.process.kill()
+                logger.info(f"Server process {self.process.pid} killed.")
+        elif self.process:
+            logger.info(f"Server process {self.process.pid} already terminated with code {self.process.returncode}")
 
     async def __aenter__(self) -> "McpTestHarness":
         """Enter the async context manager.

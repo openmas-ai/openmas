@@ -97,14 +97,17 @@ class AgentTestHarness(Generic[T]):
         config: Optional[Dict[str, Any]] = None,
         env_prefix: str = "",
         track: bool = True,
+        use_real_communicator: bool = False,
     ) -> T:
-        """Create an agent instance with a MockCommunicator.
+        """Create an agent instance with a MockCommunicator or real communicator.
 
         Args:
             name: The name of the agent (overrides config)
             config: The agent configuration (overrides default_config)
             env_prefix: Optional prefix for environment variables
             track: Whether to track this agent for multi-agent testing (default: True)
+            use_real_communicator: If True, use the communicator type specified in the config
+                                  instead of overriding with MockCommunicator (default: False)
 
         Returns:
             An initialized agent instance
@@ -140,14 +143,19 @@ class AgentTestHarness(Generic[T]):
             env_prefix=env_prefix,
         )
 
-        # Create and assign a unique MockCommunicator for this agent
-        agent_communicator = MockCommunicator(agent_name=agent.name)
-        agent.communicator = agent_communicator
+        # Only override with MockCommunicator if use_real_communicator is False
+        if not use_real_communicator:
+            # Create and assign a unique MockCommunicator for this agent
+            agent_communicator = MockCommunicator(agent_name=agent.name)
+            agent.communicator = agent_communicator
 
-        # Store references for multi-agent testing
-        if track:
+            # Store references for multi-agent testing (only for mock communicators)
+            if track:
+                self.agents.append(agent)
+                self.communicators[agent.name] = agent_communicator
+        elif track:
+            # Still track the agent even with real communicator
             self.agents.append(agent)
-            self.communicators[agent.name] = agent_communicator
 
         self.logger.debug("Created test agent", agent_name=agent.name)
         return agent

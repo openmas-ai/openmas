@@ -1,0 +1,3 @@
+openmas>=0.1.0
+# MCP is required for the SSE communicator
+mcp>=1.6.0

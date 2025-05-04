@@ -18,6 +18,11 @@ except ImportError:
 pytestmark = pytest.mark.skipif(not HAS_MCP, reason="MCP dependencies not installed")
 
 
+# Add command line option to run real MCP tests
+def pytest_addoption(parser):
+    parser.addoption("--run-real-mcp", action="store_true", default=False, help="Run real MCP integration tests")
+
+
 # Define markers for the module
 def pytest_configure(config):
     """Configure custom pytest markers."""

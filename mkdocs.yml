@@ -39,15 +39,21 @@ nav:
       - Installation: guides/installation.md
       - Getting Started: guides/getting_started.md
       - Configuration: guides/configuration.md
-      - Communication: guides/communication.md
-      - LLM Integration: guides/llm_integration.md
-      - MCP Integration: guides/mcp_integration.md
-      - MCP Developer Guide: guides/mcp_developer_guide.md
-      - MCP stdio Tool Call Tutorial: guides/mcp_stdio_tool_call_tutorial.md
-      - Reasoning Integration (BDI): guides/reasoning_integration.md
-      - Agent Patterns: guides/patterns.md
-      - Testing Your Agents: guides/testing-utilities.md
       - Deployment: guides/deployment.md
+      - Communication:
+        - Overview: guides/communication/index.md
+        - Message Patterns: guides/communication/message_patterns.md
+        - Request-Response: guides/communication/request_response.md
+        - Command-Response: guides/communication/command_response.md
+        - Broadcast: guides/communication/broadcast.md
+      - LLM Integration: guides/llm_integration.md
+      - Reasoning Integration: guides/reasoning_integration.md
+      - Patterns: guides/patterns.md
+      - MCP Developer Guide: guides/mcp_developer_guide.md
+      - MCP SSE Tool Call Tutorial: guides/mcp_sse_tool_call_tutorial.md
+      - MCP Integration: guides/mcp_integration.md
+      - MCP stdio Tool Call Tutorial: guides/mcp_stdio_tool_call_tutorial.md
+      - Testing Utilities: guides/testing-utilities.md
   - Core Concepts:
       - Design Philosophy: design.md
       - Architecture: architecture.md

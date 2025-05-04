@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import shutil  # Needed for finding executable
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, cast
 
 import structlog
@@ -31,33 +32,20 @@ T = TypeVar("T")
 
 
 class McpStdioCommunicator(BaseCommunicator):
-    """MCP communicator that uses stdio for communication.
+    """MCP communicator that uses stdio for communication (Per-Request Connections).
 
-    This communicator can operate in two modes:
-    - Client mode: Connects to services over stdio
-    - Server mode: Runs an MCP server that accepts stdio connections
+    This communicator operates in two modes:
+    - Client mode: Connects to services over stdio for each request.
+    - Server mode: Runs an MCP server that accepts stdio connections.
 
-    In client mode, a stdio subprocess is created for each service specified in service_urls.
-    The service_urls can use the following format:
+    In client mode, a stdio subprocess is created for each request to a service.
+    The service_urls should specify the command or executable path:
     - "command arg1 arg2 ..." - A shell command to execute
-    - "stdio:/path/to/executable" - A path to an executable with the stdio:// protocol
+    - "/path/to/executable" - An absolute path to an executable
+    - "executable_in_path" - Name of an executable in the system PATH
 
     In server mode, the MCP server runs in the main process and exposes the agent's
     functionality through the MCP protocol over stdio.
-
-    Attributes:
-        agent_name: The name of the agent using this communicator
-        service_urls: Mapping of service names to URLs (commands or stdio:// URLs)
-        server_mode: Whether to run in server mode (True) or client mode (False)
-        server_instructions: Instructions for the server (in server mode)
-        service_args: Optional additional arguments for each service command
-        subprocesses: Dictionary of subprocesses running for each service connection
-        clients: Dictionary of client objects for each service
-        sessions: Dictionary of ClientSession instances for each service
-        _client_managers: Dictionary of client manager context managers for each service
-        handlers: Dictionary of handler functions registered for specific methods
-        server: FastMCP server instance when running in server mode
-        _server_task: Asyncio task for the server when running in server mode
     """
 
     def __init__(
@@ -66,419 +54,207 @@ class McpStdioCommunicator(BaseCommunicator):
         service_urls: Dict[str, str],
         server_mode: bool = False,
         server_instructions: Optional[str] = None,
-        service_args: Optional[Dict[str, List[str]]] = None,
+        service_args: Optional[Dict[str, List[str]]] = None,  # Args per service
     ) -> None:
-        """Initialize the communicator.
-
-        Args:
-            agent_name: The name of the agent
-            service_urls: A mapping of service names to their URLs
-            server_mode: Whether to operate in server mode
-            server_instructions: Instructions for the server (in server mode)
-            service_args: Optional additional arguments for each service command
-        """
+        """Initialize the communicator."""
         super().__init__(agent_name, service_urls)
         self.server_mode = server_mode
         self.server_instructions = server_instructions
         self.service_args = service_args or {}
-        self.subprocesses: Dict[str, asyncio.subprocess.Process] = {}
-        self.clients: Dict[str, Any] = {}
-        self.sessions: Dict[str, ClientSession] = {}
-        self._client_managers: Dict[str, Any] = {}
         self.handlers: Dict[str, Callable] = {}
-        # Initialize with None but the correct type for mypy
         self.server: Optional[FastMCP] = None
         self._server_task: Optional[asyncio.Task] = None
+        # Initialize client state tracking
+        self._client_managers: Dict[str, Any] = {}
+        self.subprocesses: Dict[str, Any] = {}
+        self.clients: Dict[str, Any] = {}
+        self.sessions: Dict[str, Any] = {}
 
-    async def _connect_to_service(self, service_name: str) -> None:
-        """Connect to a service using stdio.
+    def _get_executable_path(self, service_name: str) -> str:
+        """Get the full executable path for a service."""
+        command_str = self.service_urls.get(service_name)
+        if not command_str:
+            raise ServiceNotFoundError(f"Service '{service_name}' not found in service_urls")
 
-        Args:
-            service_name: The name of the service to connect to
-
-        Raises:
-            ServiceNotFoundError: If the service is not found
-            CommunicationError: If there is a problem connecting to the service
-        """
-        if service_name in self.sessions:
-            # Already connected
-            logger.debug(f"Already connected to service: {service_name}")
-            return
-
-        if service_name not in self.service_urls:
-            raise ServiceNotFoundError(f"Service '{service_name}' not found", target=service_name)
-
-        command = self.service_urls[service_name]
-        logger.debug(f"Connecting to service: {service_name} with command: {command}")
-
-        try:
-            # Check if command has the stdio:// protocol prefix
-            if command.startswith("stdio:"):
-                # Extract the executable path from the URL
-                exe_path = command[len("stdio:") :]
-                # Ensure the executable path exists and is executable
-                if not os.path.exists(exe_path):
-                    raise ServiceNotFoundError(
-                        f"Executable path '{exe_path}' for service '{service_name}' does not exist",
-                        target=service_name,
-                    )
-                command = exe_path
-
-            logger.debug(f"Creating stdio client for service: {service_name}")
-            # Create stdio client parameters
-            params = StdioServerParameters(command=command, args=self.service_args.get(service_name, []))
-
-            try:
-                # Create and store the client manager
-                client_manager = stdio_client(params)
-                self._client_managers[service_name] = client_manager
-
-                # Access the internal __aenter__ method to get the streams
-                try:
-                    logger.debug(f"Opening streams for service: {service_name}")
-                    stream_ctx = await client_manager.__aenter__()
-                    read_stream, write_stream = (
-                        stream_ctx if isinstance(stream_ctx, tuple) else (stream_ctx, stream_ctx)
-                    )
-
-                    # Store the streams
-                    self.clients[service_name] = (read_stream, write_stream)
-                    logger.debug(f"Created client for service: {service_name}")
-                except Exception as e:
-                    logger.exception(f"Failed to get streams for service: {service_name}", error=str(e))
-                    await self._cleanup_client_manager(service_name)
-                    raise CommunicationError(
-                        f"Failed to establish connection with service '{service_name}': {e}", target=service_name
-                    ) from e
-
-                # Create the MCP session
-                try:
-                    logger.debug(f"Creating MCP session for {service_name}")
-                    session = ClientSession(read_stream, write_stream)
-                    await session.__aenter__()
-
-                    # CRITICAL: Explicitly initialize the session before any tool calls
-                    # This is required due to a synchronization issue in the MCP library
-                    logger.debug(f"Explicitly calling session.initialize() for {service_name}")
-
-                    # Enhanced initialization with retries
-                    max_retries = 2
-                    retry_count = 0
-                    last_error = None
-
-                    while retry_count <= max_retries:
-                        try:
-                            # If not the first attempt, add a delay before retrying
-                            if retry_count > 0:
-                                delay = 1.0 + (retry_count * 0.5)  # Increasing backoff
-                                logger.warning(
-                                    f"Retry {retry_count}/{max_retries} for {service_name}, waiting {delay}s"
-                                )
-                                try:
-                                    # Use shield to protect the sleep from cancellation
-                                    await asyncio.shield(asyncio.sleep(delay))
-                                except asyncio.CancelledError:
-                                    logger.warning(
-                                        f"Sleep was cancelled during retry "
-                                        f"{retry_count}/{max_retries} for {service_name}"
-                                    )
-                                    # Continue with initialization despite the sleep being cancelled
-                                    pass
-
-                            # Attempt initialization
-                            logger.debug(f"Starting initialization with timeout for {service_name}")
-                            try:
-                                # Add a reasonable timeout to prevent hanging
-                                # Use shield to prevent initialization from being cancelled
-                                init_task = asyncio.create_task(session.initialize())
-
-                                # Triple protection: create task, shield it, and use wait_for with timeout
-                                await asyncio.wait_for(asyncio.shield(init_task), timeout=5.0)
-
-                                # Add a delay after successful initialization to ensure proper synchronization
-                                # This prevents the common "Received request before initialization" error
-                                logger.debug(
-                                    f"Initialization successful for {service_name}, "
-                                    f"waiting for server to fully process..."
-                                )
-                                try:
-                                    # Use shield to protect the sleep from cancellation
-                                    await asyncio.shield(asyncio.sleep(1.0))
-                                except asyncio.CancelledError:
-                                    logger.warning(f"Post-initialization sleep was cancelled for {service_name}")
-                                    # Continue despite the sleep being cancelled
-                                    pass
-
-                                logger.debug(f"Session initialization completed for {service_name}")
-
-                                # Store the session if initialization succeeds
-                                self.sessions[service_name] = session
-                                logger.info(f"Successfully connected to service {service_name}")
-                                return
-                            except asyncio.TimeoutError:
-                                logger.warning(
-                                    f"Initialization timed out for {service_name} after 5 seconds "
-                                    f"(retry {retry_count}/{max_retries})"
-                                )
-                                retry_count += 1
-                                continue
-                            except asyncio.CancelledError:
-                                logger.warning(f"Initialization was cancelled for {service_name}, will attempt retry")
-                                retry_count += 1
-                                continue
-
-                        except Exception as init_error:
-                            last_error = init_error
-                            error_msg = str(init_error)
-
-                            # Check if this is the specific initialization error we want to retry
-                            if isinstance(init_error, RuntimeError) and "initialization was complete" in error_msg:
-                                logger.warning(f"Initialization timing issue for {service_name}: {error_msg}")
-                                retry_count += 1
-                            else:
-                                # For other errors, don't retry
-                                logger.error(
-                                    f"Non-retryable error during initialization for {service_name}: {error_msg}"
-                                )
-                                if hasattr(init_error, "__cause__") and init_error.__cause__:
-                                    logger.error(f"Caused by: {init_error.__cause__}")
-                                break
-
-                    # If we get here, all retries failed
-                    if last_error:
-                        logger.error(f"Failed to initialize session after {max_retries} retries: {last_error}")
-                        await self._cleanup_client_manager(service_name)
-                        raise CommunicationError(
-                            f"Failed to initialize MCP session with service '{service_name}' "
-                            f"after retries: {last_error}",
-                            target=service_name,
-                        ) from last_error
-
-                except Exception as e:
-                    logger.exception(f"Failed to initialize MCP session for service: {service_name}", error=str(e))
-                    await self._cleanup_client_manager(service_name)
-                    raise CommunicationError(
-                        f"Failed to initialize MCP session with service '{service_name}': {e}", target=service_name
-                    ) from e
-
-            except Exception as e:
-                logger.exception(f"Failed to create stdio client for service: {service_name}", error=str(e))
-                await self._cleanup_client_manager(service_name)
+        # Check if it's an absolute or relative path that exists
+        if os.path.exists(command_str):
+            if not os.access(command_str, os.X_OK):
                 raise CommunicationError(
-                    f"Failed to create stdio client for service '{service_name}': {e}", target=service_name
-                ) from e
+                    f"Executable path '{command_str}' for service '{service_name}' is not executable"
+                )
+            return command_str
 
-        except Exception as e:
-            if not isinstance(e, (CommunicationError, ServiceNotFoundError)):
-                logger.exception(f"Failed to connect to service: {service_name}", error=str(e))
-                # Clean up any partial connections
-                await self._cleanup_client_manager(service_name)
-                raise CommunicationError(
-                    f"Failed to connect to service '{service_name}': {e}", target=service_name
-                ) from e
-            raise
+        # Check if it's in the system PATH
+        executable_path = shutil.which(command_str.split()[0])  # Check first part if it's a command string
+        if executable_path:
+            return executable_path
 
-    async def _cleanup_client_manager(self, service_name: str) -> None:
-        """Clean up client manager and related resources.
-
-        Args:
-            service_name: The name of the service to clean up
-        """
-        if service_name in self._client_managers:
-            client_manager = self._client_managers[service_name]
-            try:
-                await client_manager.__aexit__(None, None, None)
-            except Exception as e:
-                logger.warning(f"Error while cleaning up client manager for {service_name}: {e}")
-            del self._client_managers[service_name]
-
-        if service_name in self.clients:
-            del self.clients[service_name]
-
-        if service_name in self.sessions:
-            del self.sessions[service_name]
-
-        if service_name in self.subprocesses:
-            try:
-                self.subprocesses[service_name].terminate()
-            except Exception as e:
-                logger.warning(f"Error while terminating subprocess for {service_name}: {e}")
-            del self.subprocesses[service_name]
+        raise ServiceNotFoundError(
+            f"Could not find executable for service '{service_name}': '{command_str}'", target=service_name
+        )
 
     async def send_request(
         self,
         target_service: str,
         method: str,
         params: Optional[Dict[str, Any]] = None,
-        response_model: Optional[Type[T]] = None,
+        response_model: Optional[Type[T]] = None,  # Ignored for MCP
         timeout: Optional[float] = None,
     ) -> Any:
-        """Send a request to a target service.
+        """Send a request to a target service using MCP methods via stdio (per-request)."""
+        try:
+            executable_path = self._get_executable_path(target_service)
+        except ServiceNotFoundError as e:
+            logger.error(f"Service not found for MCP request: {e}")
+            raise
+        except CommunicationError as e:
+            logger.error(f"Executable check failed for MCP request: {e}")
+            raise
 
-        In MCP mode, this maps methods to MCP concepts:
-        - tool/list: List available tools
-        - tool/call/NAME: Call a specific tool named NAME
-        - prompt/list: List available prompts
-        - prompt/get/NAME: Get a prompt response from prompt named NAME
-        - resource/list: List available resources
-        - resource/read/URI: Read a resource's content at URI
-        - Other: Use method name as tool name
-
-        Args:
-            target_service: The name of the service to send the request to
-            method: The method to call on the service
-            params: The parameters to pass to the method
-            response_model: Optional Pydantic model to validate and parse the response
-            timeout: Optional timeout in seconds
-
-        Returns:
-            The response from the service, parsed according to the method pattern
-
-        Raises:
-            ServiceNotFoundError: If the target service is not found
-            CommunicationError: If there is a problem with the communication
-            ValidationError: If the response validation fails
-        """
-        await self._connect_to_service(target_service)
-        session = self.sessions[target_service]
+        args = self.service_args.get(target_service, [])
+        stdio_params = StdioServerParameters(command=executable_path, args=args)
         params = params or {}
+        request_timeout = timeout or 30.0
+
+        logger.debug(f"Sending MCP stdio request to {target_service}: method={method}, params={params}")
 
         try:
-            # Handle special method patterns
-            if method == "tool/list":
-                # List tools
-                tools = await session.list_tools()
-                # Convert tool objects to dictionaries without using model_dump
-                tools_data = []
-                for tool in tools:
-                    if hasattr(tool, "__dict__"):
-                        # If the object has a __dict__, convert it to a regular dic
-                        tools_data.append(tool.__dict__)
-                    elif isinstance(tool, tuple) and len(tool) == 2:
-                        # If it's a key-value tuple, create a dict with the first item as key
-                        tools_data.append({tool[0]: tool[1]})
-                    else:
-                        # Otherwise just append as is
-                        tools_data.append(tool)
-                return tools_data
-            elif method.startswith("tool/call/"):
-                # Call a specific tool
-                tool_name = method[10:]  # Remove 'tool/call/' prefix
-                # Remove the timeout parameter
-                result = await session.call_tool(tool_name, arguments=params)
-                # Convert result to dict if possible
-                if hasattr(result, "__dict__"):
-                    return result.__dict__
-                return result
-            elif method == "prompt/list":
-                # List prompts
-                prompts = await session.list_prompts()
-                # Convert to dictionaries
-                prompts_data = []
-                for prompt in prompts:
-                    if hasattr(prompt, "__dict__"):
-                        prompts_data.append(prompt.__dict__)
-                    elif isinstance(prompt, tuple) and len(prompt) == 2:
-                        # If it's a key-value tuple, create a dict with the first item as key
-                        prompts_data.append({prompt[0]: prompt[1]})
-                    else:
-                        # Otherwise just append as is
-                        prompts_data.append(prompt)
-                return prompts_data
-            elif method.startswith("prompt/get/"):
-                # Get a prompt
-                prompt_name = method[11:]  # Remove 'prompt/get/' prefix
-                # Note: using result_var to avoid mypy error about incompatible types
-                result_var = await session.get_prompt(prompt_name, arguments=params)
-                # Convert result to dict if possible
-                if hasattr(result_var, "__dict__"):
-                    return result_var.__dict__
-                return result_var
-            elif method == "resource/list":
-                # List resources
-                resources = await session.list_resources()
-                # Convert to dictionaries
-                resources_data = []
-                for resource in resources:
-                    if hasattr(resource, "__dict__"):
-                        resources_data.append(resource.__dict__)
-                    elif isinstance(resource, tuple) and len(resource) == 2:
-                        # If it's a key-value tuple, create a dict with the first item as key
-                        resources_data.append({resource[0]: resource[1]})
-                    else:
-                        # Otherwise just append as is
-                        resources_data.append(resource)
-                return resources_data
-            elif method.startswith("resource/read/"):
-                # Read a resource
-                resource_uri = method[14:]  # Remove 'resource/read/' prefix
+            async with stdio_client(stdio_params) as streams:
+                read_stream, write_stream = streams
+                async with ClientSession(read_stream, write_stream) as session:
+                    await asyncio.wait_for(session.initialize(), timeout=15.0)
 
-                # Cast to AnyUrl for resource read
-                uri = cast(AnyUrl, resource_uri)
-                content, mime_type = await session.read_resource(uri)
-                return {"content": content, "mime_type": mime_type}
-            else:
-                # Use method as tool name
-                result = await session.call_tool(method, arguments=params)
-                # Convert result to dict if possible
-                if hasattr(result, "__dict__"):
-                    return result.__dict__
-                return result
+                    # Perform the actual MCP call
+                    if method == "tool/list":
+                        result = await asyncio.wait_for(session.list_tools(), timeout=request_timeout)
+                        return result  # Return raw list of tool objects
+                    elif method.startswith("tool/call/"):
+                        tool_name = method[10:]
+                        mcp_result = await asyncio.wait_for(
+                            session.call_tool(tool_name, arguments=params), timeout=request_timeout
+                        )
+                    elif method == "prompt/list":
+                        # Use Any to satisfy type checker for wait_for
+                        prompt_list_coro: Any = session.list_prompts()
+                        mcp_result = await asyncio.wait_for(prompt_list_coro, timeout=request_timeout)
+                        return mcp_result  # Return raw list
+                    elif method.startswith("prompt/get/"):
+                        prompt_name = method[11:]
+                        # Use Any to satisfy type checker for wait_for
+                        get_prompt_coro: Any = session.get_prompt(prompt_name, arguments=params)
+                        mcp_result = await asyncio.wait_for(get_prompt_coro, timeout=request_timeout)
+                        return mcp_result  # Return raw prompt result
+                    elif method == "resource/list":
+                        # Use Any to satisfy type checker for wait_for
+                        res_list_coro: Any = session.list_resources()
+                        mcp_result = await asyncio.wait_for(res_list_coro, timeout=request_timeout)
+                        return mcp_result  # Return raw list
+                    elif method.startswith("resource/read/"):
+                        resource_uri = method[14:]
+                        uri = cast(AnyUrl, resource_uri)
+                        content, mime_type = await asyncio.wait_for(session.read_resource(uri), timeout=request_timeout)
+                        return {"content": content, "mime_type": mime_type}
+                    else:
+                        logger.warning(f"Method '{method}' not recognized, attempting generic tool call.")
+                        mcp_result = await asyncio.wait_for(
+                            session.call_tool(method, arguments=params), timeout=request_timeout
+                        )
 
-        except Exception as e:
-            logger.exception(f"Failed to send request to service: {target_service}", error=str(e))
+                    # Process tool call / generic call result
+                    if (
+                        HAS_MCP_TYPES
+                        and mcp_result
+                        and not mcp_result.isError
+                        and mcp_result.content
+                        and isinstance(mcp_result.content[0], TextContent)
+                    ):
+                        import json
+
+                        try:
+                            return json.loads(mcp_result.content[0].text)
+                        except json.JSONDecodeError:
+                            return {"raw_content": mcp_result.content[0].text}
+                    elif mcp_result and mcp_result.isError:
+                        raise CommunicationError(
+                            f"MCP stdio call '{method}' failed: {mcp_result.content}", target=target_service
+                        )
+                    return mcp_result  # Return raw result
+
+        except asyncio.TimeoutError as e:
+            logger.error(
+                f"Timeout during MCP stdio request to {target_service}", method=method, timeout=request_timeout
+            )
             raise CommunicationError(
-                f"Failed to send request to service '{target_service}' method '{method}': {e}",
+                f"Timeout during MCP stdio request to service '{target_service}' method '{method}'",
                 target=target_service,
+            ) from e
+        except Exception as e:
+            if isinstance(e, CommunicationError):
+                raise
+            logger.exception(f"Failed MCP stdio request to {target_service}", method=method, error=str(e))
+            raise CommunicationError(
+                f"Failed MCP stdio request to service '{target_service}' method '{method}': {e}", target=target_service
             ) from e
 
     async def send_notification(
         self,
         target_service: str,
-        method: str,
+        method: str,  # For MCP, method is often implicit in notification content
         params: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Send a notification to a target service.
+        """Send a notification to a target service via stdio (per-request)."""
+        # Note: MCP doesn't have a generic named notification concept like send_request.
+        # It uses session.send_notification with specific data structures.
+        # This method adapts by sending the params dict as the notification data.
+        notification_data = params or {}
+        logger.debug(f"Attempting to send MCP notification to {target_service} with data: {notification_data}")
 
-        MCP doesn't have a direct equivalent to notifications in JSON-RPC,
-        so this is implemented as a request without waiting for a response.
+        async def _send_notification() -> None:
+            try:
+                executable_path = self._get_executable_path(target_service)
+            except (ServiceNotFoundError, CommunicationError) as e:
+                logger.error(f"Cannot send notification: {e}")
+                return
 
-        Args:
-            target_service: The name of the service to send the notification to
-            method: The method to call on the service
-            params: The parameters to pass to the method
+            args = self.service_args.get(target_service, [])
+            stdio_params = StdioServerParameters(command=executable_path, args=args)
 
-        Raises:
-            ServiceNotFoundError: If the target service is not found
-            CommunicationError: If there is a problem with the communication
-        """
-        # Make sure we're connected to the service
-        await self._connect_to_service(target_service)
-        session = self.sessions[target_service]
-        params = params or {}
+            try:
+                async with stdio_client(stdio_params) as streams:
+                    read_stream, write_stream = streams
+                    async with ClientSession(read_stream, write_stream) as session:
+                        await asyncio.wait_for(session.initialize(), timeout=15.0)
+                        # Use a dict for notification data to satisfy expected type
+                        if isinstance(notification_data, dict):
+                            # Import here to handle different MCP SDK versions
+                            try:
+                                from mcp.types import ClientNotification
 
-        try:
-            # Create a fire-and-forget task
-            async def _send_notification() -> None:
-                try:
-                    await session.call_tool(method, arguments=params)
-                except Exception as e:
-                    logger.warning(
-                        "Failed to send notification",
-                        target_service=target_service,
-                        method=method,
-                        error=str(e),
-                    )
+                                # Create the notification object based on the expected ClientNotification API
+                                # The "data" parameter issue is caused by version differences in mcp
+                                # So we'll use a generic approach that works with type checkers
+                                notification = ClientNotification(notification_data)  # type: ignore
+                                await asyncio.wait_for(session.send_notification(notification), timeout=10.0)
+                            except (ImportError, TypeError):
+                                # Fall back to direct dictionary if ClientNotification is not available
+                                # This will raise a type error but might work at runtime with some MCP versions
+                                await asyncio.wait_for(
+                                    session.send_notification(notification_data), timeout=10.0  # type: ignore
+                                )
+                        else:
+                            # Create a ClientNotification object
+                            from mcp.types import ClientNotification
 
-            # Create task and let it run in the background
-            asyncio.create_task(_send_notification())
-        except Exception as e:
-            logger.warning(
-                "Failed to create notification task",
-                target_service=target_service,
-                method=method,
-                error=str(e),
-            )
+                            notification = ClientNotification(data=notification_data)
+                            await asyncio.wait_for(session.send_notification(notification), timeout=10.0)
+                        logger.info(f"Sent notification to {target_service}")
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout sending notification to {target_service}")
+            except Exception as e:
+                logger.exception(f"Error sending notification to {target_service}", error=str(e))
+
+        # Run the notification in the background
+        asyncio.create_task(_send_notification())
 
     async def register_handler(self, method: str, handler: Callable) -> None:
         """Register a handler for a method.
@@ -558,51 +334,46 @@ class McpStdioCommunicator(BaseCommunicator):
 
             self.server = None
         else:
-            # Client mode - close all connections
+            # Client mode - close any managed resources
             logger.info("Closing connections to MCP stdio services")
 
-            # Close client managers
-            for service_name, client_manager in list(self._client_managers.items()):
+            # Clean up client managers that might exist
+            client_managers = getattr(self, "_client_managers", {})
+            for service_name, client_manager in list(client_managers.items()):
                 try:
                     await client_manager.__aexit__(None, None, None)
                 except Exception as e:
                     logger.warning(f"Error closing client manager for {service_name}: {e}")
 
-            # Terminate subprocesses
-            for service_name, process in list(self.subprocesses.items()):
+            # Clean up any subprocesses
+            subprocesses = getattr(self, "subprocesses", {})
+            for service_name, process in list(subprocesses.items()):
                 try:
-                    process.terminate()
-                    await process.wait()
+                    if hasattr(process, "terminate"):
+                        process.terminate()
+                    logger.debug(f"Terminated subprocess for {service_name}")
                 except Exception as e:
                     logger.warning(f"Error terminating subprocess for {service_name}: {e}")
 
-            # Clear all collections
-            self.clients.clear()
-            self.sessions.clear()
-            self._client_managers.clear()
-            self.subprocesses.clear()
+            # Clear other possible collections
+            if hasattr(self, "clients"):
+                self.clients.clear()
+            if hasattr(self, "sessions"):
+                self.sessions.clear()
+            if hasattr(self, "_client_managers"):
+                self._client_managers.clear()
+            if hasattr(self, "subprocesses"):
+                self.subprocesses.clear()
 
     async def list_tools(self, target_service: str) -> List[Dict[str, Any]]:
-        """List tools available in a target service.
-
-        Args:
-            target_service: The name of the service to list tools from
-
-        Returns:
-            List of tools with their descriptions
-
-        Raises:
-            ServiceNotFoundError: If the target service is not found
-            CommunicationError: If there is a problem with the communication
-        """
-        result = await self.send_request(target_service, "tool/list")
-        # Ensure we return a list of dictionaries
-        if isinstance(result, dict) and "tools" in result:
-            return cast(List[Dict[str, Any]], result["tools"])
-        elif isinstance(result, list):
-            return cast(List[Dict[str, Any]], result)
-        else:
-            return [{"item": result}] if result else []
+        """List available tools from the target service."""
+        # MCP session.list_tools() returns Tool objects (or similar)
+        raw_tools = await self.send_request(target_service, "tool/list")
+        # Convert to basic dict format for compatibility, if needed
+        if isinstance(raw_tools, list) and all(hasattr(t, "name") for t in raw_tools):
+            return [{"name": t.name, "description": getattr(t, "description", None)} for t in raw_tools]
+        logger.warning(f"Unexpected format from list_tools for {target_service}: {raw_tools}")
+        return []  # Return empty list or raise error?
 
     async def call_tool(
         self,
@@ -611,40 +382,17 @@ class McpStdioCommunicator(BaseCommunicator):
         arguments: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
     ) -> Any:
-        """Call a tool on a target service.
+        """Call a specific tool on the target service."""
+        method = f"tool/call/{tool_name}"
+        return await self.send_request(target_service, method, arguments, timeout=timeout)
 
-        Args:
-            target_service: The name of the service to call the tool on
-            tool_name: The name of the tool to call
-            arguments: The arguments to pass to the tool
-            timeout: Optional timeout in seconds
-
-        Returns:
-            The result of the tool call
-
-        Raises:
-            ServiceNotFoundError: If the target service is not found
-            CommunicationError: If there is a problem with the communication
-        """
-        if not tool_name:
-            raise ValueError("Tool name cannot be empty")
-
-        arguments = arguments or {}
-        await self._connect_to_service(target_service)
-        session = self.sessions[target_service]
-
-        try:
-            result = await session.call_tool(tool_name, arguments=arguments)
-
-            # Convert result to a dictionary if possible
-            if hasattr(result, "__dict__"):
-                return result.__dict__
-            return result
-        except Exception as e:
-            logger.exception(f"Error calling tool {tool_name} on {target_service}", error=str(e))
-            raise CommunicationError(
-                f"Failed to call tool '{tool_name}' on service '{target_service}': {e}", target=target_service
-            ) from e
+    async def list_prompts(self, target_service: str) -> List[Dict[str, Any]]:
+        """List available prompts from the target service."""
+        raw_prompts = await self.send_request(target_service, "prompt/list")
+        if isinstance(raw_prompts, list) and all(hasattr(p, "name") for p in raw_prompts):
+            return [{"name": p.name, "description": getattr(p, "description", None)} for p in raw_prompts]
+        logger.warning(f"Unexpected format from list_prompts for {target_service}: {raw_prompts}")
+        return []
 
     async def get_prompt(
         self,
@@ -675,6 +423,14 @@ class McpStdioCommunicator(BaseCommunicator):
             timeout=timeout,
         )
         return response
+
+    async def list_resources(self, target_service: str) -> List[Dict[str, Any]]:
+        """List available resources from the target service."""
+        raw_resources = await self.send_request(target_service, "resource/list")
+        if isinstance(raw_resources, list) and all(hasattr(r, "name") for r in raw_resources):
+            return [{"name": r.name, "description": getattr(r, "description", None)} for r in raw_resources]
+        logger.warning(f"Unexpected format from list_resources for {target_service}: {raw_resources}")
+        return []
 
     async def read_resource(
         self,
@@ -716,91 +472,115 @@ class McpStdioCommunicator(BaseCommunicator):
         stop_sequences: Optional[List[str]] = None,
         timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Sample a prompt from the target service.
+        """Sample a prompt from a target service.
 
         Args:
-            target_service: The service to sample from
-            messages: List of message objects in the format {"role": "...", "content": "..."}
-            system_prompt: Optional system prompt
-            temperature: Optional temperature parameter
-            max_tokens: Optional maximum tokens parameter
-            include_context: Optional include_context parameter
-            model_preferences: Optional model preferences
-            stop_sequences: Optional stop sequences
+            target_service: The service to call
+            messages: The messages to sample from
+            system_prompt: Optional system prompt to use
+            temperature: Optional temperature for sampling
+            max_tokens: Optional maximum tokens to generate
+            include_context: Optional context to include (not used in all providers)
+            model_preferences: Optional model preferences (provider-specific)
+            stop_sequences: Optional stop sequences for text generation
             timeout: Optional timeout in seconds
 
         Returns:
-            The response from the service with at least a "content" field
-
-        Raises:
-            CommunicationError: If there's a communication problem
-            ValueError: If the messages parameter is invalid
+            The sampled prompt result
         """
-        if not messages:
-            raise ValueError("Messages cannot be empty")
+        # Make sure the executable exists
+        executable_path = self._get_executable_path(target_service)
+        args = self.service_args.get(target_service, [])
+        stdio_params = StdioServerParameters(command=executable_path, args=args)
 
-        await self._connect_to_service(target_service)
-        session = self.sessions[target_service]
+        request_timeout = timeout or 60.0  # Default timeout of 60 seconds
 
-        # Prepare the messages in the format expected by the MCP SDK
-        prepared_messages = []
+        # Convert messages format if needed
+        mcp_formatted_messages = []
         for msg in messages:
-            if not isinstance(msg, dict) or "role" not in msg or "content" not in msg:
-                raise ValueError(f"Invalid message format: {msg}")
-
             role = msg["role"]
             content = msg["content"]
 
-            # Convert to TextContent if MCP types are available
-            if HAS_MCP_TYPES:
-                content = TextContent(type="text", text=content) if isinstance(content, str) else content
+            # Convert to TextContent if types are available and content is string
+            if HAS_MCP_TYPES and isinstance(content, str):
+                try:
+                    from mcp.types import TextContent
 
-            prepared_messages.append({"role": role, "content": content})
+                    mcp_content: Any = TextContent(type="text", text=content)
+                except (ImportError, TypeError):
+                    mcp_content = content
+            else:
+                mcp_content = content
 
-        # Sample parameters
-        sampling_params: Dict[str, Any] = {}
-        if temperature is not None:
-            sampling_params["temperature"] = temperature
-        if max_tokens is not None:
-            sampling_params["max_tokens"] = max_tokens
-        if stop_sequences is not None:
-            sampling_params["stop_sequences"] = stop_sequences
-        if model_preferences is not None:
-            sampling_params["model_preferences"] = model_preferences
+            mcp_formatted_messages.append({"role": role, "content": mcp_content})
 
         try:
-            # Use cast for the session.sample method
-            result = await cast(Any, session).sample(
-                messages=prepared_messages,
-                system=system_prompt,
-                include_context=include_context,
-                **sampling_params,
-            )
+            async with stdio_client(stdio_params) as streams:
+                read_stream, write_stream = streams
+                async with ClientSession(read_stream, write_stream) as session:
+                    await asyncio.wait_for(session.initialize(), timeout=15.0)
 
-            # Convert result to a dictionary with at least a "content" field
-            result_dict: Dict[str, Any] = {}
-            if hasattr(result, "__dict__"):
-                result_dict = cast(Dict[str, Any], result.__dict__)
-            elif isinstance(result, dict):
-                result_dict = cast(Dict[str, Any], result)
-            else:
-                # If result is neither a dict nor has __dict__, create a new dict
-                content = str(result) if result is not None else ""
-                result_dict = {"content": content}
+                    # Create sample parameters
+                    sample_params: Dict[str, Any] = {
+                        "messages": mcp_formatted_messages,
+                    }
+                    if system_prompt:
+                        sample_params["system"] = system_prompt
+                    if temperature:
+                        sample_params["temperature"] = temperature
+                    if max_tokens:
+                        sample_params["max_tokens"] = max_tokens
+                    if model_preferences:
+                        sample_params["model_preferences"] = model_preferences
+                    if stop_sequences:
+                        sample_params["stop_sequences"] = stop_sequences
 
-            # Ensure content field exists and is a string
-            if "content" not in result_dict:
-                if "text" in result_dict:
-                    result_dict["content"] = result_dict["text"]
-                else:
-                    result_dict["content"] = str(result)
+                    # Call the sample function directly (not through wait_for due to type issues)
+                    try:
+                        # Handle through call_tool workaround if sample not available
+                        if not hasattr(session, "sample"):
+                            result = await asyncio.wait_for(
+                                session.call_tool("sample", arguments=sample_params), timeout=request_timeout
+                            )
+                            return {"content": result}
 
-            return result_dict
+                        # Otherwise use normal sample method
+                        # Use Any to avoid mypy issues with session.sample
+                        sample_method: Any = session.sample
+                        result = await asyncio.wait_for(sample_method(**sample_params), timeout=request_timeout)
+
+                        # Extract response content
+                        if result and result.content:
+                            # Try to extract text content
+                            if HAS_MCP_TYPES:
+                                from mcp.types import TextContent
+
+                                text_content = ""
+                                for item in result.content:
+                                    if isinstance(item, TextContent):
+                                        text_content += item.text
+                                    elif hasattr(item, "text"):
+                                        text_content += item.text
+                                    elif isinstance(item, str):
+                                        text_content += item
+                                return {"content": text_content}
+                            else:
+                                # Fallback for string content
+                                return {"content": str(result.content)}
+                        else:
+                            return {"content": "No content in result"}
+
+                    except AttributeError:
+                        logger.warning("Session does not have a sample method, falling back")
+                        # Fall back to the call_tool method
+                        result = await asyncio.wait_for(
+                            session.call_tool("sample", arguments=sample_params), timeout=request_timeout
+                        )
+                        return {"content": result}
+
         except Exception as e:
-            logger.exception(f"Error sampling prompt from {target_service}", error=str(e))
-            raise CommunicationError(
-                f"Failed to sample prompt from service '{target_service}': {e}", target=target_service
-            ) from e
+            logger.exception(f"Error sampling from {target_service}: {e}")
+            raise CommunicationError(f"Error sampling from {target_service}: {e}", target=target_service) from e
 
     async def _handle_mcp_request(
         self, method: str, params: Optional[Dict[str, Any]] = None, target_service: Optional[str] = None
@@ -977,4 +757,4 @@ class McpStdioCommunicator(BaseCommunicator):
 
 
 # Register the communicator
-register_communicator("mcp-stdio", McpStdioCommunicator)
+register_communicator("mcp_stdio", McpStdioCommunicator)

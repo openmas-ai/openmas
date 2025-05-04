@@ -74,15 +74,13 @@ class McpServerAgent(McpAgent):
 
         if self.server_type.lower() == "sse":
             try:
-                from fastapi import FastAPI
+                # We need to verify FastAPI is installed but don't need to use it directly
+                import fastapi  # noqa: F401
             except ImportError as e:
                 raise ImportError(
                     f"FastAPI is required for SSE server mode but not installed: {e}. "
                     "Install it with: `poetry add fastapi uvicorn`"
                 ) from e
-
-            # Create FastAPI app
-            app = FastAPI(title=f"{self.name} MCP Server")
 
             # Create SSE communicator in server mode
             comm = McpSseCommunicator(
@@ -91,7 +89,6 @@ class McpServerAgent(McpAgent):
                 server_mode=True,
                 http_port=self.port,
                 server_instructions=instructions,
-                app=app,
             )
 
         elif self.server_type.lower() == "stdio":
