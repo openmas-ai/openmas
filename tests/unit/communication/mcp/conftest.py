@@ -5,7 +5,13 @@ from unittest import mock
 import pytest
 
 # Import mcp_mocks module to avoid duplication
-from tests.unit.communication.mcp.mcp_mocks import Context, MockClientSession, MockFastMCP, apply_mcp_mocks
+from tests.unit.communication.mcp.mcp_mocks import (
+    Context,
+    MockClientSession,
+    MockFastMCP,
+    TextContent,
+    apply_mocks_to_sys_modules,
+)
 
 
 @pytest.fixture
@@ -16,7 +22,7 @@ def mock_mcp_environment():
     the necessary mocks but doesn't create a communicator instance.
     """
     # Apply mocks to sys.modules
-    apply_mcp_mocks()
+    apply_mocks_to_sys_modules()
 
     # Create basic mock objects
     mock_client_session = mock.AsyncMock(spec=MockClientSession)
@@ -97,7 +103,7 @@ def mock_stdio_client():
 def mock_client_session():
     """Create a mock ClientSession for testing."""
     # Apply mocks to ensure MCP is properly mocked
-    apply_mcp_mocks()
+    apply_mocks_to_sys_modules()
 
     # Create mock ClientSession
     mock_session = mock.AsyncMock(spec=MockClientSession)
@@ -121,7 +127,7 @@ def mock_client_session():
 def mock_fastmcp():
     """Create a mock FastMCP server for testing."""
     # Apply mocks to ensure MCP is properly mocked
-    apply_mcp_mocks()
+    apply_mocks_to_sys_modules()
 
     # Create mock FastMCP
     mock_server = mock.MagicMock(spec=MockFastMCP)
@@ -136,3 +142,82 @@ def mock_fastmcp():
     # Apply the patch
     with mock.patch("mcp.server.fastmcp.FastMCP", return_value=mock_server):
         yield mock_server
+
+
+@pytest.fixture
+def mcp_sse_environment():
+    """Create a fully mocked environment for testing MCP SSE with MCP 1.7.1 compatibility.
+
+    This unified fixture replaces both the original mocked_sse_environment and
+    patched_sse_environment fixtures to provide a single, consistent testing approach.
+    """
+    # Import the communicator after setting up mocks
+    # Patch TextContent used within the communicator for isinstance checks
+    with mock.patch("openmas.communication.mcp.sse_communicator.TextContent", new=TextContent):
+        # Import within the context to avoid import-time issues
+        from openmas.communication.mcp import McpSseCommunicator
+
+        # Create a communicator with test services
+        service_urls = {
+            "test-service": "http://localhost:8000",
+            "other-service": "http://localhost:8001",
+            "external-service": "http://external.mcp-server.com:8080",
+        }
+
+        # Create the communicator
+        communicator = McpSseCommunicator("test-agent", service_urls)
+
+        # --- Mocks for sse_client ---
+        mock_sse_client_patch = mock.patch("openmas.communication.mcp.sse_communicator.sse.sse_client")
+        mock_sse_client_func = mock_sse_client_patch.start()
+        mock_manager = mock.AsyncMock()
+        mock_sse_client_func.return_value = mock_manager
+        mock_read_stream = mock.AsyncMock()
+        mock_write_stream = mock.AsyncMock()
+        mock_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
+
+        # --- Mocks for ClientSession ---
+        mock_session_class_patch = mock.patch("openmas.communication.mcp.sse_communicator.ClientSession")
+        mock_session_class = mock_session_class_patch.start()
+        mock_session_instance = mock.AsyncMock()
+        mock_session_instance.__aenter__.return_value = mock_session_instance
+        mock_session_class.return_value = mock_session_instance
+
+        # --- Configure common mock session instance methods ---
+        mock_session_instance.initialize = mock.AsyncMock(return_value=mock.MagicMock())
+
+        # Prepare tool list mock
+        mock_tool1 = mock.MagicMock()
+        mock_tool1.name = "tool1"
+        mock_tool1.description = "Tool 1"
+        mock_tool2 = mock.MagicMock()
+        mock_tool2.name = "tool2"
+        mock_tool2.description = "Tool 2"
+        mock_session_instance.list_tools = mock.AsyncMock(return_value=[mock_tool1, mock_tool2])
+
+        # Configure mock tool result for 1.7.1 compatibility
+        mock_tool_result_content = mock.MagicMock(spec=TextContent)
+        mock_tool_result_content.text = '{"result": "success"}'
+        mock_tool_result = mock.MagicMock(isError=False, content=[mock_tool_result_content])
+        mock_session_instance.call_tool = mock.AsyncMock(return_value=mock_tool_result)
+
+        # Set up other methods
+        mock_session_instance.request = mock.AsyncMock(return_value={"result": "success"})
+        mock_session_instance.send_notification = mock.AsyncMock()
+        mock_session_instance.sample = mock.AsyncMock(return_value={"content": "sample result"})
+
+        # Return the environment with all mocks
+        env = {
+            "communicator": communicator,
+            "mock_sse_client_func": mock_sse_client_func,
+            "mock_sse_client_manager": mock_manager,
+            "mock_read_stream": mock_read_stream,
+            "mock_write_stream": mock_write_stream,
+            "mock_session_class": mock_session_class,
+            "mock_session_instance": mock_session_instance,
+        }
+
+        yield env
+
+        # Cleanup the patches
+        mock.patch.stopall()

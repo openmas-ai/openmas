@@ -1,12 +1,12 @@
-# MCP v1.6 Developer Guide (OpenMAS Integration)
+# MCP v1.7.1 Developer Guide (OpenMAS Integration)
 
-**Version:** 1.0 (Based on `mcp` Python SDK v1.6.0)
+**Version:** 2.0 (Based on `mcp` Python SDK v1.7.1)
 
 ## 1. Introduction
 
 **MCP stands for Model Context Protocol.** Developed by Anthropic, it provides a standardized interface for AI models and services to communicate, enabling features like tool use, resource sharing, and prompting across different transport layers.
 
-**Goal:** This document serves as the definitive guide for developers working with MCP (specifically `mcp` Python SDK v1.6.0 and `FastMCP`) within the OpenMAS framework. It outlines best practices, setup instructions, server/client implementation patterns, testing strategies, and solutions to common issues encountered during integration.
+**Goal:** This document serves as the definitive guide for developers working with MCP (specifically `mcp` Python SDK v1.7.1) within the OpenMAS framework. It outlines best practices, setup instructions, server/client implementation patterns, testing strategies, and solutions to common issues encountered during integration.
 
 **Target Audience:** Developers building or integrating MCP-based agents, tools, or communication components in OpenMAS.
 
@@ -19,8 +19,8 @@
 
 **Official Resources:**
 *   **Concepts & Architecture:** [https://modelcontextprotocol.io/docs/concepts/architecture](https://modelcontextprotocol.io/docs/concepts/architecture)
-*   **Python SDK (GitHub):** [https://github.com/modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) (Check issues for potential problems)
-*   **FastMCP Server (GitHub):** [https://github.com/modelcontextprotocol/fastmcp](https://github.com/modelcontextprotocol/fastmcp)
+*   **Python SDK (GitHub):** [https://github.com/modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk)
+*   **MCP Documentation:** [https://modelcontextprotocol.io/docs/](https://modelcontextprotocol.io/docs/)
 
 ---
 
@@ -28,11 +28,10 @@
 
 1.  **Install `mcp`:** Use `poetry` (or `pip`) to add the `mcp` package. For CLI tools like the inspector, include the `cli` extra:
     ```bash
-    poetry add "mcp[cli]>=1.6.0,<1.7.0"
+    poetry add "mcp[cli]>=1.7.1"
     # or
-    # pip install "mcp[cli]>=1.6.0,<1.7.0"
+    # pip install "mcp[cli]>=1.7.1"
     ```
-    *Note: Pinning to `<1.7.0` is recommended as patterns might change in future versions.*
 
 2.  **Dependencies for SSE:** If using the SSE transport, ensure `aiohttp` and `httpx` are installed (they are typically included as dependencies of `mcp`, but verify):
     ```bash
@@ -56,7 +55,7 @@ import logging
 import sys
 import json
 from mcp.server.fastmcp import FastMCP, Context
-from mcp.types import CallToolResult, TextContent # Not typically needed for tool return
+from mcp.types import TextContent
 
 # Configure logging (stderr is often useful for debugging subprocesses)
 logging.basicConfig(
@@ -75,49 +74,60 @@ mcp_server = FastMCP(
 
 ### 3.2. Defining Tools
 
-Tools are async functions decorated with `@mcp_server.tool()`.
+Tools are async functions that can be added to the FastMCP server.
 
 ```python
-@mcp_server.tool(name="echo", description="Echo back the input message as JSON")
-async def echo_tool(ctx: Context, message: any) -> str: # Return type is typically str (JSON)
+# Define a simple echo tool
+async def echo_tool(ctx: Context) -> list[TextContent]:
     """
     Simple echo tool.
 
     Args:
-        ctx: The MCP context (rarely needed for simple tools).
-        message: The input message (can be any JSON-serializable type).
+        ctx: The MCP context object containing request information.
 
     Returns:
-        A JSON string containing the echoed message.
+        A list of TextContent objects.
     """
-    logger.debug(f"Echo tool called with message: {message!r} (type: {type(message)})")
+    logger.debug(f"Echo tool called with context: {ctx}")
+
+    # Extract the message from context
+    message = None
+    if hasattr(ctx, "arguments") and ctx.arguments:
+        if "message" in ctx.arguments:
+            message = ctx.arguments["message"]
+        elif "content" in ctx.arguments and isinstance(ctx.arguments["content"], list):
+            # Handle content array format
+            for item in ctx.arguments["content"]:
+                if isinstance(item, dict) and "text" in item:
+                    message = item["text"]
+                    break
+
+    if message is None:
+        logger.error("No message found in context")
+        return [TextContent(type="text", text=json.dumps({"error": "No message found"}))]
+
     try:
         # Prepare the success payload
         response_obj = {"echoed": message}
-        json_response = json.dumps(response_obj)
-        logger.debug(f"Returning echo response JSON: {json_response}")
-
-        # **CRITICAL (MCP 1.6): Return the JSON string directly.**
-        # Do NOT manually wrap in CallToolResult or TextContent.
-        # FastMCP handles the wrapping during serialization.
-        return json_response
-
+        return [TextContent(type="text", text=json.dumps(response_obj))]
     except Exception as e:
         logger.error(f"Error in echo tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
 
-        # **CRITICAL (MCP 1.6): Re-raise exceptions.**
-        # Do NOT try to manually format an error CallToolResult.
-        # FastMCP will catch the exception and generate a standard error response.
-        raise # Re-raise the original exception
+# Add the tool to the server
+mcp_server.add_tool(
+    name="echo",
+    description="Echo back the input message as JSON",
+    fn=echo_tool,
+)
 
 # Add more tools as needed...
-# @mcp_server.tool(...)
-# async def another_tool(...): ...
 ```
 
-**Key Points for Tools (v1.6):**
-*   **Return Value:** Return simple, JSON-serializable types (like strings, dicts, lists, numbers). `FastMCP` automatically wraps successful string returns into `CallToolResult(content=[TextContent(type="text", text=...)])`. Returning complex objects directly might work if Pydantic serialization succeeds, but returning a JSON string is often safest. **Do not manually return `CallToolResult` or `TextContent` objects.**
-*   **Error Handling:** Let exceptions propagate out of your tool function (or re-raise them). `FastMCP` will catch them and return a standardized error `CallToolResult` to the client. **Do not manually create and return error `CallToolResult` objects.**
+**Key Points for Tools (v1.7.1):**
+*   **Return Value:** Tools must return a list of TextContent objects. For simple text responses, wrap your string in a TextContent object.
+*   **Context Handling:** The context object now has an `arguments` attribute that contains the request parameters.
+*   **Error Handling:** Return error messages as TextContent objects rather than raising exceptions, as exceptions won't be properly formatted for clients.
 
 ---
 
@@ -127,64 +137,26 @@ How you run the server depends on the desired transport.
 
 ### 4.1. SSE Transport (Recommended for Networked Agents)
 
-**Challenge:** `FastMCP` v1.6.0 is *not* a fully self-contained ASGI application that works correctly out-of-the-box with servers like Uvicorn just by passing the `FastMCP` instance. `FastMCP.run(transport='sse')` or `run_sse_async` are also problematic.
-
-**Solution:** Integrate `FastMCP` manually with a standard ASGI framework like `FastAPI`.
+With MCP 1.7.1, running an SSE server is simpler and more reliable.
 
 ```python
 # Example: src/my_mcp_server.py (continued)
 
 import uvicorn
-from fastapi import FastAPI, Request
-from mcp.server.sse import SseServerTransport
-from starlette.routing import Mount # Import Mount
+from fastapi import FastAPI
 
 # --- FastAPI Integration ---
 
 # 1. Create a FastAPI app instance
-app = FastAPI(title="My MCP Server via FastAPI", version="1.0")
+app = FastAPI(title="My MCP Server", version="1.0")
 
-# 2. Use the mcp_server instance created earlier
-
-# 3. Create an SSE Transport instance
-# The path here ("/messages/") is for the client POSTing messages back *to* the server.
-sse_transport = SseServerTransport("/messages/")
-
-# 4. Mount the POST handler for incoming client messages
-# CRITICAL: This route allows the server to receive messages from the client session.
-app.router.routes.append(Mount("/messages", app=sse_transport.handle_post_message))
-
-# 5. Define the main /sse GET endpoint for establishing connections
-@app.get("/sse", tags=["MCP"])
-async def handle_sse_connection(request: Request):
-    """
-    Handles incoming SSE connection requests and runs the MCP protocol loop.
-    """
-    logger.info(f"Incoming SSE connection request from {request.client}")
-    try:
-        # sse_transport.connect_sse handles the SSE handshake & provides streams
-        async with sse_transport.connect_sse(request.scope, request.receive, request._send) as (
-            read_stream,
-            write_stream,
-        ):
-            logger.info("SSE connection established, running MCP server loop.")
-            # Run the FastMCP server logic over the established streams
-            await mcp_server._mcp_server.run(
-                read_stream,
-                write_stream,
-                mcp_server._mcp_server.create_initialization_options(),
-            )
-            logger.info("MCP server loop finished for this connection.")
-    except Exception as e:
-        logger.error(f"Error during SSE handling: {e}", exc_info=True)
-        # Depending on when the error occurs, a response might have already been sent.
-        # Consider appropriate error handling/response if possible.
-        raise # Re-raise for potential higher-level handling
+# 2. Mount the FastMCP server at /sse endpoint
+app = mcp_server.mount_to_app(app)
 
 # Optional: Add a root endpoint for basic health check
 @app.get("/", tags=["General"])
 async def read_root():
-    return {"message": "MCP SSE Server via FastAPI is running. Connect via /sse."}
+    return {"message": "MCP SSE Server is running. Connect via /sse."}
 
 # --- Main Execution ---
 
@@ -201,43 +173,39 @@ async def start_server(host="127.0.0.1", port=8765):
 
     # **CRITICAL for Testing:** Print the URL *before* starting the server
     # Allows test harnesses to know where to connect.
-    sys.stderr.write(f"SSE_SERVER_URL=http://{host}:{port}\\n")
+    sys.stderr.write(f"SSE_SERVER_URL=http://{host}:{port}\n")
     sys.stderr.flush()
 
     logger.info(f"Starting Uvicorn server for FastAPI+MCP on {host}:{port}")
     await server.serve() # This blocks until shutdown
 
 if __name__ == "__main__":
-    # Example: Add arg parsing if needed
-    # parser = argparse.ArgumentParser(...)
-    # args = parser.parse_args()
-    # host = args.host
-    # port = args.port
-    host = "127.0.0.1"
-    port = 8765
+    import argparse
+
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Run MCP SSE server")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8765, help="Port to listen on")
+    args = parser.parse_args()
 
     logger.info("Starting main function")
     try:
-        asyncio.run(start_server(host, port))
+        asyncio.run(start_server(args.host, args.port))
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received, shutting down")
     except Exception as e:
         logger.error(f"Unhandled exception in top-level: {e}", exc_info=True)
         sys.exit(1)
-
 ```
 
 **Running the SSE Server:**
 ```bash
-python src/my_mcp_server.py --host 0.0.0.0 --port 8000 # Example
+python src/my_mcp_server.py --host 0.0.0.0 --port 8000
 ```
-
-**Helpful Article:** The integration pattern above was heavily influenced by the approach detailed in this article, which helped resolve persistent 500 errors when directly using `FastMCP` as the ASGI app:
-*   [Implementing MCP(FastMCP) in a FastAPI Application - uselessai.in](https://uselessai.in/implementing-mcp-architecture-in-a-fastapi-application-f513989b65d9)
 
 ### 4.2. Stdio Transport (For Local Inter-Process Communication)
 
-This is simpler as `FastMCP` provides a dedicated method.
+For stdio transport, the approach is similar to previous versions:
 
 ```python
 # Example: src/my_mcp_server.py (modified main section)
@@ -246,574 +214,499 @@ This is simpler as `FastMCP` provides a dedicated method.
 
 async def start_stdio_server():
     """Runs the MCP server over stdio."""
-    # **CRITICAL for Testing:** Signal readiness BEFORE running the server loop.
-    # Use stderr for signals, as stdout is used for MCP JSON messages.
-    sys.stderr.write("STDIO_SERVER_READY\\n")
+    # Signal readiness BEFORE running the server loop
+    # Use stderr for signals, as stdout is used for MCP JSON messages
+    sys.stderr.write("STDIO_SERVER_READY\n")
     sys.stderr.flush()
 
-    logger.info("Starting MCP server on stdio...")
-    # Use run_stdio_async - this handles the reading/writing loop.
-    await mcp_server.run_stdio_async() # This blocks until stdin closes or error
-    logger.info("Stdio server finished.")
+    logger.info("Starting MCP server over stdio")
+    try:
+        await mcp_server.run_stdio()
+    except Exception as e:
+        logger.error(f"Error in stdio server: {e}", exc_info=True)
+        sys.exit(1)
 
 if __name__ == "__main__":
-    # Determine transport based on args or environment
-    transport_mode = "stdio" # Example: could be set via args
-
-    logger.info(f"Starting main function (mode: {transport_mode})")
-    try:
-        if transport_mode == "sse":
-            # asyncio.run(start_server(...)) # Call SSE version
-            pass
-        else: # Default to stdio
+    if len(sys.argv) > 1 and sys.argv[1] == "--stdio":
+        try:
             asyncio.run(start_stdio_server())
-    except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received, shutting down")
-    except Exception as e:
-        logger.error(f"Unhandled exception in top-level: {e}", exc_info=True)
-        sys.exit(1)
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt received, shutting down stdio server")
+        except Exception as e:
+            logger.error(f"Unhandled exception in stdio server: {e}", exc_info=True)
+            sys.exit(1)
+    else:
+        # Default to SSE server
+        # (SSE server code from previous section)
 ```
 
-**Running the Stdio Server:** The client process typically starts the server script as a subprocess.
+**Running the Stdio Server:**
+```bash
+python src/my_mcp_server.py --stdio
+```
 
 ---
 
 ## 5. Creating an MCP Client
 
-The client connects to the server and calls its tools.
+Clients connect to servers and call tools.
+
+### 5.1. SSE Client
 
 ```python
 # Example: src/my_mcp_client.py
 import asyncio
 import logging
 import sys
-from mcp.client.session import ClientSession
-from mcp.client.sse import sse_client # For SSE
-from mcp.client.stdio import stdio_client, StdioServerParameters # For Stdio
+import json
 
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
+from mcp.client.session import ClientSession
+from mcp.client.sse import sse_client
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stderr)],
+)
 logger = logging.getLogger("MyMCPClient")
 
-async def run_sse_client(server_url: str):
-    """Connects to an SSE server and calls the echo tool."""
-    sse_endpoint_url = f"{server_url}/sse" # IMPORTANT: Target the /sse endpoint
-    logger.info(f"Connecting to SSE endpoint: {sse_endpoint_url}")
+async def call_echo_tool(server_url: str, message: str, timeout: float = 30.0):
+    """Call the echo tool on the server.
+
+    Args:
+        server_url: URL of the SSE server, e.g., http://localhost:8765/sse
+        message: Message to echo
+        timeout: Timeout in seconds
+    """
+    logger.info(f"Connecting to server: {server_url}")
 
     try:
-        # Use async with for the transport client
-        async with sse_client(sse_endpoint_url) as streams:
-            read_stream, write_stream = streams
-            logger.info(f"SSE streams obtained for {sse_endpoint_url}")
-
-            # Use async with for the ClientSession
+        # Connect to the SSE server
+        async with sse_client(server_url) as (read_stream, write_stream):
+            # Create a session
             async with ClientSession(read_stream, write_stream) as session:
-                logger.info("MCP ClientSession created")
+                # Initialize the session
+                logger.info("Initializing session")
+                await asyncio.wait_for(session.initialize(), timeout=timeout)
+                logger.info("Session initialized successfully")
 
-                # **CRITICAL: Initialize the session with a timeout.**
-                logger.info("Initializing MCP session...")
-                try:
-                    await asyncio.wait_for(session.initialize(), timeout=15.0)
-                    logger.info("MCP session initialized successfully")
-                except asyncio.TimeoutError:
-                    logger.error("Timeout initializing MCP session.")
-                    return
-                except Exception as init_err:
-                    logger.error(f"Error initializing MCP session: {init_err}", exc_info=True)
-                    return
+                # Call the echo tool
+                logger.info(f"Calling echo tool with message: {message}")
+                result = await asyncio.wait_for(
+                    session.call_tool("echo", {"message": message}),
+                    timeout=timeout
+                )
 
-                # Optional brief sleep if encountering timing issues *after* successful init
-                # await asyncio.sleep(0.1)
-
-                # Call the tool
-                tool_name = "echo"
-                params = {"message": "Hello from SSE Client!"}
-                logger.info(f"Calling tool '{tool_name}' with params: {params}")
-                try:
-                    result = await asyncio.wait_for(
-                        session.call_tool(tool_name, params),
-                        timeout=15.0
-                    )
-                    logger.info(f"Received result: {result}")
-
-                    # Process result
-                    if result and not result.isError and result.content:
-                        # Expecting TextContent with JSON string
-                        if isinstance(result.content[0], TextContent):
-                            response_text = result.content[0].text
-                            logger.info(f"Tool response text: {response_text!r}")
-                            # Further parsing/validation...
-                            # response_data = json.loads(response_text)
-                            # assert response_data.get("echoed") == params["message"]
-                        else:
-                            logger.warning(f"Unexpected content type: {type(result.content[0])}")
-                    elif result and result.isError:
-                        logger.error(f"Tool call failed: {result.content}")
-                    else:
-                        logger.error("Tool call returned None or unexpected structure.")
-
-                except asyncio.TimeoutError:
-                    logger.error(f"Timeout calling tool '{tool_name}'.")
-                except Exception as call_err:
-                    logger.error(f"Error calling tool '{tool_name}': {call_err}", exc_info=True)
-
-    except ConnectionRefusedError:
-        logger.error(f"Connection refused when connecting to {sse_endpoint_url}. Is the server running?")
-    except Exception as conn_err:
-        logger.error(f"Error during SSE client connection: {conn_err}", exc_info=True)
-
-
-async def run_stdio_client(server_script_path: str):
-    """Starts a stdio server subprocess, connects, and calls the echo tool."""
-    logger.info(f"Preparing to start stdio server: {server_script_path}")
-    server_params = StdioServerParameters(
-        command=[sys.executable, server_script_path] # Command to start the server
-    )
-
-    try:
-        # Use async with for the stdio_client
-        async with stdio_client(server_params) as streams:
-            read_stream, write_stream = streams
-            logger.info("Stdio streams obtained.")
-
-            # Use async with for the ClientSession
-            async with ClientSession(read_stream, write_stream) as session:
-                logger.info("MCP ClientSession created")
-
-                # **CRITICAL: Initialize the session with a timeout.**
-                logger.info("Initializing MCP session...")
-                try:
-                    await asyncio.wait_for(session.initialize(), timeout=15.0)
-                    logger.info("MCP session initialized successfully")
-                except asyncio.TimeoutError:
-                    logger.error("Timeout initializing MCP session.")
-                    return
-                except Exception as init_err:
-                    logger.error(f"Error initializing MCP session: {init_err}", exc_info=True)
+                # Check for errors
+                if result.isError:
+                    logger.error(f"Tool call failed: {result}")
+                    print(f"Error: {result}")
                     return
 
-                # Call the tool
-                tool_name = "echo"
-                params = {"message": "Hello from Stdio Client!"}
-                logger.info(f"Calling tool '{tool_name}' with params: {params}")
-                try:
-                    result = await asyncio.wait_for(
-                        session.call_tool(tool_name, params),
-                        timeout=15.0
-                    )
-                    logger.info(f"Received result: {result}")
-                    # Process result (similar to SSE example)...
+                # Process the response
+                if result.content and len(result.content) > 0:
+                    response_text = result.content[0].text
+                    try:
+                        response_data = json.loads(response_text)
+                        logger.info(f"Got response: {response_data}")
+                        print(f"Echo response: {response_data}")
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed to parse response JSON: {response_text}")
+                        print(f"Invalid response: {response_text}")
+                else:
+                    logger.warning("Empty response from server")
+                    print("Empty response")
 
-                except asyncio.TimeoutError:
-                    logger.error(f"Timeout calling tool '{tool_name}'.")
-                except Exception as call_err:
-                    logger.error(f"Error calling tool '{tool_name}': {call_err}", exc_info=True)
+    except asyncio.TimeoutError:
+        logger.error(f"Operation timed out after {timeout} seconds")
+        print(f"Error: Timeout after {timeout} seconds")
+    except Exception as e:
+        logger.error(f"Error: {e}", exc_info=True)
+        print(f"Error: {e}")
 
-    except Exception as conn_err:
-        logger.error(f"Error during stdio client connection: {conn_err}", exc_info=True)
+async def main():
+    # Parse command line arguments
+    import argparse
+    parser = argparse.ArgumentParser(description="MCP SSE Client")
+    parser.add_argument("--server", default="http://localhost:8765/sse", help="Server URL")
+    parser.add_argument("--message", default="Hello World", help="Message to echo")
+    parser.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds")
+    args = parser.parse_args()
 
+    # Call the echo tool
+    await call_echo_tool(args.server, args.message, args.timeout)
 
 if __name__ == "__main__":
-    # Example Usage
-    # asyncio.run(run_sse_client("http://127.0.0.1:8765"))
-    # asyncio.run(run_stdio_client("src/my_mcp_server.py")) # Assuming server script handles stdio
-    pass
-
-```
-
-**Key Points for Clients (v1.6):**
-*   **Use `async with`:** Manage transport clients (`sse_client`, `stdio_client`) and `ClientSession` with `async with` to ensure proper resource cleanup.
-*   **Initialize Session:** ALWAYS `await session.initialize()` immediately after creating the `ClientSession`, preferably within an `asyncio.wait_for` block.
-*   **SSE Endpoint:** Connect specifically to the `/sse` endpoint of your server (e.g., `http://host:port/sse`).
-*   **Timeouts:** Use `asyncio.wait_for` around `initialize()` and `call_tool()` to prevent hangs.
-
----
-
-## 6. Integration Testing Strategy
-
-Reliable integration testing is crucial. OpenMAS uses a test harness approach.
-
-### 6.1. The `McpTestHarness` Utility
-
-Found in `tests/integration/mcp/test_utils.py`, this class provides a standardized way to:
-1.  **Start Server:** Launch the server script (stdio or SSE) as a subprocess.
-2.  **Verify Startup:**
-    *   Read `stderr` from the subprocess.
-    *   Wait for a readiness signal (`STDIO_SERVER_READY` or `SSE_SERVER_URL=...`).
-    *   **(SSE Only)** Perform an HTTP GET check (using `aiohttp`) against the `/sse` endpoint to confirm Uvicorn/FastAPI is truly listening and the route is available. This uses a retry loop and handles transient connection errors during startup.
-3.  **Provide Connection Info:** Stores the `server_url` (for SSE).
-4.  **Cleanup:** Terminates/kills the server subprocess reliably.
-
-### 6.2. Test Structure Example (SSE)
-
-```python
-# From: tests/integration/mcp/test_sse_tool_calls.py
-
-# Imports: asyncio, json, logging, pytest, mcp types, harness, etc.
-# Skip tests if aiohttp/mcp not available...
-
-@pytest.mark.asyncio
-@pytest.mark.mcp
-@pytest.mark.skipif(not HAS_AIOHTTP, reason=SKIP_REASON)
-async def test_sse_echo_basic_types() -> None:
-    test_port = 8765 + random.randint(0, 1000) # Use random port
-    logger.info(f"Using test port: {test_port}")
-    harness = McpTestHarness(TransportType.SSE, test_port=test_port)
-
     try:
-        # Start server subprocess using the harness
-        logger.info("Starting server subprocess")
-        # Pass port via additional_args to the script
-        process = await harness.start_server(
-            additional_args=["--host", "127.0.0.1", "--port", str(test_port)]
-        )
-        # Basic check if process started immediately
-        if process.returncode is not None:
-            # Read/log stderr if available...
-            pytest.fail(f"Process failed to start with return code {process.returncode}")
-            return
-
-        logger.info("Server process started, waiting for readiness signal & HTTP check...")
-        # Harness waits for stderr signal AND performs HTTP check
-        startup_ok = await harness.verify_server_startup(timeout=15.0)
-        assert startup_ok, "Server startup verification failed (check harness logs)"
-        assert harness.server_url, "Server URL not found via harness"
-        logger.info(f"Server ready, URL: {harness.server_url}")
-
-        # Construct the /sse endpoint URL from the harness
-        sse_endpoint_url = f"{harness.server_url}/sse"
-        logger.info(f"Connecting to SSE endpoint: {sse_endpoint_url}")
-
-        # Client connection logic (as shown in Section 5)
-        async with sse_client(sse_endpoint_url) as streams:
-            read_stream, write_stream = streams
-            logger.info("SSE client streams obtained")
-            async with ClientSession(read_stream, write_stream) as session:
-                logger.info("MCP ClientSession created")
-                # Initialize
-                await asyncio.wait_for(session.initialize(), timeout=15.0)
-                logger.info("MCP session initialized")
-                # Call tool
-                result = await asyncio.wait_for(
-                    session.call_tool("echo", {"message": "Hello, MCP!"}),
-                    timeout=15.0
-                )
-                logger.info(f"Echo result: {result}")
-                # Assertions
-                assert result is not None
-                assert not result.isError
-                assert result.content and isinstance(result.content[0], TextContent)
-                response_data = json.loads(result.content[0].text)
-                assert response_data.get("echoed") == "Hello, MCP!"
-                logger.info("Echo test passed")
-
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received, shutting down client")
     except Exception as e:
-        logger.error(f"Test failed with exception: {e}", exc_info=True)
-        pytest.fail(f"Test failed with exception: {e}")
-    finally:
-        # Harness ensures subprocess cleanup
-        logger.info("Cleaning up test harness...")
-        await harness.cleanup()
-        logger.info("Test harness cleaned up.")
-
+        logger.error(f"Unhandled exception in top-level: {e}", exc_info=True)
+        sys.exit(1)
 ```
-*(See `test_stdio_tool_calls.py` for the stdio equivalent using the harness).*
 
-### 6.3. Running Tests
-
-Use `tox` as configured in the project (`tox.ini`) to ensure tests run in isolated environments with the correct dependencies.
-
-```bash
-# Run all MCP integration tests for python 3.10
-tox -e py310-mcp
-
-# Run a specific MCP test file
-tox -e py310-mcp -- tests/integration/mcp/test_sse_tool_calls.py
-
-# Run a specific MCP test function
-tox -e py310-mcp -- tests/integration/mcp/test_sse_tool_calls.py::test_sse_echo_basic_types
-```
-*(Remember to use the correct path relative to the project root when specifying tests for tox).*
-
----
-
-## 7. Debugging
-
-*   **Logging:** Enable `DEBUG` level logging in your server script (`FastMCP(log_level="DEBUG")`, `logging.basicConfig(level=logging.DEBUG, ...)`), client script, and test harness. Examine server `stderr` carefully.
-*   **MCP Inspector:** Use the command-line inspector for local debugging (requires `mcp[cli]`):
-    ```bash
-    # Run your server script first (e.g., python src/my_mcp_server.py)
-
-    # Then run the inspector, connecting to your running server
-    mcp dev --sse-url http://localhost:8765/sse # For SSE
-    # or
-    # mcp dev --stdio-command "python src/my_mcp_server.py" # For stdio
-    ```
-    This provides a web UI (usually `http://localhost:5173`) to list and call tools manually.
-*   **Isolate:** Create minimal server/client examples outside the test harness to verify basic functionality.
-*   **Check Readiness Signal:** Ensure the server script prints the *exact* readiness signal (`STDIO_SERVER_READY` or `SSE_SERVER_URL=...`) to `stderr` *before* starting the blocking server loop (`run_stdio_async` or `serve`).
-*   **Check HTTP Verification (SSE):** Look at the `McpTestHarness` logs during `verify_server_startup`. If the HTTP check to `/sse` fails repeatedly (e.g., 500, 404, timeout), there's likely an issue with the FastAPI/Uvicorn setup in the server script.
-
----
-
-## 8. Known Issues & Gotchas (MCP v1.6)
-
-*   **SSE Server Setup Complexity:** Running `FastMCP` with SSE requires manual integration with FastAPI/Uvicorn as detailed in Section 4.1. Simply passing `FastMCP` as the app to Uvicorn or using `FastMCP.run(transport='sse')` **does not work reliably** and often leads to 500 errors or event loop issues.
-*   **Missing `/messages` Mount (SSE):** Forgetting to mount the `sse_transport.handle_post_message` route in the FastAPI app (Section 4.1, Step 4) will cause client-side timeouts or errors during `session.initialize()` or `session.call_tool()` because the client cannot POST messages back to the server. Look for 404 errors related to `/messages/` in client logs.
-*   **Tool Return Values:** Returning manually constructed `CallToolResult` or `TextContent` objects from tools can lead to double-encoding or validation errors (Section 3.2). Return simple JSON strings for success, raise exceptions for errors.
-*   **`session.initialize()`:** Must be called explicitly and awaited after creating `ClientSession` (Section 5). Omitting it leads to errors.
-*   **SSE Endpoint:** Clients must connect to the specific `/sse` path, not the root URL (Section 5).
-*   **Stdio Logging:** Server logs *must* go to `stderr`. Any output to `stdout` other than MCP JSON messages will break communication.
-
----
-
-## 9. Advanced Topics & Lessons from Integration Testing
-
-### 9.1 Managing Concurrent Connections
-
-When deploying an MCP server in a multi-agent system, you must ensure it can handle multiple client connections simultaneously. Our integration tests revealed several important considerations:
-
-#### 9.1.1. Server-Side Considerations for Concurrent Clients
-
-* **Statelessness:** Keep tool implementations stateless or use proper locking mechanisms. Tools may be called by different clients concurrently.
-* **Resource Management:** Monitor and limit resource usage (memory, file handles, database connections) as each client connection consumes resources.
-* **Connection Limits:** Consider implementing connection limits if your server might be overwhelmed by too many simultaneous clients.
-* **Per-Client Tracking:** In complex scenarios, you might need to track client state (e.g., using client identifiers from the connection context).
-
-#### 9.1.2. Best Practices for SSE Transport with Concurrent Clients
+### 5.2. Stdio Client
 
 ```python
-# In FastAPI setup for MCP server:
+# Example: src/my_mcp_stdio_client.py
+import asyncio
+import logging
+import sys
+import json
+import subprocess
+from typing import Tuple, Optional
 
-# Configure FastAPI with proper concurrency settings
-app = FastAPI(
-    title="MCP Server with Concurrency Support",
-    version="1.0"
+from mcp.client.session import ClientSession
+from mcp.client.stdio import stdio_client
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stderr)],
 )
+logger = logging.getLogger("MyMCPStdioClient")
 
-# Configure Uvicorn with appropriate worker settings
-config = uvicorn.Config(
-    app=app,
-    host=host,
-    port=port,
-    log_level="info",
-    # Consider these settings for production:
-    workers=4,     # Multiple workers for concurrent load
-    limit_concurrency=100,  # Max concurrent connections
-)
-```
+async def start_server_process(server_cmd: list[str]) -> Tuple[subprocess.Popen, bool]:
+    """Start the server process and wait for it to be ready.
 
-#### 9.1.3. Client-Side Concurrency Considerations
+    Args:
+        server_cmd: Command to start the server
 
-* **Connection Pooling:** For clients making multiple connections, consider implementing connection pooling.
-* **Timeouts:** Always use timeouts with `asyncio.wait_for()` for client operations to prevent hanging.
-* **Retry Logic:** Implement exponential backoff retry logic for transient connection issues.
-
-### 9.2 Connection Resilience
-
-Our integration tests demonstrated that proper handling of abrupt client disconnections is essential for robust MCP servers. The following patterns help ensure your server remains stable:
-
-#### 9.2.1. Handling Client Disconnections
-
-* **Proper Exception Handling:** The server must catch and log exceptions from broken connections without crashing.
-* **Resource Cleanup:** Ensure all resources (streams, sessions, file handles) are properly cleaned up when a client disconnects.
-* **Graceful Degradation:** The server should continue operating for other clients even if one client disconnects unexpectedly.
-
-```python
-# Example: Robust SSE endpoint handling in FastAPI
-@app.get("/sse", tags=["MCP"])
-async def handle_sse_connection(request: Request):
+    Returns:
+        Tuple of (process, is_ready)
     """
-    Handles incoming SSE connection requests with robust error handling.
-    """
-    client_id = request.client.host if request.client else "unknown"
-    logger.info(f"Incoming SSE connection request from {client_id}")
-    try:
-        async with sse_transport.connect_sse(request.scope, request.receive, request._send) as (
-            read_stream,
-            write_stream,
-        ):
-            logger.info(f"SSE connection established for {client_id}")
+    logger.info(f"Starting server process: {' '.join(server_cmd)}")
+
+    # Start the server process
+    process = subprocess.Popen(
+        server_cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=False,  # Binary mode for better pipe handling
+    )
+
+    # Wait for the ready signal on stderr
+    is_ready = False
+    ready_timeout = 10.0  # seconds
+
+    async def read_stderr():
+        nonlocal is_ready
+        while process.poll() is None:  # While process is running
             try:
-                await mcp_server._mcp_server.run(
-                    read_stream,
-                    write_stream,
-                    mcp_server._mcp_server.create_initialization_options(),
-                )
-                logger.info(f"MCP server loop completed normally for {client_id}")
-            except asyncio.CancelledError:
-                logger.info(f"Connection cancelled for {client_id}")
-                raise
-            except Exception as run_err:
-                logger.error(f"Error in MCP server loop for {client_id}: {run_err}", exc_info=True)
-                # Don't re-raise - let this client's connection terminate but keep server running
-    except asyncio.CancelledError:
-        logger.info(f"SSE connection setup cancelled for {client_id}")
-        raise
-    except Exception as e:
-        logger.error(f"Error during SSE connection setup for {client_id}: {e}", exc_info=True)
-        # Return appropriate HTTP error if response hasn't been sent yet
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Internal server error during connection setup"}
-        )
-```
+                line = process.stderr.readline()
+                if line:
+                    line_str = line.decode('utf-8', errors='replace').strip()
+                    logger.debug(f"Server stderr: {line_str}")
+                    if "STDIO_SERVER_READY" in line_str:
+                        logger.info("Server signaled ready")
+                        is_ready = True
+                        break
+            except Exception as e:
+                logger.error(f"Error reading stderr: {e}")
+                break
 
-#### 9.2.2. Client-Side Connection Management
+    # Run stderr reader with timeout
+    stderr_task = asyncio.create_task(read_stderr())
+    try:
+        await asyncio.wait_for(stderr_task, timeout=ready_timeout)
+    except asyncio.TimeoutError:
+        logger.warning(f"Timed out waiting for server ready signal after {ready_timeout}s")
+        # Continue anyway, as the server might still be usable
 
-* **Context Managers:** Always use `async with` context managers for both transport clients and `ClientSession` to ensure proper cleanup.
-* **Explicit Initialization:** Always call and await `session.initialize()` after creating a `ClientSession`.
-* **Proper Shutdown:** Let context managers handle the cleanup; avoid manually calling `__aenter__` or `__aexit__` methods.
+    # Check if the process is still running
+    if process.poll() is not None:
+        logger.error(f"Server process exited prematurely with code {process.returncode}")
+        return process, False
 
-```python
-# Recommended pattern for robust client connections
-async def connect_to_mcp_server(server_url: str):
-    """Connects to an MCP server with proper error handling."""
-    sse_endpoint_url = f"{server_url}/sse"
-    logger.info(f"Connecting to MCP server at {sse_endpoint_url}")
+    return process, is_ready
+
+async def call_echo_tool_stdio(server_cmd: list[str], message: str, timeout: float = 30.0):
+    """Call the echo tool using stdio transport.
+
+    Args:
+        server_cmd: Command to start the server
+        message: Message to echo
+        timeout: Timeout in seconds
+    """
+    # Start the server process
+    process, is_ready = await start_server_process(server_cmd)
+
+    if not is_ready:
+        logger.warning("Server may not be ready, but attempting to connect anyway")
 
     try:
-        # Use async with to ensure proper cleanup even if exceptions occur
-        async with sse_client(sse_endpoint_url) as streams:
-            read_stream, write_stream = streams
-            logger.info("SSE streams established")
-
+        # Connect to the stdio server
+        logger.info("Connecting to stdio server")
+        async with stdio_client(process.stdout, process.stdin) as (read_stream, write_stream):
+            # Create a session
             async with ClientSession(read_stream, write_stream) as session:
-                logger.info("MCP session created")
+                # Initialize the session
+                logger.info("Initializing session")
+                await asyncio.wait_for(session.initialize(), timeout=timeout)
+                logger.info("Session initialized successfully")
 
-                # Always initialize with a timeout
-                await asyncio.wait_for(session.initialize(), timeout=10.0)
-                logger.info("MCP session initialized")
-
-                # Now the session is ready to use
+                # Call the echo tool
+                logger.info(f"Calling echo tool with message: {message}")
                 result = await asyncio.wait_for(
-                    session.call_tool("echo", {"message": "Test message"}),
-                    timeout=5.0
+                    session.call_tool("echo", {"message": message}),
+                    timeout=timeout
                 )
 
-                # Process result...
+                # Check for errors
+                if result.isError:
+                    logger.error(f"Tool call failed: {result}")
+                    print(f"Error: {result}")
+                    return
+
+                # Process the response
+                if result.content and len(result.content) > 0:
+                    response_text = result.content[0].text
+                    try:
+                        response_data = json.loads(response_text)
+                        logger.info(f"Got response: {response_data}")
+                        print(f"Echo response: {response_data}")
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed to parse response JSON: {response_text}")
+                        print(f"Invalid response: {response_text}")
+                else:
+                    logger.warning("Empty response from server")
+                    print("Empty response")
 
     except asyncio.TimeoutError:
-        logger.error("Timeout connecting to MCP server")
-    except asyncio.CancelledError:
-        logger.info("Connection attempt cancelled")
-        raise
+        logger.error(f"Operation timed out after {timeout} seconds")
+        print(f"Error: Timeout after {timeout} seconds")
     except Exception as e:
-        logger.error(f"Error connecting to MCP server: {e}", exc_info=True)
-```
+        logger.error(f"Error: {e}", exc_info=True)
+        print(f"Error: {e}")
+    finally:
+        # Terminate the server process
+        if process.poll() is None:  # If still running
+            logger.info("Terminating server process")
+            process.terminate()
+            try:
+                process.wait(timeout=5.0)  # Wait for graceful termination
+            except subprocess.TimeoutExpired:
+                logger.warning("Server process did not terminate gracefully, killing")
+                process.kill()
 
-### 9.3 Testing Connection Resilience
+async def main():
+    # Parse command line arguments
+    import argparse
+    parser = argparse.ArgumentParser(description="MCP Stdio Client")
+    parser.add_argument("--server-cmd", default="python src/my_mcp_server.py --stdio",
+                        help="Command to start the server")
+    parser.add_argument("--message", default="Hello World", help="Message to echo")
+    parser.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds")
+    args = parser.parse_args()
 
-Our integration tests for connection resilience reveal important testing patterns:
+    # Call the echo tool
+    server_cmd = args.server_cmd.split()
+    await call_echo_tool_stdio(server_cmd, args.message, args.timeout)
 
-#### 9.3.1. Testing Normal Disconnections
-
-Verify that the server properly handles clients that disconnect cleanly by using context managers:
-
-```python
-async with sse_client(endpoint_url) as streams:
-    async with ClientSession(*streams) as session:
-        await session.initialize()
-        # Make test calls...
-# Connection will be closed properly when exiting context managers
-```
-
-#### 9.3.2. Testing Abrupt Disconnections
-
-For testing abrupt disconnections, use a task cancellation approach rather than manually closing streams:
-
-```python
-async def client_task():
-    async with sse_client(endpoint_url) as streams:
-        async with ClientSession(*streams) as session:
-            await session.initialize()
-            await session.call_tool("echo", {"message": "test"})
-            # Wait indefinitely (will be cancelled)
-            await asyncio.Event().wait()
-
-# Start client in a separate task
-client = asyncio.create_task(client_task())
-
-# Wait for client to connect and make initial call
-await asyncio.sleep(1.0)
-
-# Simulate crash by cancelling the task
-client.cancel()
-await asyncio.gather(client, return_exceptions=True)
-
-# Test that server is still operational by connecting a new client
-async with sse_client(endpoint_url) as streams:
-    # ...and so on
-```
-
-#### 9.3.3. Testing Concurrent Clients
-
-When testing multiple concurrent clients, use `asyncio.gather()` to run them simultaneously:
-
-```python
-async def run_client(client_id):
-    async with sse_client(endpoint_url) as streams:
-        async with ClientSession(*streams) as session:
-            await session.initialize()
-            result = await session.call_tool("echo", {"message": f"client {client_id}"})
-            return client_id, result
-
-# Start multiple clients concurrently
-clients = [run_client(i) for i in range(10)]
-results = await asyncio.gather(*clients, return_exceptions=True)
-
-# Verify all clients succeeded
-for client_id, result in results:
-    assert not result.isError, f"Client {client_id} failed"
-```
-
-### 9.4 Resource Management & Cleanup
-
-Our testing revealed several key considerations for proper resource management:
-
-#### 9.4.1. Server-Side Resource Management
-
-* **Connection Tracking:** Consider implementing a mechanism to track active connections and their resource usage.
-* **Timeouts:** Add timeouts to all I/O operations to prevent resource exhaustion from stalled connections.
-* **Graceful Shutdown:** Implement a graceful shutdown mechanism that waits for active operations to complete but has a timeout.
-
-#### 9.4.2. Timeout Patterns
-
-Always use timeouts with I/O operations, especially in servers handling multiple clients:
-
-```python
-# Server-side timeout example
-@app.get("/sse", tags=["MCP"])
-async def handle_sse_connection(request: Request):
-    # Use a server-side timeout for the entire connection lifetime
-    connection_timeout = 3600  # 1 hour max per connection
+if __name__ == "__main__":
     try:
-        async with sse_transport.connect_sse(...) as streams:
-            # Run with timeout
-            await asyncio.wait_for(
-                mcp_server._mcp_server.run(*streams, mcp_server._mcp_server.create_initialization_options()),
-                timeout=connection_timeout
-            )
-    except asyncio.TimeoutError:
-        logger.warning(f"Connection timed out after {connection_timeout}s")
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received, shutting down client")
     except Exception as e:
-        logger.error(f"Error during connection: {e}")
-```
-
-#### 9.4.3. Cleanup During Test Harness Shutdown
-
-When writing integration tests, ensure proper cleanup with timeouts to avoid hanging tests:
-
-```python
-# Clean up test resources with timeout
-try:
-    cleanup_task = asyncio.create_task(harness.cleanup())
-    await asyncio.wait_for(cleanup_task, timeout=5.0)
-    logger.info("Test harness cleaned up")
-except asyncio.TimeoutError:
-    logger.warning("Cleanup timed out - resources may still be active")
-    # Force terminate if needed
-    if harness.process and harness.process.returncode is None:
-        harness.process.kill()
+        logger.error(f"Unhandled exception in top-level: {e}", exc_info=True)
+        sys.exit(1)
 ```
 
 ---
+
+## 6. OpenMAS Integration
+
+OpenMAS provides a high-level abstraction over MCP through its communicator classes.
+
+### 6.1. Using McpSseCommunicator
+
+```python
+from openmas.communication.mcp.sse_communicator import McpSseCommunicator
+
+# Server mode
+server_communicator = McpSseCommunicator(
+    agent_name="tool_provider",
+    service_urls={},  # Server doesn't need service URLs
+    server_mode=True,
+    http_port=8080,
+    http_host="0.0.0.0",
+    server_instructions="A service that provides text processing tools",
+)
+
+# Register a tool
+await server_communicator.register_tool(
+    name="process_text",
+    description="Process text by converting to uppercase and counting words",
+    function=async_process_text_handler,
+)
+
+# Client mode
+client_communicator = McpSseCommunicator(
+    agent_name="tool_user",
+    service_urls={"tool_provider": "http://localhost:8080/sse"},
+    server_mode=False,
+)
+
+# Call a tool
+result = await client_communicator.call_tool(
+    target_service="tool_provider",
+    tool_name="process_text",
+    arguments={"text": "Hello, world!"},
+    timeout=10.0,
+)
+```
+
+### 6.2. Using McpStdioCommunicator
+
+```python
+from openmas.communication.mcp.stdio_communicator import McpStdioCommunicator
+
+# Server mode
+server_communicator = McpStdioCommunicator(
+    agent_name="tool_provider",
+    service_urls={},  # Server doesn't need service URLs
+)
+
+# Register a tool
+await server_communicator.register_tool(
+    name="process_text",
+    description="Process text by converting to uppercase and counting words",
+    function=async_process_text_handler,
+)
+
+# Client mode (assumes server is started separately)
+client_communicator = McpStdioCommunicator(
+    agent_name="tool_user",
+    service_urls={"tool_provider": "python -m agents.tool_provider.agent"},
+)
+
+# Call a tool
+result = await client_communicator.call_tool(
+    target_service="tool_provider",
+    tool_name="process_text",
+    arguments={"text": "Hello, world!"},
+    timeout=10.0,
+)
+```
+
+---
+
+## 7. Best Practices for MCP 1.7.1
+
+### 7.1. Tool Implementation
+
+1. **Return Format**: Always return a list of TextContent objects.
+2. **Error Handling**: Handle errors within the tool and return appropriate error messages as TextContent rather than raising exceptions.
+3. **Argument Extraction**: Be flexible when extracting arguments from the context - check both direct arguments and content arrays.
+4. **Logging**: Add detailed logging to aid debugging.
+
+### 7.2. Connection Management
+
+1. **Timeouts**: Always use timeouts for network operations to prevent hanging.
+2. **Graceful Shutdown**: Properly close connections and stop servers to prevent resource leaks.
+3. **Connection Pooling**: For high-traffic applications, consider implementing connection pooling.
+4. **Error Recovery**: Implement retry logic for transient errors.
+
+### 7.3. Testing
+
+1. **Mock Testing**: Use `MockCommunicator` for unit tests.
+2. **Integration Testing**: Create real network tests for end-to-end validation.
+3. **Test Harnesses**: Build test harnesses that simulate different failure modes.
+4. **Logging Verification**: Verify log outputs to ensure proper operation.
+
+---
+
+## 8. Troubleshooting
+
+### 8.1. Common Issues
+
+1. **Connection Timeouts**: Check firewall settings and ensure the server is running.
+2. **Tool Not Found**: Verify that the tool is registered with the exact name you're trying to call.
+3. **Argument Format Errors**: Ensure you're passing the correct argument format.
+4. **Event Loop Errors**: These can occur during cleanup and are typically harmless but indicate a resource wasn't closed properly.
+
+### 8.2. Debugging Techniques
+
+1. **Enable DEBUG Logging**: Set logging level to DEBUG to see detailed info about MCP operations.
+2. **Use MCP Inspector**: The MCP CLI includes an inspector tool for debugging.
+3. **Check Network Traffic**: Use tools like Wireshark to inspect network traffic for SSE transport.
+4. **Validate JSON**: Ensure all JSON payloads are valid.
+
+---
+
+## 9. Advanced Topics
+
+### 9.1. Concurrent Tool Calls
+
+MCP 1.7.1 improves handling of concurrent connections. Here's a pattern for making concurrent tool calls:
+
+```python
+async def call_tools_concurrently(communicator, target_service, tools_and_args):
+    """Call multiple tools concurrently.
+
+    Args:
+        communicator: The MCP communicator
+        target_service: Target service name
+        tools_and_args: List of (tool_name, arguments) tuples
+
+    Returns:
+        Dictionary mapping tool names to results
+    """
+    # Create tasks for each tool call
+    tasks = {
+        tool_name: asyncio.create_task(
+            communicator.call_tool(
+                target_service=target_service,
+                tool_name=tool_name,
+                arguments=args,
+            )
+        )
+        for tool_name, args in tools_and_args
+    }
+
+    # Wait for all tasks to complete
+    results = {}
+    for tool_name, task in tasks.items():
+        try:
+            results[tool_name] = await task
+        except Exception as e:
+            results[tool_name] = {"error": str(e)}
+
+    return results
+```
+
+### 9.2. Custom Transport Implementation
+
+If you need a custom transport mechanism beyond SSE and stdio, you can implement your own transport:
+
+1. Create classes that implement the `ReadStream` and `WriteStream` interfaces.
+2. Implement a client connector function similar to `sse_client` or `stdio_client`.
+3. Create a server transport similar to `SseServerTransport`.
+
+---
+
+## 10. Future Directions
+
+MCP continues to evolve. Here are some areas to watch:
+
+1. **Better Error Handling**: Improved error handling and reporting.
+2. **Enhanced Tool Argument Schema**: More robust tool argument validation.
+3. **WebSocket Transport**: Potential support for WebSocket as an alternative to SSE.
+4. **Performance Optimizations**: Ongoing improvements to connection handling and message serialization.
+
+Keep an eye on the official MCP documentation and GitHub repositories for updates.
+
+---
+
+## 11. Further Resources
+
+- [Complete MCP Documentation](https://modelcontextprotocol.io/docs/)
+- [MCP Python SDK GitHub](https://github.com/modelcontextprotocol/python-sdk)
+- [OpenMAS MCP Integration Guide](/guides/mcp_integration.md)
+- [MCP SSE Tool Call Tutorial](/guides/mcp_sse_tool_call_tutorial.md)
+- [MCP Stdio Tool Call Tutorial](/guides/mcp_stdio_tool_call_tutorial.md)

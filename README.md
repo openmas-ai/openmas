@@ -28,29 +28,19 @@ Inspired by modern development ecosystems and driven by real-world use cases lik
 * **Extensibility:** Design encourages local project extensions (`extensions/`) and shareable external packages (`packages/`).
 * **Testing Utilities:** Includes `MockCommunicator` and `AgentTestHarness` to facilitate unit and integration testing. See [Testing Your Agents](https://docs.openmas.ai/guides/testing-utilities).
 
+## Model Context Protocol (MCP) Support
+
+OpenMAS now supports MCP 1.7.1, providing a more stable and resilient integration with Anthropic's Model Context Protocol. The MCP integration allows agents to:
+
+- Call tools provided by other agents
+- Register tools for other agents to call
+- Handle errors gracefully
+- Communicate using either SSE (HTTP) or STDIO transports
+
+See the [MCP 1.7.1 Integration Guide](docs/guides/mcp_integration.md) for more details.
 
 ## Installation
 
 ```bash
 pip install openmas
 ```
-
-OpenMAS has optional extras for different communication protocols (`[mcp]`, `[grpc]`, `[mqtt]`, `[all]`).
-
-See the full [Installation Guide](https://docs.openmas.ai/guides/installation/) for details on prerequisites, virtual environments, and optional dependencies.
-
-## Quick Start
-
-The best way to get started with OpenMAS is by following our detailed tutorial, which guides you through creating and running your first agent using the standard project structure:
-
-* [**Getting Started Guide**](https://docs.openmas.ai/guides/getting_started/)
-
-This guide uses the `openmas init` command to set up a project with the proper directory structure and `openmas run` to execute the agent.
-
-## Contributing
-
-Contributions are welcome! Please see the [Contributing Guide](https://docs.openmas.ai/contributing/contributing/) for details on how to get involved, set up your development environment, run tests (`tox`), and submit pull requests.
-
-## License
-
-OpenMAS is licensed under the [MIT License](https://github.com/openmas-ai/openmas?tab=MIT-1-ov-file).

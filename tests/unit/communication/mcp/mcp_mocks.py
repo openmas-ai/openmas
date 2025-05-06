@@ -33,20 +33,35 @@ class TextContent:
 class CallToolResult:
     """Mock CallToolResult class."""
 
-    def __init__(self, tool_name: str, result: Dict[str, Any]):
+    def __init__(self, tool_name: str, result: Dict[str, Any], isError: bool = False):
         """Initialize the CallToolResult.
 
         Args:
             tool_name: Name of the tool that was called
             result: Result of the tool call
+            isError: Whether the result is an error
         """
         self.tool_name = tool_name
         self.result = result
+        self.isError = isError
+        self.content = [TextContent(text=str(result))]
 
     def __eq__(self, other):
         if isinstance(other, CallToolResult):
             return self.tool_name == other.tool_name and self.result == other.result
         return False
+
+
+class ListToolsResult:
+    """Mock ListToolsResult class for MCP 1.7.1."""
+
+    def __init__(self, tools: List[Dict[str, Any]]):
+        """Initialize the ListToolsResult.
+
+        Args:
+            tools: List of tools with their properties
+        """
+        self.tools = tools
 
 
 class Context:
@@ -64,6 +79,11 @@ class Context:
         self.tool_registry: Dict[str, Any] = {}
         self.prompt_registry: Dict[str, Any] = {}
         self.resource_registry: Dict[str, Any] = {}
+        self.arguments: Dict[str, Any] = {}
+        self.request = mock.MagicMock()
+        self.request.params = mock.MagicMock()
+        self.request.params.arguments = {}
+        self.request.json_body = {"params": {"arguments": {}}}
 
     def add_resource(self, key: str, value: Any) -> None:
         """Add a resource to the context."""
@@ -110,7 +130,7 @@ class MockClientSession:
         # Mock methods
         self.initialize = mock.AsyncMock()
         self.request = mock.AsyncMock()
-        self.call_tool = mock.AsyncMock(return_value="mock-tool-result")
+        self.call_tool = mock.AsyncMock()
         self.list_tools = mock.AsyncMock()
         self.send_notification = mock.AsyncMock()
         self.sample = mock.AsyncMock()
@@ -127,17 +147,22 @@ class MockClientSession:
 class MockFastMCP:
     """Mock implementation of MCP FastMCP."""
 
-    def __init__(self, context: Optional[Context] = None, instructions: Optional[str] = None) -> None:
+    def __init__(
+        self, name: str = "test-server", description: Optional[str] = None, context: Optional[Context] = None
+    ) -> None:
         """Initialize the mock FastMCP server.
 
         Args:
+            name: The name of the server
+            description: Server instructions or description
             context: MCP context
-            instructions: Server instructions (optional)
         """
+        self.name = name
+        self.description = description
         self.context = context or Context()
-        self.instructions = instructions
         self.prompts: Dict[str, Any] = {}
         self.tools: Dict[str, Tool] = {}
+        self.app = mock.MagicMock()
 
         # Mock methods
         self.register_tool = mock.MagicMock()
@@ -148,6 +173,7 @@ class MockFastMCP:
         self.handle_message = mock.AsyncMock()
         self.start = mock.AsyncMock()
         self.stop = mock.AsyncMock()
+        self.serve = mock.AsyncMock()
 
     def get_context(self, session_id: str) -> Context:
         """Get a context for a session."""
@@ -227,9 +253,11 @@ mock_server.fastmcp.FastMCP = MockFastMCP
 mock_mcp.types = mock_types
 mock_types.TextContent = TextContent
 mock_types.CallToolResult = CallToolResult
+mock_types.ListToolsResult = ListToolsResult
 
 # Add shared mock network for MockCommunicator
-_MOCK_NETWORK: Dict[str, Any] = {}
+# Store the shared mock network instance
+_mock_network_instance = None
 
 
 class MockNetwork:
@@ -248,63 +276,36 @@ class MockNetwork:
         """
         self.servers[name] = server
 
-    def get_server(self, name: str) -> Optional[Any]:
-        """Get a server by name.
-
-        Args:
-            name: Name of the server
-
-        Returns:
-            Server instance or None if not found
-        """
-        return self.servers.get(name)
+    @classmethod
+    def get_mock_network(cls):
+        """Get the shared mock network."""
+        global _mock_network_instance
+        if _mock_network_instance is None:
+            _mock_network_instance = cls()
+        return _mock_network_instance
 
 
-# Add method to MockCommunicator class
-def add_to_mock_communicator():
-    """Add get_mock_network method to MockCommunicator class if imported."""
-    if "openmas.testing.mock_communicator" in sys.modules:
-        from openmas.testing.mock_communicator import MockCommunicator
+def apply_mocks_to_sys_modules() -> None:
+    """Apply mocks to sys.modules to simulate MCP being installed.
 
-        @staticmethod
-        def get_mock_network():
-            """Get the shared mock network.
-
-            Returns:
-                Shared MockNetwork instance
-            """
-            if not _MOCK_NETWORK:
-                _MOCK_NETWORK["network"] = MockNetwork()
-            return _MOCK_NETWORK["network"]
-
-        # Add the method to the class
-        setattr(MockCommunicator, "get_mock_network", get_mock_network)
-
-
-# Apply this after all mocks
-def apply_mcp_mocks() -> None:
-    """Apply MCP mocks to sys.modules.
-
-    This function should be called at the beginning of any test module
-    that needs to mock MCP dependencies.
+    This function mocks all the necessary MCP modules in sys.modules, allowing
+    code that imports MCP to run without the actual package being installed.
+    It's particularly useful for testing in environments where MCP is not available.
     """
-    mcp_modules = {
-        "mcp": mock_mcp,
-        "mcp.client": mock_client,
-        "mcp.client.sse": mock_sse,
-        "mcp.client.stdio": mock_stdio,
-        "mcp.client.session": mock_session,
-        "mcp.server": mock_server,
-        "mcp.server.fastmcp": mock_server.fastmcp,
-        "mcp.types": mock_types,
-    }
-
-    # Update sys.modules with our mocks
-    sys.modules.update(mcp_modules)
-
-    # Add mock_network support to MockCommunicator if imported
-    add_to_mock_communicator()
+    sys.modules["mcp"] = mock_mcp
+    sys.modules["mcp.client"] = mock_client
+    sys.modules["mcp.client.sse"] = mock_sse
+    sys.modules["mcp.client.stdio"] = mock_stdio
+    sys.modules["mcp.client.session"] = mock_session
+    sys.modules["mcp.server"] = mock_server
+    sys.modules["mcp.server.fastmcp"] = mock_server.fastmcp
+    sys.modules["mcp.types"] = mock_types
 
 
-# Apply mocks when this module is imported
-apply_mcp_mocks()
+def apply_mcp_mocks() -> None:
+    """Apply mocks to simulate MCP being installed.
+
+    This function is backward compatible with the original mocking approach.
+    It's kept for existing tests that depend on this naming.
+    """
+    apply_mocks_to_sys_modules()

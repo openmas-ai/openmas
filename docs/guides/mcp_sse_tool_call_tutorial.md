@@ -8,7 +8,7 @@ Before you begin, make sure you have:
 
 1. OpenMAS installed
 2. Python 3.10 or later
-3. Dependencies: `mcp>=1.6.0,<1.7.0`, `aiohttp`, `httpx`
+3. Dependencies: `mcp>=1.7.1`, `aiohttp`, `httpx`
 4. A basic understanding of MCP concepts (see the [MCP Developer Guide](mcp_developer_guide.md))
 5. An available HTTP port (this tutorial uses 8000)
 
@@ -16,7 +16,7 @@ Before you begin, make sure you have:
 
 We'll create a simple example with two agents:
 
-1. **Tool Provider Agent**: Starts an HTTP server with an SSE endpoint that exposes the `process_data` tool
+1. **Tool Provider Agent**: Starts an HTTP server with an SSE endpoint that exposes the `process_text` tool
 2. **Tool User Agent**: Connects to the provider via HTTP and calls the tool to process text data
 
 ## Project Structure
@@ -45,7 +45,7 @@ First, create an `openmas_project.yml` file with the following configuration:
 ```yaml
 name: example_02_mcp_sse_tool_call
 version: 0.1.0
-description: "Example demonstrating MCP tool calls over Server-Sent Events (SSE)"
+description: "Example demonstrating MCP tool calls over Server-Sent Events (SSE) using MCP 1.7.1"
 
 # Define the available agents
 agents:
@@ -69,19 +69,20 @@ agent_configs:
     communicator_options:
       server_mode: true
       server_instructions: "A service that processes text using an MCP tool"
-      host: "127.0.0.1"
-      port: 8000
+      http_host: "127.0.0.1"
+      http_port: 8000
 
   # Tool user config - client mode with service URLs to connect to the provider
   tool_user:
     service_urls:
-      tool_provider: "http://127.0.0.1:8000"
+      tool_provider: "http://127.0.0.1:8000/sse"
 ```
 
 Key points:
-- We set the communicator type to `mcp-sse` instead of `mcp-stdio`
+- The communicator type is `mcp-sse` for Server-Sent Events transport
 - The tool provider runs in server mode on port 8000
-- The tool user connects via HTTP URL instead of stdio command
+- The tool user connects via HTTP URL, specifically to the `/sse` endpoint
+- Note the `http_host` and `http_port` fields align with MCP 1.7.1 naming conventions
 
 ## Step 2: Implement the Tool Provider Agent
 
@@ -103,7 +104,7 @@ logger = get_logger(__name__)
 class ToolProviderAgent(BaseAgent):
     """Agent that provides an MCP tool over SSE.
 
-    This agent registers a tool called "process_data" that handles
+    This agent registers a tool called "process_text" that handles
     incoming data and returns a processed result.
 
     Unlike stdio-based tools, this provider runs as an HTTP server that
@@ -119,53 +120,68 @@ class ToolProviderAgent(BaseAgent):
         for sig in (signal.SIGINT, signal.SIGTERM):
             self.loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(self._handle_signal(s)))
 
-        # Try to register as an MCP tool
-        tool_name = "process_data"
+        # Register the MCP tool
+        tool_name = "process_text"
 
         try:
-            # If using a real MCP communicator, register as a tool
-            if hasattr(self.communicator, "register_tool"):
-                await self.communicator.register_tool(
-                    name=tool_name,
-                    description="Process incoming data and return a result",
-                    function=self.process_data_handler,
-                )
-                logger.info(f"Registered MCP tool: {tool_name}")
-            else:
-                await self.communicator.register_handler(f"tool/call/{tool_name}", self.process_data_handler)
-                logger.info(f"Registered handler for tool: {tool_name}")
-        except Exception as e:
-            logger.error(f"Error registering tool/handler: {e}")
-            raise
+            await self.communicator.register_tool(
+                name=tool_name,
+                description="Process incoming text and return the result",
+                function=self.process_text_handler,
+            )
+            logger.info(f"Registered MCP tool: {tool_name}")
 
-        # Get server details if available
-        if hasattr(self.communicator, "get_server_info"):
-            server_info = await self.communicator.get_server_info()
-            if server_info:
-                logger.info(f"SSE Server running at: {server_info.get('url', 'unknown')}")
+            # Get server details if available
+            if hasattr(self.communicator, "get_server_info"):
+                server_info = await self.communicator.get_server_info()
+                if server_info:
+                    logger.info(f"SSE Server running at: {server_info.get('url', 'unknown')}")
+
+        except Exception as e:
+            logger.error(f"Error registering tool: {e}")
+            raise
 
         logger.info("ToolProviderAgent setup complete")
 
-    async def process_data_handler(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle incoming tool calls by processing the provided data.
+    async def process_text_handler(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle incoming tool calls by processing the provided text.
 
         Args:
-            payload: Dictionary containing the data to process
+            payload: Dictionary containing the text to process
 
         Returns:
             Dictionary containing the processed result
         """
-        logger.info(f"Tool handler received data: {payload}")
+        logger.info(f"Tool handler received payload: {payload}")
 
-        # Simple data processing - in a real-world scenario, this might involve
-        # complex transformations, model inference, or other operations
+        # MCP 1.7.1 can send arguments in different ways, so check both formats
+        text = None
+
+        # Check for direct text field
         if "text" in payload:
-            processed_text = payload["text"].upper()
-            word_count = len(payload["text"].split())
+            text = payload["text"]
+            logger.info("Found text in direct text field")
 
-            result = {"processed_text": processed_text, "word_count": word_count, "status": "success"}
+        # Check for content array format (MCP 1.7.1 style)
+        elif "content" in payload and isinstance(payload["content"], list) and len(payload["content"]) > 0:
+            content_item = payload["content"][0]
+            if isinstance(content_item, dict) and "text" in content_item:
+                text = content_item["text"]
+                logger.info("Found text in content[0].text")
+            elif hasattr(content_item, "text"):
+                # Handle MCP TextContent object
+                text = content_item.text
+                logger.info("Found text in content[0].text object")
+
+        # Process the text if found
+        if text is None:
+            result = {"error": "No text field found in payload", "status": "error"}
+            logger.error(f"Missing text field in payload: {payload}")
         else:
-            result = {"error": "No text field in payload", "status": "error"}
+            # Simple processing - convert to uppercase and count words
+            processed_text = text.upper()
+            word_count = len(text.split())
+            result = {"processed_text": processed_text, "word_count": word_count, "status": "success"}
 
         logger.info(f"Tool handler returning result: {result}")
         return result
@@ -178,20 +194,15 @@ class ToolProviderAgent(BaseAgent):
         """
         logger.info("ToolProviderAgent running, waiting for tool calls via SSE")
 
-        # For a real MCP communicator with SSE, we need to keep the server running
-        if hasattr(self.communicator, "register_tool"):
-            # Create an event to signal shutdown
-            self._shutdown_event = asyncio.Event()
+        # Create an event to signal shutdown
+        self._shutdown_event = asyncio.Event()
 
-            # Wait for the shutdown signal
-            try:
-                await self._shutdown_event.wait()
-                logger.info("Shutdown event received, preparing to stop")
-            except asyncio.CancelledError:
-                logger.info("Run method cancelled, preparing to stop")
-        else:
-            # For testing with mock communicator, just return immediately
-            logger.info("ToolProviderAgent run complete (test mode)")
+        # Wait for the shutdown signal
+        try:
+            await self._shutdown_event.wait()
+            logger.info("Shutdown event received, preparing to stop")
+        except asyncio.CancelledError:
+            logger.info("Run method cancelled, preparing to stop")
 
     async def _handle_signal(self, sig: signal.Signals) -> None:
         """Handle termination signals for graceful shutdown.
@@ -244,6 +255,7 @@ from typing import Any, Dict, Optional
 
 from openmas.agent import BaseAgent
 from openmas.logging import get_logger
+from openmas.exceptions import CommunicationError
 
 logger = get_logger(__name__)
 
@@ -251,11 +263,8 @@ logger = get_logger(__name__)
 class ToolUserAgent(BaseAgent):
     """Agent that uses an MCP tool over SSE.
 
-    This agent calls the "process_data" tool provided by the ToolProviderAgent,
-    sends some text data, and processes the result.
-
-    Unlike stdio-based tools, this agent connects to the provider over HTTP
-    using Server-Sent Events (SSE).
+    This agent calls the "process_text" tool provided by the ToolProviderAgent,
+    sends text data, and processes the result.
     """
 
     async def setup(self) -> None:
@@ -263,154 +272,87 @@ class ToolUserAgent(BaseAgent):
         logger.info("Setting up ToolUserAgent")
         self.result: Optional[Dict[str, Any]] = None
         self.error: Optional[Dict[str, str]] = None
-
-        # Verify that the service URL for the tool provider is properly configured
-        if hasattr(self.communicator, "service_urls") and "tool_provider" in self.communicator.service_urls:
-            url = self.communicator.service_urls["tool_provider"]
-            logger.info(f"Tool provider service URL configured: {url}")
-        else:
-            logger.warning("No tool provider service URL configured")
-
         logger.info("ToolUserAgent setup complete")
 
     async def run(self) -> None:
-        """Run the agent by calling the process_data tool."""
-        logger.info("ToolUserAgent running, calling process_data tool")
+        """Run the agent by calling the process_text tool."""
+        logger.info("ToolUserAgent running, calling process_text tool")
 
-        # Prepare the data to send to the tool
-        tool_payload = {"text": "Hello, this is a sample text that needs processing."}
-        tool_name = "process_data"
+        # Prepare the text to process
+        test_text = "Hello, this is a sample text that needs processing."
 
         try:
-            # Try to use MCP call_tool if available, otherwise use send_request
-            logger.info(f"Calling tool '{tool_name}' with payload: {tool_payload}")
+            # Call the process_text tool with timeout protection
+            result = await self._call_process_text(test_text)
 
-            # Set a timeout for the tool call to prevent hanging
-            # For network-based SSE communication, we might need a longer timeout
-            # than for stdio-based communication
-            timeout_seconds = 15.0
-
-            if hasattr(self.communicator, "call_tool"):
-                # Call the process_data tool using MCP call_tool with timeout
-                result = await self._call_tool_with_timeout(
-                    target_service="tool_provider", tool_name=tool_name, arguments=tool_payload, timeout=timeout_seconds
-                )
-            else:
-                # For testing with MockCommunicator, use send_request with the tool/call/ prefix
-                result = await self._send_request_with_timeout(
-                    target_service="tool_provider",
-                    method=f"tool/call/{tool_name}",
-                    params=tool_payload,
-                    timeout=timeout_seconds,
-                )
-
-            # Store the result for verification in tests
+            # Store the result for verification
             self.result = result
 
             # Log the result
-            logger.info(f"Received tool result: {result}")
+            logger.info(f"Process text tool result: {result}")
 
             if result.get("status") == "success":
-                logger.info(f"Successfully processed text. Word count: {result.get('word_count')}")
-                logger.info(f"Processed text: {result.get('processed_text')}")
+                logger.info(f"Successfully processed text: {result.get('processed_text')}")
+                logger.info(f"Word count: {result.get('word_count')}")
             else:
                 logger.error(f"Tool call failed: {result.get('error')}")
 
-        except asyncio.TimeoutError:
-            error_msg = f"Tool call to '{tool_name}' timed out after {timeout_seconds} seconds"
-            logger.error(error_msg)
-            self.error = {"error": error_msg, "status": "timeout"}
-        except ConnectionError as ce:
-            error_msg = f"Connection error calling tool '{tool_name}': {ce}"
-            logger.error(error_msg)
-            self.error = {"error": error_msg, "status": "connection_error"}
         except Exception as e:
-            error_msg = f"Error calling tool: {e}"
-            logger.error(error_msg)
+            logger.error(f"Error during tool call: {e}")
             self.error = {"error": str(e), "status": "error"}
 
         logger.info("ToolUserAgent completed its run method")
 
-    async def _call_tool_with_timeout(
-        self, target_service: str, tool_name: str, arguments: Dict[str, Any], timeout: float
-    ) -> Dict[str, Any]:
-        """Call a tool with a timeout to prevent hanging.
+    async def _call_process_text(self, text: str, timeout: float = 10.0) -> Dict[str, Any]:
+        """Call the process_text tool with timeout protection.
 
         Args:
-            target_service: The name of the service providing the tool
-            tool_name: The name of the tool to call
-            arguments: The arguments to pass to the tool
+            text: The text to process
             timeout: Timeout in seconds
 
         Returns:
-            The result of the tool call
+            The result from the tool
 
         Raises:
+            CommunicationError: If there's an error calling the tool
             asyncio.TimeoutError: If the call times out
-            ConnectionError: If connection to the provider fails
         """
-        # For SSE, the initial connection might take some time, especially
-        # if the server is still starting up
-        connection_attempts = 3
-        backoff_seconds = 1.0
+        logger.info(f"Calling process_text tool with text: {text}")
 
-        # Try multiple times with exponential backoff
-        for attempt in range(1, connection_attempts + 1):
-            try:
-                logger.info(f"Tool call attempt {attempt}/{connection_attempts}")
-                return await asyncio.wait_for(
-                    self.communicator.call_tool(target_service=target_service, tool_name=tool_name, arguments=arguments),
-                    timeout=timeout,
-                )
-            except asyncio.TimeoutError:
-                if attempt < connection_attempts:
-                    logger.warning(f"Tool call attempt {attempt} timed out, retrying in {backoff_seconds}s")
-                    await asyncio.sleep(backoff_seconds)
-                    backoff_seconds *= 2  # Exponential backoff
-                else:
-                    logger.error(f"Tool call failed after {connection_attempts} attempts")
-                    raise
-            except ConnectionError as ce:
-                if attempt < connection_attempts:
-                    logger.warning(f"Connection error on attempt {attempt}, retrying in {backoff_seconds}s: {ce}")
-                    await asyncio.sleep(backoff_seconds)
-                    backoff_seconds *= 2  # Exponential backoff
-                else:
-                    logger.error(f"Connection failed after {connection_attempts} attempts: {ce}")
-                    raise
+        # Create a payload that works with MCP 1.7.1
+        # Include both direct text field and content array format
+        payload = {
+            "text": text,
+            # Add content array for MCP 1.7.1 compatibility
+            "content": [{"type": "text", "text": text}]
+        }
 
-    async def _send_request_with_timeout(
-        self, target_service: str, method: str, params: Dict[str, Any], timeout: float
-    ) -> Dict[str, Any]:
-        """Send a request with a timeout to prevent hanging.
+        try:
+            # Call the tool with timeout protection
+            result = await asyncio.wait_for(
+                self.communicator.call_tool(
+                    target_service="tool_provider",
+                    tool_name="process_text",
+                    arguments=payload,
+                ),
+                timeout=timeout,
+            )
 
-        Args:
-            target_service: The name of the target service
-            method: The method to call
-            params: The parameters to pass
-            timeout: Timeout in seconds
+            logger.info(f"Received raw result: {result}")
+            return result
 
-        Returns:
-            The response from the service
-
-        Raises:
-            asyncio.TimeoutError: If the request times out
-        """
-        return await asyncio.wait_for(
-            self.communicator.send_request(target_service=target_service, method=method, params=params), timeout=timeout
-        )
+        except asyncio.TimeoutError:
+            error_msg = f"Tool call timed out after {timeout} seconds"
+            logger.error(error_msg)
+            raise
+        except Exception as e:
+            error_msg = f"Error calling process_text tool: {e}"
+            logger.error(error_msg)
+            raise CommunicationError(error_msg)
 
     async def shutdown(self) -> None:
         """Shut down the agent."""
         logger.info("ToolUserAgent shutting down")
-
-        # Close any open connections to the provider
-        if hasattr(self.communicator, "close_connections"):
-            try:
-                await self.communicator.close_connections()
-                logger.info("Closed connections to tool provider")
-            except Exception as e:
-                logger.error(f"Error closing connections: {e}")
 ```
 
 Don't forget to create `agents/tool_user/__init__.py`:
@@ -421,102 +363,167 @@ Don't forget to create `agents/tool_user/__init__.py`:
 from .agent import ToolUserAgent
 ```
 
-Also create `agents/__init__.py`:
+## Step 4: Create a Test Script
+
+Create a test script `test_example.py` to verify that the example works:
+
 ```python
-"""Agent modules for MCP SSE Tool Call example."""
+"""Test script for the MCP SSE tool call example."""
+
+import asyncio
+import logging
+import sys
+from typing import Dict, Any
+
+from openmas.agent_factory import AgentFactory
+from openmas.logging import configure_logging
+
+# Configure logging
+configure_logging(logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+async def run_test():
+    """Run the test."""
+    logger.info("Starting MCP SSE tool call test")
+
+    # Create the agent factory
+    factory = AgentFactory()
+
+    # Create the agents
+    tool_provider = await factory.create_agent("tool_provider")
+    tool_user = await factory.create_agent("tool_user")
+
+    try:
+        # Start the provider first
+        await tool_provider.start()
+        logger.info("Tool provider agent started")
+
+        # Give the server a moment to initialize
+        await asyncio.sleep(1.0)
+
+        # Start the user agent
+        await tool_user.start()
+        logger.info("Tool user agent started")
+
+        # Wait for the user to complete its task
+        await asyncio.sleep(2.0)
+
+        # Verify the result
+        result = getattr(tool_user, "result", None)
+        error = getattr(tool_user, "error", None)
+
+        if result:
+            logger.info(f"Test result: {result}")
+            assert result.get("status") == "success", "Tool call failed"
+            assert "processed_text" in result, "Missing processed_text in result"
+            assert "word_count" in result, "Missing word_count in result"
+            logger.info("Test passed! Tool call was successful.")
+        elif error:
+            logger.error(f"Test failed with error: {error}")
+            sys.exit(1)
+        else:
+            logger.error("Test failed - no result or error found")
+            sys.exit(1)
+
+    finally:
+        # Always clean up the agents
+        logger.info("Cleaning up agents")
+        await tool_user.stop()
+        await tool_provider.stop()
+        logger.info("Agents stopped")
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(run_test())
+    except KeyboardInterrupt:
+        logger.info("Test interrupted by user")
+        sys.exit(130)
+    except Exception as e:
+        logger.error(f"Error running test: {e}", exc_info=True)
+        sys.exit(1)
 ```
 
-## Step 4: Running the Example
+## Step 5: Run the Example
 
-### Method 1: Running Separately
-
-1. First, start the tool provider agent:
+Run the example using the following command:
 
 ```bash
-openmas run tool_provider --project examples/example_02_mcp/01_mcp_sse_tool_call
+python test_example.py
 ```
 
-2. Then, in another terminal, start the tool user agent:
+You should see output showing:
+1. The tool provider starting with the MCP SSE server
+2. The tool user connecting to the server
+3. A successful tool call being made
+4. The result being processed
 
-```bash
-openmas run tool_user --project examples/example_02_mcp/01_mcp_sse_tool_call
+## Key Concepts
+
+### MCP SSE Communicator
+
+The `McpSseCommunicator` in OpenMAS handles all the complexities of setting up an MCP server with SSE transport. When configured with `server_mode=True`, it:
+
+1. Creates an HTTP server using FastAPI and Uvicorn
+2. Sets up the MCP FastMCP instance
+3. Configures the SSE endpoint
+4. Handles tool registration
+
+### Tool Registration and Handling
+
+Tools are registered with the communicator using the `register_tool` method. The tool handler function:
+
+1. Receives a payload dictionary containing the arguments
+2. Processes the input data
+3. Returns a result dictionary that will be sent back to the client
+
+With MCP 1.7.1, it's important to handle different argument formats:
+- Direct arguments like `payload["text"]`
+- Content array format like `payload["content"][0]["text"]`
+
+### Tool Calling
+
+When calling a tool with MCP 1.7.1, it's best to provide arguments in multiple formats to ensure compatibility:
+
+```python
+payload = {
+    "text": "Hello world",
+    "content": [{"type": "text", "text": "Hello world"}]
+}
 ```
 
-### Method 2: Running the Test Script
+### Error Handling
 
-The example includes a test script that runs both agents together and verifies the functionality:
+Proper error handling is crucial when working with network-based communication. Always use:
 
-```bash
-python examples/example_02_mcp/01_mcp_sse_tool_call/test_example.py
-```
+1. Timeouts to prevent hanging
+2. Try/except blocks to catch and handle errors
+3. Proper logging to aid in debugging
 
-## How It Works
+## Best Practices for MCP 1.7.1 SSE Communication
 
-Here's what happens when you run the example:
+1. **Flexible Argument Handling**: Always check for arguments in multiple formats
+2. **Robust Error Handling**: Handle all network and protocol errors gracefully
+3. **Timeouts**: Use timeouts for all network operations to prevent hanging
+4. **Graceful Shutdown**: Always stop the server properly to release resources
+5. **Detailed Logging**: Log all operations to aid in debugging
 
-1. **Provider Setup**:
-   - The tool provider agent starts an HTTP server on port 8000
-   - It registers the `process_data` tool
-   - The server has an SSE endpoint at `/sse` and a message handling endpoint at `/messages`
+## Troubleshooting
 
-2. **User Connection**:
-   - The tool user agent connects to the provider's SSE endpoint
-   - It initializes an MCP session over the SSE connection
-   - It calls the `process_data` tool with a text payload
+If you encounter issues:
 
-3. **Data Processing**:
-   - The provider receives the tool call
-   - It processes the text (converts to uppercase and counts words)
-   - It returns the result to the user
-
-4. **Result Handling**:
-   - The user receives the result and displays it
-   - It verifies the structure and content of the result
-
-## Comparing SSE vs Stdio
-
-| Feature | SSE | Stdio |
-|---------|-----|-------|
-| Communication | Network-based (HTTP) | Process-based (stdin/stdout) |
-| Multiple Clients | ✅ Supports multiple clients | ❌ Only one client per provider |
-| Deployment | ✅ Can run on separate machines | ❌ Must run on same machine |
-| Setup | More complex (HTTP server) | Simpler (process pipes) |
-| Timeout Handling | Needs network timeouts | Process timeouts |
-| Connection Resilience | Can reconnect if connection drops | Process must restart |
-| Security | Requires network security | Process isolation |
-
-## Common Issues and Troubleshooting
-
-### Connection Issues
-
-- **Provider not starting**: Check if the port is already in use
-- **Connection refused**: Ensure the provider is running and the port is accessible
-- **Timeout during initialization**: The server might need more time to start
-
-### Port Conflicts
-
-If port 8000 is already in use:
-
-1. Choose a different port in `openmas_project.yml`
-2. Update the service URL to match the new port
-
-### Network Restrictions
-
-- Ensure the chosen port is not blocked by a firewall
-- For distributed setups, modify the host from `127.0.0.1` to the actual IP or hostname
-
-## Extending the Example
-
-Here are some ways to extend this example:
-
-1. **Add Authentication**: Implement a simple authentication mechanism for the HTTP server
-2. **Multiple Tools**: Register additional tools with different functionality
-3. **Load Balancing**: Create multiple provider instances behind a load balancer
-4. **Connection Pooling**: Implement connection pooling for the client to reuse connections
-5. **HTTPS**: Configure the provider to use HTTPS for secure communication
+1. **Connection Refused**: Make sure the server is running and the port is correct
+2. **Tool Not Found**: Verify the tool name matches between provider and user
+3. **Timeout Errors**: Increase the timeout value or check for network issues
+4. **Serialization Errors**: Ensure all data sent and received is JSON-serializable
+5. **Event Loop Errors**: These can occur during cleanup but are typically harmless
 
 ## Next Steps
 
-- Learn about more advanced MCP features in the [MCP Developer Guide](mcp_developer_guide.md)
-- Explore other OpenMAS examples and patterns
-- Read about [Agent Chaining](../patterns/agent_chaining.md) to combine multiple agents
+- Try modifying the tool to perform different text processing operations
+- Add more tools to the provider agent
+- Implement a more complex application using multiple tools
+- Explore the stdio transport for local communication in [MCP Stdio Tool Call Tutorial](mcp_stdio_tool_call_tutorial.md)
+
+For more details on MCP integration in OpenMAS, see the [MCP Integration Guide](mcp_integration.md) and the [MCP Developer Guide](mcp_developer_guide.md).

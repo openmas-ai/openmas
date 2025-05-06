@@ -33,6 +33,27 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "mock: mark a test as using mock implementations without real dependencies")
 
 
+def pytest_collection_modifyitems(config, items):
+    if not config.getoption("--run-real-mcp"):
+        skip_real = pytest.mark.skip(reason="need --run-real-mcp option to run")
+        for item in items:
+            # Check if the test is in the 'real' subdirectory
+            # Use item.path which should be a pathlib.Path object
+            try:
+                # Check if 'real' is a parent directory within the 'mcp' test structure
+                # Find the index of the 'mcp' part
+                mcp_index = item.path.parts.index("mcp")
+                # Check if the next part is 'real'
+                if len(item.path.parts) > mcp_index + 1 and item.path.parts[mcp_index + 1] == "real":
+                    item.add_marker(skip_real)
+            except ValueError:
+                # 'mcp' not in path, ignore
+                pass
+            # Also check for explicit marker if needed (optional, based on current usage)
+            # elif item.get_closest_marker("real_process"):
+            #     item.add_marker(skip_real)
+
+
 @pytest.fixture
 async def mcp_server_client_pair() -> AsyncGenerator[Tuple[McpServerAgent, McpClientAgent], None]:
     """Create a pair of MCP server and client agents for testing.

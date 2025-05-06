@@ -314,12 +314,14 @@ class BaseCommunicator(abc.ABC):
         """
         self.agent_name = agent_name
         self.service_urls = service_urls
-        # These parameters are used by specific communicator implementations
-        # and can be safely ignored by base implementations
+        # Revert these back to use underscore prefix for internal storage
         self._server_mode = server_mode
         self._server_instructions = server_instructions
         self._service_args = service_args or {}
         self._port = port
+        # Placeholder for server status
+        self._is_server_running = False
+
         logger.debug(
             "Initialized communicator",
             communicator_type=self.__class__.__name__,

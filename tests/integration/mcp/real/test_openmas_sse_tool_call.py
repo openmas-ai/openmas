@@ -6,27 +6,28 @@ with real MCP communication (not mocked).
 The test follows the patterns established in the example_02_mcp/01_mcp_sse_tool_call
 example project, which has been verified to work correctly.
 
-NOTE: This test is skipped by default because it requires a proper MCP setup
-with real network connectivity between the server and client. To run it manually:
+NOTE: This test uses the '--run-real-mcp' custom pytest flag to control execution.
+It's skipped if the flag is not provided because it requires real network
+communication and MCP dependencies.
 
+To run using tox (recommended, includes the flag automatically):
+    tox -e integration-real-mcp
+
+To run manually with pytest:
     poetry run pytest tests/integration/mcp/real/test_openmas_sse_tool_call.py -v --run-real-mcp
 """
 
 import asyncio
 import logging
-import sys  # For checking command line arguments
-
-# import random # No longer needed directly
 from typing import Any, Dict, Optional
 
 import pytest
 
 from openmas.agent import BaseAgent
-from openmas.config import AgentConfig
-from openmas.exceptions import CommunicationError
 
-# Correctly placed import
-from .utils import McpTestHarness, TransportType  # Only import necessary items
+# Import our communicator directly
+from openmas.communication.mcp.sse_communicator import McpSseCommunicator
+from openmas.exceptions import CommunicationError
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -46,27 +47,6 @@ except ImportError:
 skip_reason = "MCP package not installed"
 
 
-# Skip by default unless --run-real-mcp is specified
-skip_real_mcp = True
-
-# Try to determine if --run-real-mcp was specified
-try:
-    if "--run-real-mcp" in sys.argv:
-        skip_real_mcp = False
-except Exception:  # Specify exception type
-    pass
-
-
-# Try importing McpSseCommunicator directly for isolated testing
-try:
-    from openmas.communication.mcp.sse_communicator import McpSseCommunicator
-
-    HAS_COMMUNICATOR = True
-except ImportError:
-    McpSseCommunicator = None  # type: ignore
-    HAS_COMMUNICATOR = False
-
-
 class ToolProviderAgent(BaseAgent):
     """Agent that provides an MCP tool via SSE.
 
@@ -83,44 +63,32 @@ class ToolProviderAgent(BaseAgent):
 
         try:
             # Register the tool if the communicator supports it
-            if hasattr(self.communicator, "register_tool"):
-                await self.communicator.register_tool(
-                    name=tool_name,
-                    description="Process text input by converting to uppercase and counting words",
-                    function=self.process_text_handler,
-                )
-                logger.info(f"Registered MCP tool: {tool_name}")
-            else:
-                # For non-MCP communicators, register a standard handler
-                await self.communicator.register_handler(f"tool/call/{tool_name}", self.process_text_handler)
-                logger.info(f"Registered handler for tool: {tool_name}")
+            await self.communicator.register_tool(
+                name=tool_name,
+                description="Process text input by converting to uppercase and counting words",
+                function=self.process_text_handler,
+            )
+            logger.info(f"Registered MCP tool: {tool_name}")
         except Exception as e:
-            logger.error(f"Error registering tool/handler: {e}")
+            logger.error(f"Error registering tool: {e}")
             raise
 
         logger.info(f"{self.name} setup complete")
 
-    async def process_text_handler(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_text_handler(self, text: str) -> Dict[str, Any]:
         """Process text by converting to uppercase and counting words.
 
         Args:
-            payload: Dictionary containing the text to process
+            text: The text to process
 
         Returns:
             Dictionary containing the processed result
         """
-        logger.info(f"Process text handler received payload: {payload}")
-
-        # Check if the text field is present
-        if "text" not in payload:
-            result = {"error": "No text field in payload", "status": "error"}
-            logger.warning(f"Missing text field in payload: {payload}")
-            return result
+        logger.info(f"Process text handler received text: {text}")
 
         # Process the text
-        text = payload["text"]
         if not text:
-            result = {"error": "Empty text input", "status": "error"}
+            raise ValueError("Empty text input")
         else:
             processed_text = text.upper()
             word_count = len(text.split())
@@ -179,41 +147,32 @@ class ToolUserAgent(BaseAgent):
         logger.info(f"Calling process_text tool with text: {text}")
 
         tool_name = "process_text"
-        payload = {"text": text}
+
+        # Create a payload that explicitly sets the text field for MCP 1.7.1
+        payload = {
+            "text": text,
+            # Optionally add a fallback content field in MCP 1.7.1 format
+            # Some MCP servers expect this format instead
+            "content": [{"type": "text", "text": text}],
+        }
+
+        logger.info(f"Sending payload to process_text tool: {payload}")
 
         try:
             # Call the tool with timeout
-            if hasattr(self.communicator, "call_tool"):
-                result = await asyncio.wait_for(
-                    self.communicator.call_tool(
-                        target_service="tool_provider",
-                        tool_name=tool_name,
-                        arguments=payload,
-                    ),
-                    timeout=timeout,
-                )
-            else:
-                result = await asyncio.wait_for(
-                    self.communicator.send_request(
-                        target_service="tool_provider",
-                        method=f"tool/call/{tool_name}",
-                        params=payload,
-                    ),
-                    timeout=timeout,
-                )
+            result = await asyncio.wait_for(
+                self.communicator.call_tool(
+                    target_service="tool_provider",
+                    tool_name=tool_name,
+                    arguments=payload,
+                ),
+                timeout=timeout,
+            )
 
-            # Ensure result is Dict[str, Any] to satisfy mypy
-            if not isinstance(result, dict):
-                result_dict: Dict[str, Any] = {"raw_result": str(result)}
-                logger.warning(f"Expected dict result, got {type(result)}")
-                self.result = result_dict
-                return result_dict
-
-            # Store and return the result as a properly typed Dict[str, Any]
-            typed_result: Dict[str, Any] = result
-            self.result = typed_result
-            logger.info(f"Received tool result: {typed_result}")
-            return typed_result
+            # Store and return the result
+            self.result = result
+            logger.info(f"Received tool result: {result}")
+            return result
 
         except asyncio.TimeoutError:
             error_msg = f"Tool call timed out after {timeout} seconds"
@@ -242,102 +201,124 @@ class ToolUserAgent(BaseAgent):
 @pytest.mark.asyncio
 @pytest.mark.mcp
 @pytest.mark.skipif(not HAS_MCP, reason=skip_reason)
-@pytest.mark.skipif(skip_real_mcp, reason="Skipped by default. Use --run-real-mcp to enable.")
 async def test_openmas_mcp_sse_integration() -> None:
-    """Test OpenMAS MCP SSE integration using the McpTestHarness.
+    """Test OpenMAS MCP SSE integration with real agents.
 
     This test:
-    1. Starts the `mcp_sse_test_server.py` script using McpTestHarness.
-    2. Verifies the server starts and is reachable via HTTP.
-    3. Creates a client agent (ToolUserAgent) configured to connect to the server's SSE endpoint.
-    4. Makes a tool call from the client agent to the server agent.
-    5. Validates the response.
-    6. Cleans up the server process via the harness.
-
-    Note: This test requires a proper environment setup and is skipped by default.
-    Run with --run-real-mcp to enable.
+    1. Creates and starts a tool provider agent with the sse communicator in server mode
+    2. Creates and starts a tool user agent with the sse communicator in client mode
+    3. Has the tool user call the process_text tool on the provider
+    4. Verifies that the tool call works correctly
     """
-    if not HAS_COMMUNICATOR:
-        pytest.skip("McpSseCommunicator not available for import")
+    # Use a different port than the example to avoid conflicts
+    provider_port = 8081
 
-    # Define the server script path first
-    server_script_path = "tests/integration/mcp/real/sse_server_script.py"  # Use the working server script
-    harness = McpTestHarness(TransportType.SSE, script_path=server_script_path)  # Pass script path here
-    logger.info(f"Using test port: {harness.test_port}")
+    # Create communicator instances directly
+    provider_service_urls: Dict[str, str] = {}  # Server doesn't need service URLs
+    provider_communicator = McpSseCommunicator(
+        agent_name="tool_provider",
+        service_urls=provider_service_urls,
+        server_mode=True,
+        http_port=provider_port,
+    )
+
+    # Create the user communicator - it needs to know the provider's URL
+    user_service_urls = {"tool_provider": f"http://localhost:{provider_port}"}
+    user_communicator = McpSseCommunicator(
+        agent_name="tool_user",
+        service_urls=user_service_urls,
+        server_mode=False,  # Client mode
+    )
+
+    # Create agents directly with local configs instead of AgentConfig objects
+    # This avoids the config loading/validation mechanism that's causing the error
+    provider_agent = ToolProviderAgent(
+        name="tool_provider",
+        config={"name": "tool_provider", "communicator_type": "mcp-sse"},
+    )
+    provider_agent.set_communicator(provider_communicator)
+
+    user_agent = ToolUserAgent(
+        name="tool_user",
+        config={"name": "tool_user", "communicator_type": "mcp-sse"},
+    )
+    user_agent.set_communicator(user_communicator)
+
+    # Start the provider agent first
+    await provider_agent.start()
 
     try:
-        # Start the server script as a subprocess via the harness
-        logger.info(f"Starting server script: {server_script_path}")
-        # sse_server_script.py takes --port and optionally --host
-        # Use 127.0.0.1 explicitly for host binding for consistency
-        process = await harness.start_server(additional_args=["--host", "127.0.0.1", "--port", str(harness.test_port)])
-        if process.returncode is not None:
-            # stderr, stdout = await harness.read_process_output() # Method doesn't exist
-            # logger.error(f"Server process failed to start. Code: {process.returncode}\nStderr: {stderr}\nStdout: {stdout}")
-            pytest.fail(f"Server process failed to start immediately. Code: {process.returncode}")
-            return  # Ensure mypy knows process is not None if fail occurs
+        # Start the user agent
+        await user_agent.start()
 
-        logger.info("Server process started, waiting for readiness signal & HTTP check...")
-        # Harness waits for stderr signal (SSE_SERVER_URL=...) AND performs HTTP check on /sse
-        startup_ok = await harness.verify_server_startup(timeout=25.0)  # Increased timeout
-        assert startup_ok, "Server startup verification failed (check harness logs and server script stderr)"
-        assert harness.server_url, "Server URL not successfully parsed from harness startup"  # Should include /sse
-        logger.info(f"Server ready, Harness URL: {harness.server_url}")
+        # Wait a bit for the server to be fully ready
+        await asyncio.sleep(1.0)
 
-        # --- Client Agent Setup and Connection ---
-        logger.info("Configuring and starting ToolUserAgent...")
-        user_config = AgentConfig(
-            name="tool_user_agent",
-            communicator_type="mcp-sse",
-            communicator_options={
-                "server_mode": False,  # Explicitly client mode
-            },
-            service_urls={"provider_service": harness.server_url},  # Use the URL obtained by harness
-        )
-        user = ToolUserAgent(config=user_config)
+        # Call the process_text tool
+        test_text = "Hello, this is a test message for mcp sse tool call."
+        result = await user_agent.call_process_text(test_text)
+
+        # Verify the result
+        assert result is not None, "Got None result from tool call"
+        assert "status" in result, "Missing status field in result"
+        assert result["status"] == "success", f"Expected status=success but got {result}"
+        assert "processed_text" in result, "Missing processed_text field in result"
+        assert result["processed_text"] == test_text.upper(), "Text was not properly processed"
+        assert "word_count" in result, "Missing word_count field in result"
+        assert str(result["word_count"]) == str(len(test_text.split())), "Word count is incorrect"
+
+        # Test error handling - empty text
         try:
-            await user.start()
-            logger.info("ToolUserAgent started successfully.")
+            await user_agent.call_process_text("")
+            assert False, "Expected an exception for empty text input"
+        except CommunicationError:
+            # This is expected
+            assert user_agent.error is not None, "Error state not captured"
+            assert "status" in user_agent.error, "Missing status in error"
+            assert user_agent.error["status"] == "error", "Wrong error status"
 
-            # Call the registered test tool via the user agent's communicator
-            # sse_server_script.py provides an 'echo' tool which expects a 'message' key
-            tool_call_args = {"message": "hello from client via OpenMAS"}
-            logger.info(f"Calling 'echo' tool with args: {tool_call_args}")
-            result = await user.communicator.call_tool(
-                target_service="provider_service",  # Must match key in user_config.service_urls
-                tool_name="echo",  # Tool name from sse_server_script.py
-                arguments=tool_call_args,
-            )
-
-            logger.info(f"Tool call result received: {result}")
-
-            # --- Assertions --- # Check the structure and content
-            assert isinstance(result, dict), f"Expected dict result, got {type(result)}"
-            assert "echoed" in result, "'echoed' key missing from result"
-            assert result.get("echoed") == tool_call_args["message"], "Echoed message mismatch"
-
-            # Ensure the result is explicitly typed as Dict[str, Any] to fix mypy issue
-            result_dict: Dict[str, Any] = result
-
-            logger.info("Assertions passed!")
-
-        finally:
-            # Ensure agent is stopped even if assertions fail
-            if "user" in locals() and user._is_running:
-                logger.info("Stopping ToolUserAgent...")
-                await user.stop()
-                logger.info("ToolUserAgent stopped.")
-
-    except Exception as e:
-        logger.error(f"Test failed with exception: {e}", exc_info=True)
-        # stderr, stdout = await harness.read_process_output() # Ensure this remains commented out
-        # logger.error(f"Server stderr:\n{stderr}")           # Ensure this remains commented out
-        # logger.error(f"Server stdout:\n{stdout}")           # Ensure this remains commented out
-        pytest.fail(f"Test failed with exception: {e}")
     finally:
-        # --- Cleanup --- #
-        logger.info("Cleaning up test harness (terminating server process)...")
-        await harness.cleanup()
-        logger.info("Test harness cleanup complete.")
+        # Shutdown the agents
+        await user_agent.stop()
+        await provider_agent.stop()
 
-    logger.info("test_openmas_mcp_sse_integration finished.")
+
+@pytest.mark.asyncio
+@pytest.mark.mcp
+@pytest.mark.skipif(not HAS_MCP, reason=skip_reason)
+async def test_mcp_sse_handler_modification() -> None:
+    """Test that handler modifications in McpSseCommunicator work correctly."""
+
+    # Define a simple test handler
+    async def initial_handler(payload: Dict[str, Any]) -> Dict[str, Any]:
+        return {"result": "initial", "payload": payload}
+
+    # Define a replacement handler
+    async def modified_handler(payload: Dict[str, Any]) -> Dict[str, Any]:
+        return {"result": "modified", "payload": payload}
+
+    # Create a server-mode communicator for testing
+    test_port = 8090
+    communicator = McpSseCommunicator(
+        agent_name="test_server",
+        service_urls={},
+        server_mode=True,
+        http_port=test_port,
+    )
+
+    # Register the initial handler
+    method_name = "test/method"
+    await communicator.register_handler(method_name, initial_handler)
+
+    # Verify the handler was registered
+    assert method_name in communicator.handlers
+    assert communicator.handlers[method_name] == initial_handler
+
+    # Replace the handler
+    await communicator.register_handler(method_name, modified_handler)
+
+    # Verify the handler was replaced
+    assert communicator.handlers[method_name] == modified_handler
+
+    # Clean up
+    communicator.handlers.clear()

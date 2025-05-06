@@ -1,6 +1,6 @@
-# MCP stdio Tool Call Tutorial
+# MCP STDIO Tool Call Tutorial
 
-This tutorial walks you through creating a simple OpenMAS project that demonstrates MCP tool calls over standard input/output (stdio). You'll build a tool provider agent that exposes a text processing tool, and a tool user agent that calls this tool.
+This tutorial walks you through creating a simple OpenMAS project that demonstrates MCP tool calls over standard input/output (STDIO). You'll build a tool provider agent that exposes a text processing tool, and a tool user agent that calls this tool.
 
 ## Prerequisites
 
@@ -16,6 +16,16 @@ poetry add "openmas[mcp]"
 
 # With pip
 pip install "openmas[mcp]"
+```
+
+Ensure you have MCP 1.7.1 or later:
+
+```bash
+# With poetry
+poetry add "mcp>=1.7.1"
+
+# With pip
+pip install "mcp>=1.7.1"
 ```
 
 ## Project Setup
@@ -44,11 +54,15 @@ touch README.md
 **agents/tool_provider/__init__.py**:
 ```python
 """Tool provider agent package."""
+
+from .agent import ToolProviderAgent
 ```
 
 **agents/tool_user/__init__.py**:
 ```python
 """Tool user agent package."""
+
+from .agent import ToolUserAgent
 ```
 
 ## Step 1: Implement the Tool Provider Agent
@@ -60,10 +74,18 @@ Create the tool provider agent that registers and exposes an MCP tool:
 """Tool provider agent that registers and exposes an MCP tool via stdio."""
 
 import asyncio
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from openmas.agent import BaseAgent
 from openmas.logging import get_logger
+
+# Import MCP types if available, otherwise use Any
+try:
+    from mcp.types import TextContent
+    HAS_MCP_TYPES = True
+except ImportError:
+    HAS_MCP_TYPES = False
+    TextContent = Any  # type: ignore
 
 logger = get_logger(__name__)
 
@@ -71,46 +93,86 @@ logger = get_logger(__name__)
 class ToolProviderAgent(BaseAgent):
     """Agent that provides an MCP tool over stdio.
 
-    This agent registers a tool called "process_data" that handles
-    incoming data and returns a processed result.
+    This agent registers a tool called "process_text" that handles
+    incoming text and returns a processed result.
     """
 
     async def setup(self) -> None:
         """Set up the agent by registering the MCP tool."""
         logger.info("Setting up ToolProviderAgent")
 
-        # Register the process_data tool with the MCP communicator
+        # Register the process_text tool with the MCP communicator
         await self.communicator.register_tool(
-            name="process_data",
-            description="Process incoming data and return a result",
-            function=self.process_data_handler,
+            name="process_text",
+            description="Process incoming text and return a result",
+            function=self.process_text_handler,
         )
-        logger.info("Registered MCP tool: process_data")
+        logger.info("Registered MCP tool: process_text")
         logger.info("ToolProviderAgent setup complete")
 
-    async def process_data_handler(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle incoming tool calls by processing the provided data.
+    async def process_text_handler(self, payload: Dict[str, Any]) -> List[Any]:
+        """Handle incoming tool calls by processing the provided text.
 
         Args:
-            payload: Dictionary containing the data to process
+            payload: Dictionary containing the text to process
 
         Returns:
-            Dictionary containing the processed result
+            List of TextContent objects containing the processed result
         """
-        logger.info(f"Tool handler received data: {payload}")
+        logger.info(f"Tool handler received payload: {payload}")
 
-        # Simple data processing - in a real-world scenario, this might involve
-        # complex transformations, model inference, or other operations
+        # MCP 1.7.1 can send arguments in different ways, so check both formats
+        text = None
+
+        # Check for direct text field
         if "text" in payload:
-            processed_text = payload["text"].upper()
-            word_count = len(payload["text"].split())
+            text = payload["text"]
+            logger.info("Found text in direct text field")
 
-            result = {"processed_text": processed_text, "word_count": word_count, "status": "success"}
+        # Check for content array format (MCP 1.7.1 style)
+        elif "content" in payload and isinstance(payload["content"], list) and len(payload["content"]) > 0:
+            content_item = payload["content"][0]
+            if isinstance(content_item, dict) and "text" in content_item:
+                text = content_item["text"]
+                logger.info("Found text in content[0].text")
+            elif hasattr(content_item, "text"):
+                # Handle MCP TextContent object
+                text = content_item.text
+                logger.info("Found text in content[0].text object")
+
+        # Process the text if found
+        if text is None:
+            error_msg = "No text field found in payload"
+            logger.error(f"{error_msg}: {payload}")
+
+            # Return error message as TextContent for MCP 1.7.1
+            if HAS_MCP_TYPES:
+                import json
+                return [TextContent(type="text", text=json.dumps({"error": error_msg, "status": "error"}))]
+            else:
+                # Fallback for when TextContent is not available (testing)
+                return [{"type": "text", "text": f'{{"error": "{error_msg}", "status": "error"}}'}]
+
+        # Simple processing - convert to uppercase and count words
+        processed_text = text.upper()
+        word_count = len(text.split())
+
+        # Format the result according to MCP 1.7.1 requirements
+        import json
+        result_json = json.dumps({
+            "processed_text": processed_text,
+            "word_count": word_count,
+            "status": "success"
+        })
+
+        logger.info(f"Tool handler returning result: {result_json}")
+
+        # Return the result as TextContent for MCP 1.7.1
+        if HAS_MCP_TYPES:
+            return [TextContent(type="text", text=result_json)]
         else:
-            result = {"error": "No text field in payload", "status": "error"}
-
-        logger.info(f"Tool handler returning result: {result}")
-        return result
+            # Fallback for when TextContent is not available (testing)
+            return [{"type": "text", "text": result_json}]
 
     async def run(self) -> None:
         """Run the agent.
@@ -121,8 +183,12 @@ class ToolProviderAgent(BaseAgent):
         logger.info("ToolProviderAgent running, waiting for tool calls")
 
         # Keep the agent alive while waiting for tool calls
-        while True:
-            await asyncio.sleep(1)
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            logger.info("Tool provider run loop cancelled")
+            raise
 
     async def shutdown(self) -> None:
         """Shut down the agent."""
@@ -142,6 +208,7 @@ from typing import Any, Dict, Optional
 
 from openmas.agent import BaseAgent
 from openmas.logging import get_logger
+from openmas.exceptions import CommunicationError
 
 logger = get_logger(__name__)
 
@@ -149,8 +216,8 @@ logger = get_logger(__name__)
 class ToolUserAgent(BaseAgent):
     """Agent that uses an MCP tool over stdio.
 
-    This agent calls the "process_data" tool provided by the ToolProviderAgent,
-    sends some text data, and processes the result.
+    This agent calls the "process_text" tool provided by the ToolProviderAgent,
+    sends text data, and processes the result.
     """
 
     async def setup(self) -> None:
@@ -161,71 +228,80 @@ class ToolUserAgent(BaseAgent):
         logger.info("ToolUserAgent setup complete")
 
     async def run(self) -> None:
-        """Run the agent by calling the process_data tool."""
-        logger.info("ToolUserAgent running, calling process_data tool")
+        """Run the agent by calling the process_text tool."""
+        logger.info("ToolUserAgent running, calling process_text tool")
 
-        # Prepare the data to send to the tool
-        tool_payload = {"text": "Hello, this is a sample text that needs processing."}
-        tool_name = "process_data"
+        # Prepare the text to process
+        test_text = "Hello, this is a sample text that needs processing."
 
         try:
-            # Set a timeout for the tool call to prevent hanging
-            timeout_seconds = 10.0
+            # Call the process_text tool with timeout protection
+            result = await self._call_process_text(test_text)
 
-            logger.info(f"Calling tool '{tool_name}' with payload: {tool_payload}")
-
-            # Call the process_data tool using MCP call_tool with timeout
-            result = await self._call_tool_with_timeout(
-                target_service="tool_provider",
-                tool_name=tool_name,
-                arguments=tool_payload,
-                timeout=timeout_seconds
-            )
-
-            # Store the result for verification in tests
+            # Store the result for verification
             self.result = result
 
             # Log the result
-            logger.info(f"Received tool result: {result}")
+            logger.info(f"Process text tool result: {result}")
 
             if result.get("status") == "success":
-                logger.info(f"Successfully processed text. Word count: {result.get('word_count')}")
-                logger.info(f"Processed text: {result.get('processed_text')}")
+                logger.info(f"Successfully processed text: {result.get('processed_text')}")
+                logger.info(f"Word count: {result.get('word_count')}")
             else:
                 logger.error(f"Tool call failed: {result.get('error')}")
 
-        except asyncio.TimeoutError:
-            error_msg = f"Tool call to '{tool_name}' timed out after {timeout_seconds} seconds"
-            logger.error(error_msg)
-            self.error = {"error": error_msg, "status": "timeout"}
         except Exception as e:
-            error_msg = f"Error calling tool: {e}"
-            logger.error(error_msg)
+            logger.error(f"Error during tool call: {e}")
             self.error = {"error": str(e), "status": "error"}
 
         logger.info("ToolUserAgent completed its run method")
 
-    async def _call_tool_with_timeout(
-        self, target_service: str, tool_name: str, arguments: Dict[str, Any], timeout: float
-    ) -> Dict[str, Any]:
-        """Call a tool with a timeout to prevent hanging.
+    async def _call_process_text(self, text: str, timeout: float = 10.0) -> Dict[str, Any]:
+        """Call the process_text tool with timeout protection.
 
         Args:
-            target_service: The name of the service providing the tool
-            tool_name: The name of the tool to call
-            arguments: The arguments to pass to the tool
+            text: The text to process
             timeout: Timeout in seconds
 
         Returns:
-            The result of the tool call
+            The result from the tool
 
         Raises:
+            CommunicationError: If there's an error calling the tool
             asyncio.TimeoutError: If the call times out
         """
-        return await asyncio.wait_for(
-            self.communicator.call_tool(target_service=target_service, tool_name=tool_name, arguments=arguments),
-            timeout=timeout,
-        )
+        logger.info(f"Calling process_text tool with text: {text}")
+
+        # Create a payload that works with MCP 1.7.1
+        # Include both direct text field and content array format
+        payload = {
+            "text": text,
+            # Add content array for MCP 1.7.1 compatibility
+            "content": [{"type": "text", "text": text}]
+        }
+
+        try:
+            # Call the tool with timeout protection
+            result = await asyncio.wait_for(
+                self.communicator.call_tool(
+                    target_service="tool_provider",
+                    tool_name="process_text",
+                    arguments=payload,
+                ),
+                timeout=timeout,
+            )
+
+            logger.info(f"Received raw result: {result}")
+            return result
+
+        except asyncio.TimeoutError:
+            error_msg = f"Tool call timed out after {timeout} seconds"
+            logger.error(error_msg)
+            raise
+        except Exception as e:
+            error_msg = f"Error calling process_text tool: {e}"
+            logger.error(error_msg)
+            raise CommunicationError(error_msg)
 
     async def shutdown(self) -> None:
         """Shut down the agent."""
@@ -240,7 +316,7 @@ Create the OpenMAS project configuration:
 ```yaml
 name: mcp_stdio_tool_call_example
 version: 0.1.0
-description: "Example demonstrating MCP tool calls over standard input/output (stdio)"
+description: "Example demonstrating MCP tool calls over standard input/output (stdio) using MCP 1.7.1"
 
 # Define the available agents
 agents:
@@ -253,162 +329,200 @@ default_config:
 
 # Default communicator settings
 communicator_defaults:
-  type: mcp-stdio
-  options:
-    server_mode: false
+  type: mock
+  options: {}
 
 # Agent-specific configurations
 agent_configs:
-  # Tool provider config - run in server mode to expose tools
+  # Tool provider config
   tool_provider:
+    communicator_type: mcp-stdio
     communicator_options:
       server_mode: true
-      server_instructions: "A service that processes text using an MCP tool"
 
-  # Tool user config - client mode with service URLs to find the tool provider
+  # Tool user config
   tool_user:
+    communicator_type: mcp-stdio
+    communicator_options:
+      server_mode: false
     service_urls:
-      # Service URL for the tool provider
-      # This tells the tool user how to spawn the provider process
-      tool_provider: "stdio:openmas run tool_provider"
+      # The command to start the tool provider (uses openmas run)
+      tool_provider: "poetry run openmas run tool_provider --project ."
 ```
 
-## Step 4: Create a README
+## Step 4: Create a Test Script
 
-Document your project with a README file:
+Create a test script to verify that the example works:
 
-**README.md**:
-```markdown
-# MCP Tool Call over stdio Example
+**test_example.py**:
+```python
+"""Test script for the MCP STDIO tool call example."""
 
-This example demonstrates how to use MCP (Model Context Protocol) tool calls over standard input/output (stdio) in OpenMAS. It showcases how one agent can define an MCP tool and another agent can call that tool, with the communication happening over stdio streams.
+import asyncio
+import logging
+import sys
+from typing import Dict, Any
 
-## Running the Example
+from openmas.agent_factory import AgentFactory
+from openmas.logging import configure_logging
 
-To run this example, you'll need to have OpenMAS installed with the MCP extras:
+# Configure logging
+configure_logging(logging.INFO)
+logger = logging.getLogger(__name__)
 
-```bash
-pip install "openmas[mcp]"
-```
 
-Then, you can run the example using the OpenMAS CLI:
+async def run_test():
+    """Run the test."""
+    logger.info("Starting MCP STDIO tool call test")
 
-```bash
-openmas run
-```
+    # Create the agent factory
+    factory = AgentFactory()
 
-This will start both agents and you'll see the logs showing the tool registration, call, and response.
+    # Create the agents
+    tool_user = await factory.create_agent("tool_user")
+
+    try:
+        # Start the user agent - it will start the provider
+        # as a subprocess using the command in service_urls
+        await tool_user.start()
+        logger.info("Tool user agent started")
+
+        # Wait for the user to complete its task
+        await asyncio.sleep(5.0)
+
+        # Verify the result
+        result = getattr(tool_user, "result", None)
+        error = getattr(tool_user, "error", None)
+
+        if result:
+            logger.info(f"Test result: {result}")
+            assert result.get("status") == "success", "Tool call failed"
+            assert "processed_text" in result, "Missing processed_text in result"
+            assert "word_count" in result, "Missing word_count in result"
+            logger.info("Test passed! Tool call was successful.")
+        elif error:
+            logger.error(f"Test failed with error: {error}")
+            sys.exit(1)
+        else:
+            logger.error("Test failed - no result or error found")
+            sys.exit(1)
+
+    finally:
+        # Always clean up the agents
+        logger.info("Cleaning up agents")
+        await tool_user.stop()
+        logger.info("Agents stopped")
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(run_test())
+    except KeyboardInterrupt:
+        logger.info("Test interrupted by user")
+        sys.exit(130)
+    except Exception as e:
+        logger.error(f"Error running test: {e}", exc_info=True)
+        sys.exit(1)
 ```
 
 ## Step 5: Run the Example
 
-Now you can run the example using the OpenMAS CLI:
+### Method 1: Run Each Agent Separately
+
+1. First, start the tool provider:
 
 ```bash
-openmas run
+poetry run openmas run tool_provider
 ```
 
-You should see output similar to this:
+2. Then, in a separate terminal, start the tool user:
 
-```
-INFO - Setting up ToolProviderAgent
-INFO - Registered MCP tool: process_data
-INFO - ToolProviderAgent setup complete
-INFO - ToolProviderAgent running, waiting for tool calls
-INFO - Setting up ToolUserAgent
-INFO - ToolUserAgent setup complete
-INFO - ToolUserAgent running, calling process_data tool
-INFO - Calling tool 'process_data' with payload: {'text': 'Hello, this is a sample text that needs processing.'}
-INFO - Tool handler received data: {'text': 'Hello, this is a sample text that needs processing.'}
-INFO - Tool handler returning result: {'processed_text': 'HELLO, THIS IS A SAMPLE TEXT THAT NEEDS PROCESSING.', 'word_count': 9, 'status': 'success'}
-INFO - Received tool result: {'processed_text': 'HELLO, THIS IS A SAMPLE TEXT THAT NEEDS PROCESSING.', 'word_count': 9, 'status': 'success'}
-INFO - Successfully processed text. Word count: 9
-INFO - Processed text: HELLO, THIS IS A SAMPLE TEXT THAT NEEDS PROCESSING.
-INFO - ToolUserAgent completed its run method
+```bash
+poetry run openmas run tool_user
 ```
 
-## Step 6: Experimenting with the Example
+### Method 2: Use the Test Script
 
-### Modifying the Tool Logic
+```bash
+python test_example.py
+```
 
-You can modify the `process_data_handler` method in the `ToolProviderAgent` to add more functionality. For example, you could add:
+## Key Concepts
 
-- Text summarization
-- Sentiment analysis
-- Translation
-- Entity extraction
+### MCP STDIO Communicator
 
-Simply update the handler to process the text differently:
+The `McpStdioCommunicator` handles communication over standard input/output pipes:
+
+1. In server mode, it listens for incoming messages on stdin
+2. In client mode, it starts the server as a subprocess and connects via pipes
+3. All MCP protocol messages are exchanged via these pipes
+
+### MCP 1.7.1 Tool Response Format
+
+With MCP 1.7.1, tools must return a list of `TextContent` objects:
 
 ```python
-async def process_data_handler(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle incoming tool calls by processing the provided data."""
-    logger.info(f"Tool handler received data: {payload}")
+from mcp.types import TextContent
+import json
 
-    if "text" in payload:
-        text = payload["text"]
-
-        # Multiple processing options
-        processed_text = text.upper()
-        word_count = len(text.split())
-        character_count = len(text)
-        reversed_text = text[::-1]
-
-        result = {
-            "processed_text": processed_text,
-            "word_count": word_count,
-            "character_count": character_count,
-            "reversed_text": reversed_text,
-            "status": "success"
-        }
-    else:
-        result = {"error": "No text field in payload", "status": "error"}
-
-    logger.info(f"Tool handler returning result: {result}")
-    return result
+# Convert a dictionary to a valid MCP 1.7.1 response
+result_dict = {"processed_text": "HELLO", "word_count": 1, "status": "success"}
+json_str = json.dumps(result_dict)
+response = [TextContent(type="text", text=json_str)]
 ```
 
-### Adding Timeout Handling
+### Tool Input Format
 
-You can experiment with timeout handling by modifying the `process_data_handler` to simulate a slow operation:
+For maximum compatibility, provide arguments in multiple formats:
 
 ```python
-async def process_data_handler(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle incoming tool calls by processing the provided data."""
-    logger.info(f"Tool handler received data: {payload}")
-
-    # Simulate a slow operation
-    await asyncio.sleep(5.0)  # Sleep for 5 seconds
-
-    if "text" in payload:
-        processed_text = payload["text"].upper()
-        word_count = len(payload["text"].split())
-
-        result = {"processed_text": processed_text, "word_count": word_count, "status": "success"}
-    else:
-        result = {"error": "No text field in payload", "status": "error"}
-
-    logger.info(f"Tool handler returning result: {result}")
-    return result
+payload = {
+    "text": "Hello world",
+    "content": [{"type": "text", "text": "Hello world"}]
+}
 ```
 
-Then adjust the timeout in the `ToolUserAgent` to see how it handles timeouts:
+## Best Practices for MCP 1.7.1 STDIO Communication
 
-```python
-# Change to a shorter timeout to trigger a timeout error
-timeout_seconds = 2.0  # 2-second timeout (shorter than the 5-second sleep)
-```
+1. **Handle Different Argument Formats**: Check for arguments in both direct and content array formats
+2. **Proper Return Format**: Return a list of TextContent objects
+3. **Structured Responses**: Use JSON for structured data exchange
+4. **Error Handling**: Catch and handle errors gracefully
+5. **Timeouts**: Use timeouts to prevent hanging when calling tools
 
-## Conclusion
+## Troubleshooting
 
-You've successfully created an OpenMAS project that demonstrates MCP tool calls over stdio. This pattern can be extended to implement more complex tool providers and users, enabling efficient communication between agents using the Model Context Protocol.
+1. **Process Startup Errors**: If the provider process fails to start, check:
+   - Correct command in service_urls
+   - Permission issues
+   - Path issues
 
-Some ways to extend this example:
+2. **Communication Errors**: If tool calls fail:
+   - Check that tools are registered with the correct names
+   - Verify that arguments are formatted correctly
+   - Look for serialization errors in complex data
 
-1. Add more tools to the provider agent
-2. Implement multiple tool providers
-3. Create a chain of tool calls where one agent calls another
-4. Integrate with external systems using tools
-5. Add authentication or validation to the tool calls
+3. **Timeout Issues**: If calls timeout:
+   - Increase the timeout value
+   - Check for performance issues in tool implementation
+   - Ensure the provider is not deadlocked
 
-For more information on MCP integration in OpenMAS, see the [MCP Integration Guide](mcp_integration.md).
+## Comparison of STDIO vs SSE
+
+| Feature | STDIO | SSE |
+|---------|-------|-----|
+| Communication | Process-based (pipes) | Network-based (HTTP) |
+| Multiple Clients | One client per provider | Multiple clients per server |
+| Deployment | Must run on same machine | Can run on different machines |
+| Setup | Simpler (process pipes) | More complex (HTTP server) |
+| Resilience | Process must restart on failure | Can reconnect on failure |
+| Use Case | Local tool execution | Distributed systems |
+
+## Next Steps
+
+- Add more tools to the provider
+- Process more complex data types
+- Implement error handling for edge cases
+- Try the SSE transport for networked communication in [MCP SSE Tool Call Tutorial](mcp_sse_tool_call_tutorial.md)
+
+For more details on MCP integration in OpenMAS, see the [MCP Integration Guide](mcp_integration.md) and the [MCP Developer Guide](mcp_developer_guide.md).

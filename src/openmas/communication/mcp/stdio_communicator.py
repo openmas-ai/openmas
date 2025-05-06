@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, cast
 import structlog
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 
 # Import the types if available, otherwise use Any
 try:
@@ -69,6 +69,7 @@ class McpStdioCommunicator(BaseCommunicator):
         self.subprocesses: Dict[str, Any] = {}
         self.clients: Dict[str, Any] = {}
         self.sessions: Dict[str, Any] = {}
+        self._is_server_running = False
 
     def _get_executable_path(self, service_name: str) -> str:
         """Get the full executable path for a service."""
@@ -166,7 +167,10 @@ class McpStdioCommunicator(BaseCommunicator):
                         and mcp_result
                         and not mcp_result.isError
                         and mcp_result.content
-                        and isinstance(mcp_result.content[0], TextContent)
+                        and len(mcp_result.content) > 0
+                        and hasattr(
+                            mcp_result.content[0], "text"
+                        )  # Check for text attribute instead of using isinstance
                     ):
                         import json
 
@@ -266,54 +270,61 @@ class McpStdioCommunicator(BaseCommunicator):
         self.handlers[method] = handler
         logger.debug(f"Registered handler for method: {method}")
 
+    async def _run_server_internal(self) -> None:
+        """Internal method to run the FastMCP server logic."""
+        # Import here to avoid module-level import issues
+        from mcp.server.fastmcp import FastMCP
+
+        try:
+            # Create a context for the server (Context usage needs verification)
+            # context: Context = Context() # Context is likely not needed here
+
+            # Create the server with the agent name in the instructions
+            instructions = self.server_instructions or f"Agent: {self.agent_name}"
+            # Correct FastMCP instantiation based on library usage
+            server = FastMCP(name=instructions)
+            self.server = server
+            self._is_server_running = True  # Set flag when server instance created
+            logger.info("FastMCP server instance created")
+
+            # Register handlers with the server instance
+            # (This needs adjustment if FastMCP doesn't take context directly)
+            for method_name, handler_func in self.handlers.items():
+                # Register the handler as a tool
+                await self._register_tool(method_name, f"Handler for {method_name}", handler_func)
+
+            # Run the server - this blocks until the server is stopped
+            logger.info("Starting serve_stdio loop")
+            if hasattr(server, "serve_stdio"):
+                await server.serve_stdio()  # type: ignore
+            else:
+                logger.warning("serve_stdio method not found on FastMCP instance, hanging... (DEBUG THIS)")
+                await asyncio.Future()  # Hang until cancelled
+        except Exception as e:
+            logger.exception("Error running MCP stdio server", error=str(e))
+        finally:
+            logger.info("MCP stdio server coroutine finished/stopped")
+            self.server = None
+            self._is_server_running = False
+
     async def start(self) -> None:
         """Start the communicator.
 
         In client mode, this is a no-op.
-        In server mode, this starts the MCP server.
+        In server mode, this starts the MCP server task.
         """
         if self.server_mode:
-            logger.info(f"Starting MCP stdio server for agent: {self.agent_name}")
+            if self._server_task is not None:
+                logger.warning("Server task already running.")
+                return
 
-            # Define a function to run the FastMCP server
-            async def run_stdio_server() -> None:
-                # Import here to avoid module-level import issues
-                from mcp.server.fastmcp import FastMCP
-
-                try:
-                    # Create a context for the server
-                    context: Context = Context()
-
-                    # Create the server with the agent name in the instructions
-                    instructions = self.server_instructions or f"Agent: {self.agent_name}"
-                    server = FastMCP(
-                        instructions=instructions,
-                        context=context,
-                    )
-                    self.server = server
-
-                    # Register handlers with the server context
-                    for method_name, handler_func in self.handlers.items():
-                        # Register the handler as a tool
-                        await self._register_tool(method_name, f"Handler for {method_name}", handler_func)
-
-                    # Run the server - this blocks until the server is stopped
-                    # Using direct method access with getattr to handle API differences
-                    if hasattr(server, "serve_stdio"):
-                        await server.serve_stdio()  # type: ignore
-                    else:
-                        logger.warning("serve_stdio method not found on FastMCP instance")
-                        # Try alternative method
-                        await asyncio.Future()  # Hang until cancelled
-                except Exception as e:
-                    logger.exception("Error running MCP stdio server", error=str(e))
-                finally:
-                    logger.info("MCP stdio server stopped")
-                    self.server = None
-
-            # Start the server in a task
-            self._server_task = asyncio.create_task(run_stdio_server())
-            logger.info("MCP stdio server started")
+            logger.info(f"Starting MCP stdio server task for agent: {self.agent_name}")
+            # Start the server logic in a background task
+            self._server_task = asyncio.create_task(self._run_server_internal())
+            # Note: _is_server_running is set inside _run_server_internal now
+            logger.info("MCP stdio server task created")
+        else:
+            logger.debug("Communicator in client mode, start() is a no-op.")
 
     async def stop(self) -> None:
         """Stop the communicator.
