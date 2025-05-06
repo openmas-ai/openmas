@@ -47,6 +47,7 @@ nav:
         - Command-Response: guides/communication/command_response.md
         - Broadcast: guides/communication/broadcast.md
       - LLM Integration: guides/llm_integration.md
+      - Prompt Management: guides/prompt_management.md
       - Reasoning Integration: guides/reasoning_integration.md
       - Patterns: guides/patterns.md
       - MCP Developer Guide: guides/mcp_developer_guide.md
@@ -80,6 +81,7 @@ nav:
       - Development Workflow: contributing/development_workflow.md
       - Docstring Policy: contributing/docstring_policy.md
       - Example Prompts: contributing/example_prompts.md
+      - Prompt & Sampling Implementation: contributing/prompt_and_sampling.md
   - API Reference: api_reference.md
   - OpenMAS Home: https://www.openmas.ai/
 
