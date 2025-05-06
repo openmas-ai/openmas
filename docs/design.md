@@ -24,7 +24,7 @@ The primary goal of the OpenMAS ecosystem is to provide a cohesive Pythonic envi
     * **Application Structure (Project Layout):** Organizes developer code (`agents/`, `shared/`, `extensions/`), dependencies (`packages/`), and configuration (`openmas_project.yml`, `config/`). See [Project Structure](project_structure.md).
     * **CLI Tooling (`openmas` command):** Aids developer workflow (init, run, validate, deps, generate-*). See [CLI Docs](cli/index.md).
     * **Deployment:** Facilitated by generated artifacts (e.g., Dockerfiles, Compose files via `openmas generate-*`), separating development from operational concerns. See [Deployment Guide](guides/deployment.md).
-* **Lazy Loading:** Optional components, especially those with extra dependencies (like specific communicators for gRPC, MCP, MQTT), are loaded dynamically using `importlib` only when configured and needed. This keeps the core library lightweight and minimizes unnecessary package installations for users. See [Architecture Overview](architecture.md) and [Communication Guide](guides/communication.md).
+* **Lazy Loading:** Optional components, especially those with extra dependencies (like specific communicators for gRPC, MCP, MQTT), are loaded dynamically using `importlib` only when configured and needed. This keeps the core library lightweight and minimizes unnecessary package installations for users. See [Architecture Overview](architecture.md) and [Communication Guide](guides/communication/index.md).
 
 ## Inspiration & Vision
 

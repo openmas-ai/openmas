@@ -41,6 +41,8 @@ This approach keeps the core `openmas` package lightweight and ensures users onl
 
 ## Available Protocols & Communicators
 
+OpenMAS provides multiple communication protocols to suit different needs:
+
 ### HTTP (`HttpCommunicator`)
 
 * **Protocol:** Standard HTTP/1.1 (using `httpx`).
@@ -100,7 +102,7 @@ MCP is designed for interacting with AI models and tools, particularly from Anth
 
 ## Communicator Configuration Options
 
-Refer to the specific communicator class documentation (or source code) and the [Configuration Guide](configuration.md) for detailed options applicable to each communicator type (e.g., `http_port`, `grpc_port`, `broker_host`, `server_mode`, `timeout`). These are typically set within the `communicator_options` dictionary in your configuration.
+Refer to the specific communicator class documentation (or source code) and the [Configuration Guide](../configuration.md) for detailed options applicable to each communicator type (e.g., `http_port`, `grpc_port`, `broker_host`, `server_mode`, `timeout`). These are typically set within the `communicator_options` dictionary in your configuration.
 
 ## MCP Method Mapping (Client Perspective)
 
@@ -117,7 +119,7 @@ When an OpenMAS agent uses an MCP communicator (`McpSseCommunicator` or `McpStdi
 | `send_request(target_service="svc", method="some_custom_name", params={...})` | `call_tool("some_custom_name", {...})` | By convention, non-prefixed methods often map to `call_tool` on the server. |
 | `send_notification(target_service="svc", method="log_event", params={...})` | Async `call_tool("log_event", {...})` | Sends a notification, often mapped to an asynchronous tool call on the server `svc` where no response is expected by the caller. |
 
-**Note:** This mapping applies when your OpenMAS agent is acting as an *MCP client*. When your agent acts as an *MCP server* (using `MCPServerAgent` or a communicator in `server_mode=True`), incoming MCP requests trigger the methods decorated with `@mcp_tool`, `@mcp_prompt`, or `@mcp_resource` within your agent. See the [MCP Integration Guide](mcp_integration.md).
+**Note:** This mapping applies when your OpenMAS agent is acting as an *MCP client*. When your agent acts as an *MCP server* (using `MCPServerAgent` or a communicator in `server_mode=True`), incoming MCP requests trigger the methods decorated with `@mcp_tool`, `@mcp_prompt`, or `@mcp_resource` within your agent. See the [MCP Integration Guide](../mcp_integration.md).
 
 ## Extending with Custom Protocols
 

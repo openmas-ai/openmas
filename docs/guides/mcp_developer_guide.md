@@ -707,6 +707,6 @@ Keep an eye on the official MCP documentation and GitHub repositories for update
 
 - [Complete MCP Documentation](https://modelcontextprotocol.io/docs/)
 - [MCP Python SDK GitHub](https://github.com/modelcontextprotocol/python-sdk)
-- [OpenMAS MCP Integration Guide](/guides/mcp_integration.md)
-- [MCP SSE Tool Call Tutorial](/guides/mcp_sse_tool_call_tutorial.md)
-- [MCP Stdio Tool Call Tutorial](/guides/mcp_stdio_tool_call_tutorial.md)
+- [OpenMAS MCP Integration Guide](mcp_integration.md)
+- [MCP SSE Tool Call Tutorial](mcp_sse_tool_call_tutorial.md)
+- [MCP Stdio Tool Call Tutorial](mcp_stdio_tool_call_tutorial.md)

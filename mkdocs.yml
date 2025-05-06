@@ -79,6 +79,7 @@ nav:
       - Testing: contributing/testing_strategy.md
       - Development Workflow: contributing/development_workflow.md
       - Docstring Policy: contributing/docstring_policy.md
+      - Example Prompts: contributing/example_prompts.md
   - API Reference: api_reference.md
   - OpenMAS Home: https://www.openmas.ai/
 

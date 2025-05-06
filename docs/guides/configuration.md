@@ -219,4 +219,4 @@ Here are the commonly used configuration keys in OpenMAS:
 | `plugin_paths` | List of paths to look for plugins | `[]` |
 | `extension_paths` | List of paths to look for local framework extensions | `[]` |
 
-For communicator-specific options, refer to the [Communication Guide](communication.md).
+For communicator-specific options, refer to the [Communication Guide](communication/index.md).

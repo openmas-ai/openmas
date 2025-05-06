@@ -166,7 +166,7 @@ Congratulations! You've successfully:
 From here, you can explore more advanced topics:
 
 - [**Configuration Guide**](configuration.md) - Learn how to configure your agents
-- [**Communication Guide**](communication.md) - Understand how agents communicate
+- [**Communication Guide**](communication/index.md) - Understand how agents communicate
 - [**Patterns Guide**](patterns.md) - Explore common agent patterns
 - [**MCP Integration**](mcp_integration.md) - Connect your agents to AI models using MCP
 - [**Testing Utilities**](testing-utilities.md) - Learn how to test your agents
