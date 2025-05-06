@@ -521,7 +521,7 @@ async def call_process_text(self, text: str, timeout: float = 10.0) -> Dict[str,
 Update the example configuration file to use the improved implementation:
 
 ```yaml
-name: example_02_mcp_sse
+name: example_08_mcp_sse
 version: 0.1.0
 description: "Example demonstrating MCP tool calls over Server-Sent Events (SSE) using MCP SDK 1.7.1"
 

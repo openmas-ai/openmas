@@ -58,6 +58,28 @@ jobs:
     - name: Run mock integration tests
       run: poetry run tox -r -e integration-mock
 
+    - name: Run real MCP integration tests
+      run: |
+        # Ensure MCP dependencies are installed
+        poetry install --no-interaction --extras "mcp"
+        poetry run tox -r -e integration-real-mcp
+      # These tests require actual MCP services to be available
+      continue-on-error: true  # Allow CI to continue if these tests fail
+
+    - name: Run real gRPC integration tests
+      run: |
+        # Ensure gRPC dependencies are installed
+        poetry install --no-interaction --extras "grpc"
+        poetry run tox -r -e integration-real-grpc
+      continue-on-error: true  # Allow CI to continue if these tests fail
+
+    - name: Run real MQTT integration tests
+      run: |
+        # Ensure MQTT dependencies are installed
+        poetry install --no-interaction --extras "mqtt"
+        poetry run tox -r -e integration-real-mqtt
+      continue-on-error: true  # Allow CI to continue if these tests fail
+
     - name: Run tests with coverage check (fail < 50%)
       run: poetry run tox -e coverage # This env generates coverage.xml and fails if below threshold
 

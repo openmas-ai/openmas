@@ -150,8 +150,8 @@ except Exception as e:
 
 See the following examples for complete implementations:
 
-1. **SSE Example**: `examples/example_02_mcp/01_mcp_sse_tool_call/`
-2. **STDIO Example**: `examples/example_02_mcp/02_mcp_stdio_tool_call/`
+1. **SSE Example**: `examples/example_08_mcp/01_mcp_sse_tool_call/`
+2. **STDIO Example**: `examples/example_08_mcp/02_mcp_stdio_tool_call/`
 
 ## Best Practices
 

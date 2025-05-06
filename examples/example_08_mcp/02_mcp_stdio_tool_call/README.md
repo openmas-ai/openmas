@@ -87,7 +87,7 @@ pip install "openmas[mcp]"
 Then, you can run the example using the OpenMAS CLI:
 
 ```bash
-cd examples/example_02_mcp/02_mcp_stdio_tool_call
+cd examples/example_08_mcp/02_mcp_stdio_tool_call
 openmas run
 ```
 

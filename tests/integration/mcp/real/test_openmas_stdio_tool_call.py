@@ -32,7 +32,7 @@ logging.basicConfig(
 )
 
 # Path to the example directory - use absolute path to avoid issues
-EXAMPLE_DIR = Path("/Users/wilson/Coding/dylangames/backup/openmas/examples/example_02_mcp/02_mcp_stdio_tool_call")
+EXAMPLE_DIR = Path("/Users/wilson/Coding/dylangames/backup/openmas/examples/example_08_mcp/02_mcp_stdio_tool_call")
 logger.debug(f"Example directory path: {EXAMPLE_DIR}")
 if not EXAMPLE_DIR.exists():
     logger.error(f"Example directory does not exist: {EXAMPLE_DIR}")

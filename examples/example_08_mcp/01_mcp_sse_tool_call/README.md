@@ -56,7 +56,7 @@ You can run this example using the OpenMAS CLI:
 
 ```bash
 # Navigate to the example directory
-cd examples/example_02_mcp/01_mcp_sse_tool_call
+cd examples/example_08_mcp/01_mcp_sse_tool_call
 
 # Run the tool provider agent (in one terminal)
 openmas run tool_provider

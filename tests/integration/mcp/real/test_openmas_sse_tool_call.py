@@ -3,7 +3,7 @@
 This test validates that the OpenMAS MCP SSE integration works correctly
 with real MCP communication (not mocked).
 
-The test follows the patterns established in the example_02_mcp/01_mcp_sse_tool_call
+The test follows the patterns established in the example_08_mcp/01_mcp_sse_tool_call
 example project, which has been verified to work correctly.
 
 NOTE: This test uses the '--run-real-mcp' custom pytest flag to control execution.

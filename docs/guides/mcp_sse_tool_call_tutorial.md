@@ -21,7 +21,7 @@ We'll create a simple example with two agents:
 
 ## Project Structure
 
-The full example is available in the repository at `examples/example_02_mcp/01_mcp_sse_tool_call/`.
+The full example is available in the repository at `examples/example_08_mcp/01_mcp_sse_tool_call/`.
 
 ```
 01_mcp_sse_tool_call/
@@ -43,7 +43,7 @@ The full example is available in the repository at `examples/example_02_mcp/01_m
 First, create an `openmas_project.yml` file with the following configuration:
 
 ```yaml
-name: example_02_mcp_sse_tool_call
+name: example_08_mcp_sse_tool_call
 version: 0.1.0
 description: "Example demonstrating MCP tool calls over Server-Sent Events (SSE) using MCP 1.7.1"
 

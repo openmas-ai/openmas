@@ -1,4 +1,4 @@
-name: example_02_mcp_stdio_tool_call
+name: example_08_mcp_stdio_tool_call
 version: 0.1.0
 description: "Example demonstrating MCP tool calls over standard input/output (stdio)"
 
