@@ -1,6 +1,6 @@
 name: example_02_mcp_sse_tool_call
 version: 0.1.0
-description: "Example demonstrating MCP tool calls over Server-Sent Events (SSE)"
+description: "Example demonstrating MCP tool calls over Server-Sent Events (SSE) with MCP 1.7.1"
 
 # Define the available agents
 agents:
@@ -39,4 +39,4 @@ agent_configs:
 # Dependencies configuration (for external packages)
 dependencies:
   - package: "mcp"
-    version: ">=1.6.0"
+    version: ">=1.7.1"

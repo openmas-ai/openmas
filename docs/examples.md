@@ -25,7 +25,7 @@ The examples serve multiple key purposes:
 Examples are organized by topic or feature within the `examples/` directory. Each specific, runnable scenario resides in its own subdirectory (a "leaf example directory").
 
     examples/
-    ├── 00_hello_agent/
+    ├── example_00_hello_agent/
     │   ├── 00_single/                               # Leaf example: Single basic agent
     │   │   ├── agents/hello_agent_single/agent.py   # The agent code
     │   │   ├── openmas_project.yml                  # Minimal project config for this example
@@ -34,18 +34,16 @@ Examples are organized by topic or feature within the `examples/` directory. Eac
     │   │   └── README.md                            # How to run THIS specific example manually
     │   └── 01_multi_mock/                           # Leaf example: Two agents communicating
     │       └── ... (similar files: agents/, openmas_project.yml, etc.)
-    ├── 01_communication_basics/
-    │   ├── 00_http_client_server/                    # Leaf example: HTTP request/response
+    ├── example_02_mcp/
+    │   ├── 01_mcp_sse_tool_call/                    # Leaf example: HTTP request/response
     │   │   └── ...
-    │   ├── 01_mcp_sse_client_server/                 # Leaf example: MCP over SSE
+    │   ├── 02_mcp_stdio_tool_call/                  # Leaf example: MCP over SSE
     │   │   └── ...
-    │   └── 02_mcp_stdio_tool/                        # Leaf example: MCP over stdio
-    │        └── ...
     ├── 02_configuration/
-    │   └── 01_layered_config/                        # Leaf example: Demonstrating config sources
+    │   └── 01_layered_config/                       # Leaf example: Demonstrating config sources
     │       └── ...
     ├── ... (other categories like patterns, specific integrations) ...
-    └── README.md                                  # Explains overall example structure & how to run tests
+    └── README.md                                    # Overall example structure & how to ru tests
 
 Each leaf example directory typically contains:
 * An `agents/` subdirectory with the agent code (`agent.py`).

@@ -93,7 +93,7 @@ class McpSseCommunicator(BaseCommunicator):
         self.tool_registry: Dict[str, Dict[str, Any]] = {}
         self.handlers: Dict[str, Callable] = {}
 
-        # For backward compatibility with tests
+        # Supporting fields used by test infrastructure
         self.clients: Dict[str, Any] = {}
         self.sessions: Dict[str, Any] = {}
 

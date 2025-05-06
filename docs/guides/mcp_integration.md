@@ -1,15 +1,15 @@
-# MCP 1.7.1 Integration Guide
+# MCP Integration Guide
 
 This guide explains how to use OpenMAS with MCP (Model Context Protocol) version 1.7.1. MCP is a protocol that enables standardized communication between language models, tools, and other services.
 
-## What's New in MCP 1.7.1
+## MCP 1.7.1 Features
 
-MCP 1.7.1 introduces several improvements over version 1.6:
+OpenMAS integrates with MCP 1.7.1, which provides:
 
-- More stable SSE transport implementation
-- Improved connection resilience and error handling
-- Better serialization of complex data types
-- Enhanced support for tool calling with robust error handling
+- Stable SSE transport implementation
+- Robust connection resilience and error handling
+- Efficient serialization of complex data types
+- Comprehensive support for tool calling with error handling
 
 ## Prerequisites
 
