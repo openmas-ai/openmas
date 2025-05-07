@@ -1,12 +1,11 @@
-"""Unit tests for the Sampling module."""
+"""Unit tests for the sampling system."""
 
-import asyncio
 import json
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
-from openmas.prompt import Prompt, PromptContent, PromptMetadata
-from openmas.sampling import (
+import pytest
+
+from openmas.prompt.base import Prompt, PromptContent, PromptMetadata
+from openmas.sampling.base import (
     Message,
     MessageRole,
     Sampler,
@@ -60,13 +59,12 @@ class TestSamplingParameters:
         """Test that the default values are set correctly."""
         params = SamplingParameters()
         assert params.temperature == 0.7
-        assert params.max_tokens == 1024
-        assert params.top_p == 0.9
+        assert params.max_tokens is None
+        assert params.top_p is None
         assert params.top_k is None
         assert params.stop_sequences is None
-        assert params.repetition_penalty is None
-        assert params.presence_penalty is None
         assert params.frequency_penalty is None
+        assert params.presence_penalty is None
         assert params.seed is None
 
     def test_initialization_custom(self):
@@ -77,7 +75,6 @@ class TestSamplingParameters:
             top_p=0.8,
             top_k=50,
             stop_sequences=["END"],
-            repetition_penalty=1.2,
             presence_penalty=0.5,
             frequency_penalty=0.5,
             seed=42,
@@ -87,7 +84,6 @@ class TestSamplingParameters:
         assert params.top_p == 0.8
         assert params.top_k == 50
         assert params.stop_sequences == ["END"]
-        assert params.repetition_penalty == 1.2
         assert params.presence_penalty == 0.5
         assert params.frequency_penalty == 0.5
         assert params.seed == 42
@@ -125,14 +121,14 @@ class TestSamplingContext:
         ]
         parameters = SamplingParameters(temperature=0.5)
         metadata = {"source": "test"}
-        
+
         context = SamplingContext(
             system_prompt="You are a helpful assistant.",
             messages=messages,
             parameters=parameters,
             metadata=metadata,
         )
-        
+
         assert context.system_prompt == "You are a helpful assistant."
         assert context.messages == messages
         assert context.parameters == parameters
@@ -150,13 +146,13 @@ class TestSamplingContext:
             ],
         )
         prompt = Prompt(metadata=metadata, content=content)
-        
+
         context = SamplingContext.from_prompt(
             prompt,
             context_vars={"question": "What is the capital of Germany?"},
             params=SamplingParameters(temperature=0.5),
         )
-        
+
         assert context.system_prompt == "You are a helpful assistant."
         assert len(context.messages) == 3  # 2 examples + 1 template
         assert context.messages[0].role == MessageRole.USER
@@ -171,7 +167,7 @@ class TestSamplingContext:
         """Test adding a message to the context."""
         context = SamplingContext()
         context.add_message(MessageRole.USER, "Hello")
-        
+
         assert len(context.messages) == 1
         assert context.messages[0].role == MessageRole.USER
         assert context.messages[0].content == "Hello"
@@ -184,14 +180,14 @@ class TestSamplingContext:
         ]
         parameters = SamplingParameters(temperature=0.5)
         metadata = {"source": "test"}
-        
+
         context = SamplingContext(
             system_prompt="You are a helpful assistant.",
             messages=messages,
             parameters=parameters,
             metadata=metadata,
         )
-        
+
         context_dict = context.to_dict()
         assert context_dict["system"] == "You are a helpful assistant."
         assert len(context_dict["messages"]) == 2
@@ -281,7 +277,7 @@ class TestSampler:
             system_prompt="You are a helpful assistant.",
             messages=[Message(role=MessageRole.USER, content="Hello")],
         )
-        
+
         with pytest.raises(NotImplementedError):
             await sampler.sample(context)
 
@@ -293,13 +289,13 @@ class TestSampler:
             {"role": "assistant", "content": "Hi there!"},
         ]
         parameters = {"temperature": 0.5, "max_tokens": 500}
-        
+
         context = Sampler.create_context(
             system=system,
             messages=messages,
             parameters=parameters,
         )
-        
+
         assert context.system_prompt == system
         assert len(context.messages) == 2
         assert context.messages[0].role == MessageRole.USER
@@ -312,13 +308,14 @@ class TestSampler:
     @pytest.mark.asyncio
     async def test_sample_from_prompt(self):
         """Test sampling from a prompt."""
+
         # Create a mock sampler that returns a fixed result
         class MockSampler(Sampler):
             async def sample(self, context, model=None):
                 return SamplingResult(content="Mocked response")
-        
+
         sampler = MockSampler()
-        
+
         # Create a test prompt
         metadata = PromptMetadata(name="test_prompt")
         content = PromptContent(
@@ -326,7 +323,7 @@ class TestSampler:
             template="Answer the following question: {{question}}",
         )
         prompt = Prompt(metadata=metadata, content=content)
-        
+
         # Test sampling from the prompt
         result = await sampler.sample_from_prompt(
             prompt=prompt,
@@ -334,14 +331,14 @@ class TestSampler:
             parameters={"temperature": 0.5},
             model="gpt-4",
         )
-        
+
         assert result.content == "Mocked response"
 
 
 # Create a protocol implementation for testing
 class TestSamplerImplementation(Sampler):
     """Concrete implementation of Sampler for testing."""
-    
+
     async def sample(self, context, model=None):
         """Sample implementation for testing."""
         return SamplingResult(content="Test response")
@@ -357,8 +354,9 @@ class TestSamplerProtocol:
 
     def test_protocol_non_recognition(self):
         """Test that a class not implementing the protocol is not recognized."""
+
         class NonProtocolClass:
             pass
-        
+
         non_sampler = NonProtocolClass()
-        assert not isinstance(non_sampler, SamplerProtocol) 
+        assert not isinstance(non_sampler, SamplerProtocol)

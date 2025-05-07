@@ -1,13 +1,13 @@
-"""Core sampling functionality for OpenMAS.
+"""Base classes for sampling in OpenMAS.
 
-This module provides abstractions for sampling from language models in a way that
-is consistent across different providers (e.g., Anthropic, OpenAI) and integrates
-with MCP.
+This module provides a flexible and extensible sampling system for OpenMAS,
+enabling agents to sample from different language models with consistent parameters.
 """
 
-from enum import Enum
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Type, Union, runtime_checkable
 import json
+from enum import Enum
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+
 from pydantic import BaseModel, Field
 
 from openmas.prompt.base import Prompt
@@ -16,51 +16,15 @@ from openmas.prompt.base import Prompt
 class SamplingParameters(BaseModel):
     """Parameters for sampling from a language model."""
 
-    temperature: Optional[float] = Field(
-        default=0.7,
-        description="Controls randomness. Higher values produce more random outputs.",
-        ge=0.0,
-        le=1.0,
-    )
-    max_tokens: Optional[int] = Field(
-        default=1024,
-        description="Maximum number of tokens to generate.",
-        gt=0,
-    )
-    top_p: Optional[float] = Field(
-        default=0.9,
-        description="Nucleus sampling parameter. Keep the most likely tokens whose cumulative probability exceeds p.",
-        ge=0.0,
-        le=1.0,
-    )
-    top_k: Optional[int] = Field(
-        default=None,
-        description="Only sample from the top k most likely tokens.",
-        gt=0,
-    )
-    stop_sequences: Optional[List[str]] = Field(
-        default=None,
-        description="Sequences that will cause the model to stop generating further tokens.",
-    )
-    repetition_penalty: Optional[float] = Field(
-        default=None,
-        description="Penalty for repeating tokens. Higher values discourage repetition.",
-        ge=0.0,
-    )
-    presence_penalty: Optional[float] = Field(
-        default=None,
-        description="Penalty for new tokens based on whether they appear in the text so far.",
-        ge=0.0,
-    )
-    frequency_penalty: Optional[float] = Field(
-        default=None,
-        description="Penalty for new tokens based on their frequency in the text so far.",
-        ge=0.0,
-    )
-    seed: Optional[int] = Field(
-        default=None,
-        description="Random seed for deterministic sampling."
-    )
+    temperature: float = 0.7
+    max_tokens: Optional[int] = None
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
+    stop_sequences: Optional[List[str]] = None
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
+    logit_bias: Optional[Dict[str, float]] = None
+    seed: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to a dictionary, omitting None values."""
@@ -85,19 +49,20 @@ class Message(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to a dictionary."""
-        result = {"role": self.role, "content": self.content}
+        result: Dict[str, Any] = {"role": self.role.value, "content": self.content}
         if self.metadata:
             result["metadata"] = self.metadata
         return result
 
 
 class SamplingContext(BaseModel):
-    """Context for a sampling operation."""
+    """Context for sampling from a language model."""
 
     system_prompt: Optional[str] = None
     messages: List[Message] = Field(default_factory=list)
     parameters: SamplingParameters = Field(default_factory=SamplingParameters)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    model: Optional[str] = None
 
     @classmethod
     def from_prompt(
@@ -117,16 +82,18 @@ class SamplingContext(BaseModel):
             A sampling context for the given prompt
         """
         system = prompt.get_system_prompt()
-        
+
         # Start with an empty message list
         messages = []
-        
+
         # Add examples as messages if available
         for example in prompt.get_examples():
             if "role" in example and "content" in example:
-                role = MessageRole(example["role"])
-                messages.append(Message(role=role, content=example["content"]))
-        
+                role_str = example["role"]
+                role = MessageRole(role_str)
+                content_str = str(example["content"])
+                messages.append(Message(role=role, content=content_str))
+
         # Add the template as a user message if available
         template = prompt.get_template()
         if template and context_vars:
@@ -136,9 +103,9 @@ class SamplingContext(BaseModel):
                 if isinstance(value, (str, int, float, bool)):
                     placeholder = f"{{{{{key}}}}}"
                     content = content.replace(placeholder, str(value))
-            
+
             messages.append(Message(role=MessageRole.USER, content=content))
-        
+
         return cls(
             system_prompt=system,
             messages=messages,
@@ -179,7 +146,7 @@ class SamplingResult(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to a dictionary."""
-        result = {"content": self.content}
+        result: Dict[str, Any] = {"content": self.content}
         if self.finish_reason:
             result["finish_reason"] = self.finish_reason
         if self.usage:
@@ -256,21 +223,23 @@ class Sampler:
             A sampling context
         """
         params = SamplingParameters(**(parameters or {}))
-        
+
         msg_list = []
         if messages:
             for msg in messages:
                 role = MessageRole(msg["role"])
                 content = msg["content"]
                 metadata = msg.get("metadata")
-                msg_list.append(Message(role=role, content=content, metadata=metadata))
-        
+                msg_list.append(
+                    Message(role=role, content=content, metadata=metadata if isinstance(metadata, dict) else None)
+                )
+
         return SamplingContext(
             system_prompt=system,
             messages=msg_list,
             parameters=params,
         )
-        
+
     async def sample_from_prompt(
         self,
         prompt: Prompt,
@@ -291,4 +260,4 @@ class Sampler:
         """
         params = SamplingParameters(**(parameters or {}))
         context = SamplingContext.from_prompt(prompt, context_vars, params)
-        return await self.sample(context, model) 
+        return await self.sample(context, model)

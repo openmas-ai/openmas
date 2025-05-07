@@ -381,4 +381,4 @@ When contributing to these modules, please follow these guidelines:
 1. **Template Variables**: The simple template engine only supports simple replacements; consider using a proper template engine for complex cases
 2. **Concurrency**: Be aware of concurrency issues when multiple agents share a PromptManager
 3. **Large Prompts**: Very large prompts might cause performance issues; consider chunking or streaming
-4. **Error Propagation**: Ensure errors from the sampling operations are properly propagated and handled 
+4. **Error Propagation**: Ensure errors from the sampling operations are properly propagated and handled

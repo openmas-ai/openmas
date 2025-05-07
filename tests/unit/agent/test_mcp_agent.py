@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import BaseModel
 
-from openmas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
-from openmas.agent.mcp import MCP_PROMPT_ATTR, MCP_RESOURCE_ATTR, MCP_TOOL_ATTR
+from openmas.agent import McpAgent
+from openmas.agent.mcp import MCP_PROMPT_ATTR, MCP_RESOURCE_ATTR, MCP_TOOL_ATTR, mcp_prompt, mcp_resource, mcp_tool
 from openmas.config import AgentConfig
 from tests.unit.communication.mcp.mcp_mocks import apply_mcp_mocks
 

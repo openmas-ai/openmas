@@ -5,7 +5,8 @@ from typing import Any, Dict, List, Optional, cast
 import pytest
 from pydantic import BaseModel
 
-from openmas.agent import McpAgent, mcp_prompt, mcp_resource, mcp_tool
+from openmas.agent import McpAgent
+from openmas.agent.mcp import mcp_prompt, mcp_resource, mcp_tool
 from openmas.testing.harness import AgentTestHarness
 
 

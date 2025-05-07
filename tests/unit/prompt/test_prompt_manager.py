@@ -1,20 +1,17 @@
-"""Unit tests for the PromptManager class."""
+"""Unit tests for prompt management."""
 
-import os
-import pytest
-from pathlib import Path
 import tempfile
-import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
 
-from openmas.prompt import (
+import pytest
+
+from openmas.prompt.base import (
+    FileSystemPromptStorage,
+    MemoryPromptStorage,
     Prompt,
     PromptContent,
     PromptManager,
     PromptMetadata,
-    PromptStorage,
-    FileSystemPromptStorage,
-    MemoryPromptStorage,
 )
 
 
@@ -409,17 +406,19 @@ class TestPromptManager:
     @pytest.mark.asyncio
     async def test_render_prompt(self, manager):
         """Test rendering a prompt with context."""
-        prompt_id = (await manager.create_prompt(
-            name="test_prompt",
-            system="You are a helpful assistant.",
-            template="Answer the following question: {{question}}",
-        )).id
-        
+        prompt_id = (
+            await manager.create_prompt(
+                name="test_prompt",
+                system="You are a helpful assistant.",
+                template="Answer the following question: {{question}}",
+            )
+        ).id
+
         rendered = await manager.render_prompt(
             prompt_id,
             context={"question": "What is the capital of France?"},
         )
-        
+
         assert rendered is not None
         assert rendered["system"] == "You are a helpful assistant."
         assert rendered["content"] == "Answer the following question: What is the capital of France?"
@@ -427,18 +426,20 @@ class TestPromptManager:
     @pytest.mark.asyncio
     async def test_render_prompt_with_system_override(self, manager):
         """Test rendering a prompt with a system prompt override."""
-        prompt_id = (await manager.create_prompt(
-            name="test_prompt",
-            system="You are a helpful assistant.",
-            template="Answer the following question: {{question}}",
-        )).id
-        
+        prompt_id = (
+            await manager.create_prompt(
+                name="test_prompt",
+                system="You are a helpful assistant.",
+                template="Answer the following question: {{question}}",
+            )
+        ).id
+
         rendered = await manager.render_prompt(
             prompt_id,
             context={"question": "What is the capital of France?"},
             system_override="You are a knowledgeable geography expert.",
         )
-        
+
         assert rendered is not None
         assert rendered["system"] == "You are a knowledgeable geography expert."
         assert rendered["content"] == "Answer the following question: What is the capital of France?"
@@ -447,4 +448,4 @@ class TestPromptManager:
     async def test_render_nonexistent_prompt(self, manager):
         """Test rendering a nonexistent prompt."""
         rendered = await manager.render_prompt("nonexistent-id")
-        assert rendered is None 
+        assert rendered is None

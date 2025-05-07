@@ -4,13 +4,13 @@ This module provides a flexible and extensible prompt management system for Open
 enabling agents to organize, version, and reuse prompts across different contexts.
 """
 
-from typing import Any, Dict, List, Optional, Set, Type, Union, cast
-from pydantic import BaseModel, Field, create_model
-import json
-import os
-from pathlib import Path
 import datetime
+import json
 import uuid
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
+
+from pydantic import BaseModel, Field
 
 
 class PromptMetadata(BaseModel):
@@ -23,6 +23,7 @@ class PromptMetadata(BaseModel):
     updated_at: str = Field(default_factory=lambda: datetime.datetime.now().isoformat())
     tags: Set[str] = Field(default_factory=set)
     author: Optional[str] = None
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
 
 class PromptContent(BaseModel):
@@ -56,7 +57,16 @@ class Prompt(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the prompt to a dictionary."""
-        return self.model_dump()
+        data = self.model_dump()
+
+        # Convert sets to lists for JSON serialization
+        if "metadata" in data and "tags" in data["metadata"]:
+            data["metadata"]["tags"] = list(data["metadata"]["tags"])
+
+        if "content" in data and "context_keys" in data["content"]:
+            data["content"]["context_keys"] = list(data["content"]["context_keys"])
+
+        return data
 
     def to_json(self, pretty: bool = False) -> str:
         """Convert the prompt to JSON."""
@@ -131,7 +141,7 @@ class FileSystemPromptStorage(PromptStorage):
         file_path = self.path / f"{prompt_id}.json"
         if not file_path.exists():
             return None
-        
+
         with open(file_path, "r") as f:
             data = json.load(f)
             return Prompt(**data)
@@ -152,7 +162,7 @@ class FileSystemPromptStorage(PromptStorage):
         file_path = self.path / f"{prompt_id}.json"
         if not file_path.exists():
             return False
-        
+
         file_path.unlink()
         return True
 
@@ -180,7 +190,7 @@ class MemoryPromptStorage(PromptStorage):
         """Delete a prompt from memory."""
         if prompt_id not in self.prompts:
             return False
-        
+
         del self.prompts[prompt_id]
         return True
 
@@ -227,22 +237,22 @@ class PromptManager:
             tags=tags or set(),
             author=author,
         )
-        
+
         content = PromptContent(
             system=system,
             template=template,
             examples=examples or [],
         )
-        
+
         prompt = Prompt(metadata=metadata, content=content)
-        
+
         # Save to local cache
         self._prompts[prompt.id] = prompt
-        
+
         # Save to storage if available
         if self.storage:
             await self.storage.save(prompt)
-            
+
         return prompt
 
     async def get_prompt(self, prompt_id: str) -> Optional[Prompt]:
@@ -257,7 +267,7 @@ class PromptManager:
         # Check local cache first
         if prompt_id in self._prompts:
             return self._prompts[prompt_id]
-            
+
         # Check storage
         if self.storage:
             prompt = await self.storage.load(prompt_id)
@@ -265,34 +275,34 @@ class PromptManager:
                 # Update local cache
                 self._prompts[prompt_id] = prompt
                 return prompt
-                
+
         return None
 
     async def get_prompt_by_name(self, name: str) -> Optional[Prompt]:
         """Get a prompt by name.
 
         Args:
-            name: The name of the prompt to get.
+            name: The name of the prompt to get
 
         Returns:
-            The prompt, or None if not found.
+            The prompt with the given name, or None if not found
         """
         # Check local cache first
         for prompt in self._prompts.values():
             if prompt.metadata.name == name:
                 return prompt
-                
+
         # Check storage
-        if self.storage:
-            all_prompts = await self.storage.list()
-            for metadata in all_prompts:
-                if metadata.name == name:
-                    prompt = await self.storage.load(metadata.name)
-                    if prompt:
-                        # Update local cache
-                        self._prompts[prompt.id] = prompt
-                        return prompt
-                        
+        all_prompts = await self.storage.list()
+        for metadata in all_prompts:
+            if metadata.name == name:
+                prompt_id = metadata.id
+                loaded_prompt = await self.storage.load(prompt_id)
+                if loaded_prompt is not None:
+                    # Update local cache
+                    self._prompts[loaded_prompt.id] = loaded_prompt
+                    return loaded_prompt
+
         return None
 
     async def update_prompt(self, prompt_id: str, **kwargs: Any) -> Optional[Prompt]:
@@ -308,41 +318,33 @@ class PromptManager:
         prompt = await self.get_prompt(prompt_id)
         if not prompt:
             return None
-            
+
         # Update metadata fields
-        metadata_fields = [
-            "name", "description", "version", "tags", "author"
-        ]
+        metadata_fields = ["name", "description", "version", "tags", "author"]
         metadata_updates = {}
         for field in metadata_fields:
             if field in kwargs:
                 metadata_updates[field] = kwargs[field]
-                
+
         if metadata_updates:
-            prompt.metadata = PromptMetadata(
-                **{**prompt.metadata.model_dump(), **metadata_updates}
-            )
+            prompt.metadata = PromptMetadata(**{**prompt.metadata.model_dump(), **metadata_updates})
             prompt.metadata.updated_at = datetime.datetime.now().isoformat()
-            
+
         # Update content fields
-        content_fields = [
-            "system", "template", "examples", "context_keys", "fallback"
-        ]
+        content_fields = ["system", "template", "examples", "context_keys", "fallback"]
         content_updates = {}
         for field in content_fields:
             if field in kwargs:
                 content_updates[field] = kwargs[field]
-                
+
         if content_updates:
-            prompt.content = PromptContent(
-                **{**prompt.content.model_dump(), **content_updates}
-            )
-            
+            prompt.content = PromptContent(**{**prompt.content.model_dump(), **content_updates})
+
         # Save updates
         self._prompts[prompt_id] = prompt
         if self.storage:
             await self.storage.save(prompt)
-            
+
         return prompt
 
     async def delete_prompt(self, prompt_id: str) -> bool:
@@ -357,11 +359,11 @@ class PromptManager:
         # Remove from local cache
         if prompt_id in self._prompts:
             del self._prompts[prompt_id]
-            
+
         # Remove from storage
         if self.storage:
             return await self.storage.delete(prompt_id)
-            
+
         return True
 
     async def list_prompts(self, tag: Optional[str] = None) -> List[PromptMetadata]:
@@ -375,7 +377,7 @@ class PromptManager:
         """
         if self.storage:
             return await self.storage.list(tag)
-            
+
         # Use local cache if no storage
         if tag is None:
             return [p.metadata for p in self._prompts.values()]
@@ -401,12 +403,12 @@ class PromptManager:
         prompt = await self.get_prompt(prompt_id)
         if not prompt:
             return None
-            
+
         context = context or {}
-        
+
         # Handle system prompt
         system = system_override or prompt.content.system
-        
+
         # Handle template
         content = prompt.content.template
         if content and context:
@@ -415,11 +417,8 @@ class PromptManager:
                 if isinstance(value, (str, int, float, bool)):
                     placeholder = f"{{{{{key}}}}}"
                     content = content.replace(placeholder, str(value))
-                    
+
         # Return rendered prompt
-        result = {
-            "system": system,
-            "content": content
-        }
-        
-        return result 
+        result = {"system": system, "content": content}
+
+        return result

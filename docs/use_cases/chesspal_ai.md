@@ -47,7 +47,7 @@ The proposed MAS consists of the following agents, primarily communicating via M
     * OpenMAS MCP server capabilities (`McpServerAgent` or `McpSseCommunicator`/`McpStdioCommunicator` in server mode).
     * Compatibility with LLM integration libraries (e.g., `google-generativeai`, `anthropic`) within the `BaseAgent`'s async environment. See [LLM Integration Guide](../guides/llm_integration.md).
     * Ability to load LLM API keys and model names via the OpenMAS configuration system.
-* **Enhanced Implementation with Prompt Management:** 
+* **Enhanced Implementation with Prompt Management:**
     * Uses `PromptMcpAgent` to maintain a library of commentary prompts for different game scenarios
     * Leverages template rendering to insert game state into prompts
     * Uses the sampling system to control output parameters like temperature and length
@@ -81,14 +81,14 @@ from typing import Dict, Any, Optional
 
 class ChessCommentaryAgent(PromptMcpAgent):
     """Chess commentary agent that provides natural language commentary on chess games."""
-    
+
     async def setup(self):
         """Set up the agent with prompts and communication."""
         await super().setup()
-        
+
         # Initialize prompt library with different commentary styles and purposes
         self.prompts = {}
-        
+
         # Basic move commentary
         self.prompts["move_commentary"] = await self.create_prompt(
             name="move_commentary",
@@ -102,7 +102,7 @@ class ChessCommentaryAgent(PromptMcpAgent):
             ),
             tags={"chess", "commentary", "moves"}
         )
-        
+
         # Game situation analysis
         self.prompts["game_analysis"] = await self.create_prompt(
             name="game_analysis",
@@ -117,7 +117,7 @@ class ChessCommentaryAgent(PromptMcpAgent):
             ),
             tags={"chess", "analysis", "strategy"}
         )
-        
+
         # Opening identification
         self.prompts["opening_commentary"] = await self.create_prompt(
             name="opening_commentary",
@@ -130,7 +130,7 @@ class ChessCommentaryAgent(PromptMcpAgent):
             ),
             tags={"chess", "commentary", "openings"}
         )
-        
+
         # Beginner-friendly commentary
         self.prompts["beginner_commentary"] = await self.create_prompt(
             name="beginner_commentary",
@@ -149,28 +149,28 @@ class ChessCommentaryAgent(PromptMcpAgent):
             ),
             tags={"chess", "commentary", "beginner"}
         )
-        
+
         # Register prompts with MCP server (if running in server mode)
         if self._server_mode:
             await self.register_prompts_with_server()
-            
+
         # Set up tool handlers
         self.add_tool_handler("generate_commentary", self.handle_commentary_request)
         self.add_tool_handler("analyze_position", self.handle_analysis_request)
         self.add_tool_handler("identify_opening", self.handle_opening_request)
-    
+
     async def handle_commentary_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Handle a request for move commentary."""
         fen = payload.get("fen", "")
         last_move = payload.get("last_move", "")
         player = payload.get("player", "")
         style = payload.get("style", "standard")
-        
+
         # Select the appropriate prompt based on style
         prompt_id = self.prompts["move_commentary"].id
         if style == "beginner":
             prompt_id = self.prompts["beginner_commentary"].id
-        
+
         # Sample from the selected prompt
         result = await self.sample(
             prompt_id=prompt_id,
@@ -184,15 +184,15 @@ class ChessCommentaryAgent(PromptMcpAgent):
                 "max_tokens": 200
             }
         )
-        
+
         return {"commentary": result.content}
-    
+
     async def handle_analysis_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Handle a request for game analysis."""
         fen = payload.get("fen", "")
         move_history = payload.get("move_history", "")
         player_to_move = payload.get("player_to_move", "")
-        
+
         result = await self.sample(
             prompt_id=self.prompts["game_analysis"].id,
             context={
@@ -205,13 +205,13 @@ class ChessCommentaryAgent(PromptMcpAgent):
                 "max_tokens": 500
             }
         )
-        
+
         return {"analysis": result.content}
-    
+
     async def handle_opening_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Handle a request to identify a chess opening."""
         move_sequence = payload.get("move_sequence", "")
-        
+
         result = await self.sample(
             prompt_id=self.prompts["opening_commentary"].id,
             context={
@@ -222,7 +222,7 @@ class ChessCommentaryAgent(PromptMcpAgent):
                 "max_tokens": 300
             }
         )
-        
+
         return {"opening_analysis": result.content}
 ```
 
@@ -245,14 +245,14 @@ from typing import Dict, Any, Optional
 
 class ChessOrchestratorAgent(PromptMcpAgent):
     """Orchestrator agent that manages the chess game and coordinates other agents."""
-    
+
     async def setup(self):
         """Set up the agent."""
         await super().setup()
-        
+
         # Initialize player interaction prompts
         self.prompts = {}
-        
+
         # Welcome message prompt
         self.prompts["welcome"] = await self.create_prompt(
             name="welcome_message",
@@ -266,7 +266,7 @@ class ChessOrchestratorAgent(PromptMcpAgent):
             ),
             tags={"interaction", "welcome"}
         )
-        
+
         # Game advice prompt
         self.prompts["advice"] = await self.create_prompt(
             name="game_advice",
@@ -282,17 +282,17 @@ class ChessOrchestratorAgent(PromptMcpAgent):
             ),
             tags={"interaction", "advice"}
         )
-        
+
         # Initialize communicators to other agents
         # ... (code to set up communication with other agents)
-    
+
     async def generate_welcome_message(self, player_name: str, player_rating: int) -> str:
         """Generate a personalized welcome message for a player."""
         # Get the current time of day
         import datetime
         hour = datetime.datetime.now().hour
         time_of_day = "morning" if 5 <= hour < 12 else "afternoon" if 12 <= hour < 18 else "evening"
-        
+
         # Sample from the welcome prompt
         result = await self.sample(
             prompt_id=self.prompts["welcome"].id,
@@ -306,10 +306,10 @@ class ChessOrchestratorAgent(PromptMcpAgent):
                 "max_tokens": 100
             }
         )
-        
+
         return result.content
-    
-    async def generate_advice(self, player_name: str, player_rating: int, 
+
+    async def generate_advice(self, player_name: str, player_rating: int,
                              fen: str, player_color: str, move_history: str) -> str:
         """Generate personalized advice for a player during a game."""
         result = await self.sample(
@@ -326,13 +326,13 @@ class ChessOrchestratorAgent(PromptMcpAgent):
                 "max_tokens": 150
             }
         )
-        
+
         return result.content
-    
+
     async def handle_player_move(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Handle a move submitted by a player."""
         # ... (code to validate and process the move)
-        
+
         # Get commentary from the commentary agent
         commentary_result = await self.send_request(
             target="commentary_agent",
@@ -345,9 +345,9 @@ class ChessOrchestratorAgent(PromptMcpAgent):
                 "style": "standard"  # or "beginner" based on player preference
             }
         )
-        
+
         # ... (code to update game state)
-        
+
         return {
             "success": True,
             "commentary": commentary_result.get("commentary", ""),

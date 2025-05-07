@@ -274,14 +274,14 @@ from openmas.agent import PromptMcpAgent
 
 class ChessPalAgent(PromptMcpAgent):
     """Chess assistant agent with prompt management and LLM capabilities."""
-    
+
     async def setup(self):
         """Set up the agent with prompts and communication."""
         await super().setup()
-        
+
         # Create a set of chess-related prompts
         self.prompts = {}
-        
+
         # Analysis prompt
         self.prompts["analysis"] = await self.create_prompt(
             name="chess_analysis",
@@ -293,7 +293,7 @@ class ChessPalAgent(PromptMcpAgent):
                     "Recent moves: {{recent_moves}}",
             tags={"chess", "analysis"}
         )
-        
+
         # Commentary prompt
         self.prompts["commentary"] = await self.create_prompt(
             name="chess_commentary",
@@ -306,7 +306,7 @@ class ChessPalAgent(PromptMcpAgent):
                     "Provide engaging commentary on this move.",
             tags={"chess", "commentary"}
         )
-        
+
         # Teaching prompt
         self.prompts["teaching"] = await self.create_prompt(
             name="chess_teaching",
@@ -318,11 +318,11 @@ class ChessPalAgent(PromptMcpAgent):
                     "If relevant, reference the current position: {{fen}}",
             tags={"chess", "teaching"}
         )
-        
+
         # Register prompts with MCP if in server mode
         if self._server_mode:
             await self.register_prompts_with_server()
-    
+
     async def analyze_position(self, fen, player_to_move, recent_moves):
         """Analyze a chess position using LLM."""
         return await self.sample(
@@ -334,7 +334,7 @@ class ChessPalAgent(PromptMcpAgent):
             },
             parameters={"temperature": 0.3, "max_tokens": 800}
         )
-    
+
     async def provide_commentary(self, fen, last_move):
         """Provide commentary for a chess move."""
         return await self.sample(
@@ -345,7 +345,7 @@ class ChessPalAgent(PromptMcpAgent):
             },
             parameters={"temperature": 0.7, "max_tokens": 300}
         )
-    
+
     async def explain_concept(self, concept, student_rating, fen=None):
         """Explain a chess concept to a student."""
         return await self.sample(
@@ -366,7 +366,7 @@ async def main():
         default_model="claude-3-sonnet-20240229"
     )
     await agent.setup()
-    
+
     # Analyze a position
     analysis = await agent.analyze_position(
         fen="r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
@@ -374,14 +374,14 @@ async def main():
         recent_moves="1. e4 e5 2. Nf3 Nc6"
     )
     print("Analysis:", analysis.content)
-    
+
     # Provide commentary on a move
     commentary = await agent.provide_commentary(
         fen="r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
         last_move="Nc6"
     )
     print("Commentary:", commentary.content)
-    
+
     # Explain a concept
     explanation = await agent.explain_concept(
         concept="The Italian Game opening",
@@ -411,4 +411,4 @@ if __name__ == "__main__":
 
 For complete API documentation, see:
 - [Prompt Management API Reference](/api_reference/#openmas.prompt)
-- [Sampling API Reference](/api_reference/#openmas.sampling) 
+- [Sampling API Reference](/api_reference/#openmas.sampling)
