@@ -75,6 +75,7 @@ Key methods:
 
 ### MCP Decorators
 
+<a id="openmas.prompt"></a>
 ```python
 from openmas.agent import mcp_tool, mcp_prompt, mcp_resource
 
@@ -268,6 +269,7 @@ Key functions:
 
 ## Agent Patterns
 
+<a id="openmas.sampling"></a>
 ::: openmas.patterns.orchestrator
     options:
         show_source: yes

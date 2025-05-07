@@ -36,9 +36,9 @@ nav:
   - Home: index.md
   - Why OpenMAS?: why_openmas.md
   - Core Concepts:
-      - Design Philosophy: design.md
-      - Architecture: architecture.md
-      - Project Structure: project_structure.md
+      - Design Philosophy: core_concepts/design.md
+      - Architecture: core_concepts/architecture.md
+      - Project Structure: core_concepts/project_structure.md
   - Guides:
       - Installation: guides/installation.md
       - Getting Started: guides/getting_started.md

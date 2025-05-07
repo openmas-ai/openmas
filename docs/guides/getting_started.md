@@ -170,4 +170,4 @@ From here, you can explore more advanced topics:
 - [**Patterns Guide**](patterns.md) - Explore common agent patterns
 - [**MCP Integration**](mcp_integration.md) - Connect your agents to AI models using MCP
 - [**Testing Utilities**](testing-utilities.md) - Learn how to test your agents
-- [**Project Structure**](../project_structure.md) - Understand the OpenMAS project layout
+- [**Project Structure**](../core_concepts/project_structure.md) - Understand the OpenMAS project layout

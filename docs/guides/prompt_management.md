@@ -410,5 +410,5 @@ if __name__ == "__main__":
 ## API Reference
 
 For complete API documentation, see:
-- [Prompt Management API Reference](/api_reference/#openmas.prompt)
-- [Sampling API Reference](/api_reference/#openmas.sampling)
+- [Prompt Management API Reference](../api_reference.md#openmas.prompt)
+- [Sampling API Reference](../api_reference.md#openmas.sampling)

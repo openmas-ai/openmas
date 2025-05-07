@@ -16,7 +16,7 @@ Before diving into components, remember the core principles:
 
 ## High-Level Architecture Overview
 
-![OpenMAS Architecture Diagram](images/openmas-architecture-diagram.png "OpenMAS Architecture Diagram")
+![OpenMAS Architecture Diagram](../images/openmas-architecture-diagram.png "OpenMAS Architecture Diagram")
 
 The architecture revolves around distinct agents running within a defined project structure, leveraging shared communication and configuration mechanisms, and managed by developer-friendly tooling.
 
@@ -64,7 +64,7 @@ OpenMAS uses a layered configuration system (powered by Pydantic) to manage sett
 * **Loading:** The `load_config()` function uses Pydantic models (like `AgentConfig` or custom subclasses) for validation and type-safe access.
 * **Access:** Configuration is validated during agent startup and made available within the agent via `self.config`.
 
-(See the [Configuration Guide](guides/configuration.md) for details).
+(See the [Configuration Guide](../guides/configuration.md) for details).
 
 ### 4. Project Structure & Conventions
 
@@ -91,7 +91,7 @@ Provides command-line tools to streamline the development workflow.
 * `openmas generate-dockerfile`: Creates Dockerfiles for deploying agents.
 * `openmas generate-compose`: Creates a Docker Compose file for multi-agent deployments.
 
-(See the [CLI Documentation](cli/index.md) for details).
+(See the [CLI Documentation](../cli/index.md) for details).
 
 ## How Components Interact
 
