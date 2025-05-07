@@ -35,6 +35,10 @@ theme:
 nav:
   - Home: index.md
   - Why OpenMAS?: why_openmas.md
+  - Core Concepts:
+      - Design Philosophy: design.md
+      - Architecture: architecture.md
+      - Project Structure: project_structure.md
   - Guides:
       - Installation: guides/installation.md
       - Getting Started: guides/getting_started.md
@@ -55,10 +59,6 @@ nav:
       - MCP Integration: guides/mcp_integration.md
       - MCP stdio Tool Call Tutorial: guides/mcp_stdio_tool_call_tutorial.md
       - Testing Utilities: guides/testing-utilities.md
-  - Core Concepts:
-      - Design Philosophy: design.md
-      - Architecture: architecture.md
-      - Project Structure: project_structure.md
   - Examples & Use Cases:
       - Overview: examples.md
       - Chesspal.ai Refactoring: use_cases/chesspal_ai.md
