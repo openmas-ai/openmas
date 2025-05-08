@@ -14,7 +14,7 @@ from openmas.agent.spade_bdi_agent import SpadeBdiAgent
 from openmas.prompt import Prompt, PromptManager
 
 # Exports from sampling module
-from openmas.sampling import Sampler, SamplingResult
+from openmas.sampling import BaseSampler, SamplingResult
 
 __all__ = [
     # Agents
@@ -32,6 +32,6 @@ __all__ = [
     "Prompt",
     "PromptManager",
     # Sampling
-    "Sampler",
+    "BaseSampler",
     "SamplingResult",
 ]

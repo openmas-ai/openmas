@@ -5,6 +5,7 @@ This module provides helper functions to simplify common multi-agent testing pat
 
 import contextlib
 import difflib
+from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional, Protocol, Tuple, Type, TypeVar
 
 from openmas.agent.base import BaseAgent
@@ -35,6 +36,7 @@ async def setup_sender_receiver_test(
     receiver_name: str = "receiver",
     sender_config: Optional[Dict[str, Any]] = None,
     receiver_config: Optional[Dict[str, Any]] = None,
+    project_root: Optional[Path] = None,
 ) -> Tuple[AgentTestHarness[T], AgentTestHarness[U], T, U]:
     """Set up a test scenario with a sender and receiver agent.
 
@@ -48,13 +50,14 @@ async def setup_sender_receiver_test(
         receiver_name: Name for the receiver agent
         sender_config: Optional configuration for the sender agent
         receiver_config: Optional configuration for the receiver agent
+        project_root: The root directory for the agent's project files (for test isolation)
 
     Returns:
         A tuple of (sender_harness, receiver_harness, sender_agent, receiver_agent)
     """
     # Create test harnesses for both agents
-    sender_harness = AgentTestHarness(sender_class)
-    receiver_harness = AgentTestHarness(receiver_class)
+    sender_harness = AgentTestHarness(sender_class, project_root=project_root)
+    receiver_harness = AgentTestHarness(receiver_class, project_root=project_root)
 
     # Create the agents with their configurations
     sender_agent = await sender_harness.create_agent(name=sender_name, **(sender_config or {}))

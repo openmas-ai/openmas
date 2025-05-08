@@ -9,6 +9,7 @@ from openmas.prompt.base import (
     FileSystemPromptStorage,
     MemoryPromptStorage,
     Prompt,
+    PromptConfig,
     PromptContent,
     PromptManager,
     PromptMetadata,
@@ -305,10 +306,8 @@ class TestPromptManager:
     """Tests for the PromptManager class."""
 
     @pytest.fixture
-    def manager(self):
-        """Create a PromptManager instance with a mock storage."""
-        storage = MemoryPromptStorage()
-        return PromptManager(storage=storage)
+    def manager(self, tmp_path):
+        return PromptManager(prompts_base_path=tmp_path)
 
     @pytest.mark.asyncio
     async def test_create_prompt(self, manager):
@@ -449,3 +448,34 @@ class TestPromptManager:
         """Test rendering a nonexistent prompt."""
         rendered = await manager.render_prompt("nonexistent-id")
         assert rendered is None
+
+    def test_load_prompt_from_template_file(self, tmp_path):
+        # Create a template file
+        template_path = tmp_path / "my_template.txt"
+        template_content = "Hello, {{name}}!"
+        template_path.write_text(template_content, encoding="utf-8")
+        # Create PromptConfig referencing the file
+        config = PromptConfig(name="file_prompt", template_file="my_template.txt", input_variables=["name"])
+        manager = PromptManager(prompts_base_path=tmp_path)
+        prompts = manager.load_prompts_from_config([config])
+        assert len(prompts) == 1
+        assert prompts[0].metadata.name == "file_prompt"
+        assert prompts[0].content.template == template_content
+
+    def test_load_prompt_from_inline_template(self, tmp_path):
+        from openmas.prompt.base import PromptConfig
+
+        config = PromptConfig(name="inline_prompt", template="Hi, {{user}}!", input_variables=["user"])
+        manager = PromptManager(prompts_base_path=tmp_path)
+        prompts = manager.load_prompts_from_config([config])
+        assert len(prompts) == 1
+        assert prompts[0].metadata.name == "inline_prompt"
+        assert prompts[0].content.template == "Hi, {{user}}!"
+
+    def test_load_prompt_missing_template_file_raises(self, tmp_path):
+        from openmas.prompt.base import PromptConfig
+
+        config = PromptConfig(name="missing_file", template_file="does_not_exist.txt", input_variables=["foo"])
+        manager = PromptManager(prompts_base_path=tmp_path)
+        with pytest.raises(FileNotFoundError):
+            manager.load_prompts_from_config([config])

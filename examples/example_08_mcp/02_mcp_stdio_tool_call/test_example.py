@@ -11,7 +11,7 @@ from openmas.testing import AgentTestHarness, multi_running_agents
 
 
 @pytest.mark.asyncio
-async def test_mcp_stdio_tool_call() -> None:
+async def test_mcp_stdio_tool_call(tmp_path) -> None:
     """Test the MCP stdio tool call example.
 
     This test:
@@ -22,8 +22,8 @@ async def test_mcp_stdio_tool_call() -> None:
     5. Checks the result received by the tool user
     """
     # Create test harnesses for both agents
-    provider_harness = AgentTestHarness(ToolProviderAgent)
-    user_harness = AgentTestHarness(ToolUserAgent)
+    provider_harness = AgentTestHarness(ToolProviderAgent, project_root=tmp_path)
+    user_harness = AgentTestHarness(ToolUserAgent, project_root=tmp_path)
 
     # Create the agents
     provider = await provider_harness.create_agent(name="tool_provider")
@@ -62,7 +62,7 @@ async def test_mcp_stdio_tool_call() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mcp_stdio_tool_call_missing_text() -> None:
+async def test_mcp_stdio_tool_call_missing_text(tmp_path) -> None:
     """Test error handling when the text field is missing from the payload.
 
     This test verifies that:
@@ -70,8 +70,8 @@ async def test_mcp_stdio_tool_call_missing_text() -> None:
     2. The tool user properly processes error responses
     """
     # Create test harnesses for both agents
-    provider_harness = AgentTestHarness(ToolProviderAgent)
-    user_harness = AgentTestHarness(ToolUserAgent)
+    provider_harness = AgentTestHarness(ToolProviderAgent, project_root=tmp_path)
+    user_harness = AgentTestHarness(ToolUserAgent, project_root=tmp_path)
 
     # Create the agents
     provider = await provider_harness.create_agent(name="tool_provider")
@@ -119,7 +119,7 @@ async def test_mcp_stdio_tool_call_missing_text() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mcp_tool_call_timeout() -> None:
+async def test_mcp_tool_call_timeout(tmp_path) -> None:
     """Test timeout handling for tool calls.
 
     This test verifies that:
@@ -127,7 +127,7 @@ async def test_mcp_tool_call_timeout() -> None:
     2. Error information is captured correctly
     """
     # Create test harness for just the user agent
-    user_harness = AgentTestHarness(ToolUserAgent)
+    user_harness = AgentTestHarness(ToolUserAgent, project_root=tmp_path)
 
     # Create the user agent
     user = await user_harness.create_agent(name="tool_user")

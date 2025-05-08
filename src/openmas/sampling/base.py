@@ -16,6 +16,8 @@ from openmas.prompt.base import Prompt
 class SamplingParameters(BaseModel):
     """Parameters for sampling from a language model."""
 
+    provider: Optional[str] = Field(default=None, description="Sampling provider (e.g., 'mcp', 'openai', etc.)")
+    model: Optional[str] = Field(default=None, description="Model name or ID to use for sampling")
     temperature: float = 0.7
     max_tokens: Optional[int] = None
     top_p: Optional[float] = None
@@ -183,8 +185,16 @@ class SamplerProtocol(Protocol):
         ...
 
 
-class Sampler:
+class BaseSampler:
     """Base class for samplers."""
+
+    def __init__(self, communicator: Optional[Any] = None) -> None:
+        """Initialize the sampler.
+
+        Args:
+            communicator: Optional communicator to use for sampling
+        """
+        self.communicator = communicator
 
     async def sample(
         self,

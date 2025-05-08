@@ -13,6 +13,15 @@ from typing import Any, Dict, List, Optional, Set
 from pydantic import BaseModel, Field
 
 
+class PromptConfig(BaseModel):
+    """Developer-facing configuration for a prompt (for YAML/project config)."""
+
+    name: str = Field(..., description="Name of the prompt")
+    template: Optional[str] = Field(None, description="Prompt template string (inline)")
+    template_file: Optional[str] = Field(None, description="Path to template file (relative to prompts_dir)")
+    input_variables: List[str] = Field(default_factory=list, description="Variables required by the template")
+
+
 class PromptMetadata(BaseModel):
     """Metadata for a prompt."""
 
@@ -198,14 +207,37 @@ class MemoryPromptStorage(PromptStorage):
 class PromptManager:
     """Manages prompts for an agent."""
 
-    def __init__(self, storage: Optional[PromptStorage] = None) -> None:
+    def __init__(self, storage: Optional[PromptStorage] = None, prompts_base_path: Optional[Path] = None) -> None:
         """Initialize the prompt manager.
 
         Args:
             storage: Optional storage backend for prompts.
+            prompts_base_path: Optional base path for resolving template_file in PromptConfig.
         """
         self.storage = storage or MemoryPromptStorage()
         self._prompts: Dict[str, Prompt] = {}
+        self.prompts_base_path = prompts_base_path
+
+    def load_prompts_from_config(self, prompt_configs: List[PromptConfig]) -> List[Prompt]:
+        """Load prompts from a list of PromptConfig objects, resolving template_file if needed."""
+        loaded_prompts = []
+        for config in prompt_configs:
+            # Determine template content
+            template = config.template
+            if config.template_file:
+                if not self.prompts_base_path:
+                    raise ValueError("prompts_base_path must be set to resolve template_file")
+                template_path = self.prompts_base_path / config.template_file
+                if not template_path.exists():
+                    raise FileNotFoundError(f"Prompt template file not found: {template_path}")
+                template = template_path.read_text(encoding="utf-8")
+            # Build Prompt object
+            metadata = PromptMetadata(name=config.name)
+            content = PromptContent(template=template)
+            prompt = Prompt(metadata=metadata, content=content)
+            self._prompts[config.name] = prompt
+            loaded_prompts.append(prompt)
+        return loaded_prompts
 
     async def create_prompt(
         self,

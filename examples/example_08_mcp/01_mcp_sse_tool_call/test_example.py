@@ -15,7 +15,7 @@ logging.basicConfig(
 
 
 @pytest.mark.asyncio
-async def test_mcp_sse_tool_call() -> None:
+async def test_mcp_sse_tool_call(tmp_path) -> None:
     """Test the MCP SSE tool call example.
 
     This test:
@@ -26,8 +26,8 @@ async def test_mcp_sse_tool_call() -> None:
     5. Checks the result received by the tool user
     """
     # Create test harnesses for both agents
-    provider_harness = AgentTestHarness(ToolProviderAgent)
-    user_harness = AgentTestHarness(ToolUserAgent)
+    provider_harness = AgentTestHarness(ToolProviderAgent, project_root=tmp_path)
+    user_harness = AgentTestHarness(ToolUserAgent, project_root=tmp_path)
 
     # Create the agents
     provider = await provider_harness.create_agent(name="tool_provider")
@@ -66,15 +66,15 @@ async def test_mcp_sse_tool_call() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mcp_sse_tool_call_missing_text() -> None:
+async def test_mcp_sse_tool_call_missing_text(tmp_path) -> None:
     """Test error handling when the text field is missing from the payload.
 
     This test verifies that the tool provider correctly returns an error
     when the required 'text' field is missing from the payload.
     """
     # Create test harnesses for both agents
-    provider_harness = AgentTestHarness(ToolProviderAgent)
-    user_harness = AgentTestHarness(ToolUserAgent)
+    provider_harness = AgentTestHarness(ToolProviderAgent, project_root=tmp_path)
+    user_harness = AgentTestHarness(ToolUserAgent, project_root=tmp_path)
 
     # Create the agents
     provider = await provider_harness.create_agent(name="tool_provider")

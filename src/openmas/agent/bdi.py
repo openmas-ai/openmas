@@ -6,6 +6,7 @@ intentions management.
 """
 
 import asyncio
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Type
 
 from openmas.agent.base import BaseAgent
@@ -31,7 +32,8 @@ class BdiAgent(BaseAgent):
         env_prefix: str = "",
         bdi_enabled: bool = True,
         deliberation_cycle_interval: float = 0.1,
-    ):
+        project_root: Optional[Path] = None,
+    ) -> None:
         """Initialize the BDI agent.
 
         Args:
@@ -41,8 +43,11 @@ class BdiAgent(BaseAgent):
             env_prefix: Optional prefix for environment variables
             bdi_enabled: Whether BDI reasoning is enabled
             deliberation_cycle_interval: Interval between deliberation cycles (in seconds)
+            project_root: The project root directory for resolving prompt/template files
         """
-        super().__init__(name=name, config=config, config_model=config_model, env_prefix=env_prefix)
+        super().__init__(
+            name=name, config=config, config_model=config_model, env_prefix=env_prefix, project_root=project_root
+        )
 
         # BDI state
         self._beliefs: Dict[str, Any] = {}

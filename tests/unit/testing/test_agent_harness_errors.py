@@ -15,10 +15,10 @@ from openmas.testing import AgentTestHarness
 class IncompleteAgent(BaseAgent):
     """Agent that doesn't implement all required abstract methods."""
 
-    def __init__(self, name="test-agent", config=None):
+    def __init__(self, name="test-agent", config=None, project_root=None):
         """Mock initialization to avoid config loading."""
         config_obj = config or AgentConfig(name=name)
-        super().__init__(config=config_obj, env_prefix="")
+        super().__init__(config=config_obj, env_prefix="", project_root=project_root)
         self.logger = MagicMock()
 
     async def setup(self) -> None:
@@ -32,10 +32,10 @@ class IncompleteAgent(BaseAgent):
 class ProperAgent(BaseAgent):
     """Agent that implements all required methods."""
 
-    def __init__(self, name="test-agent", config=None):
+    def __init__(self, name="test-agent", config=None, project_root=None):
         """Mock initialization to avoid config loading."""
         config_obj = config or AgentConfig(name=name)
-        super().__init__(config=config_obj, env_prefix="")
+        super().__init__(config=config_obj, env_prefix="", project_root=project_root)
         self.logger = MagicMock()
 
     async def setup(self) -> None:
@@ -59,6 +59,7 @@ class EnhancedTestHarness(AgentTestHarness):
         agent_class: Type[BaseAgent],
         default_config: Optional[Dict[str, Any]] = None,
         config_model: Type[AgentConfig] = AgentConfig,
+        project_root=None,
     ):
         """Initialize with validation for abstract methods."""
         # Make sure to run this validation logic BEFORE calling super()
@@ -82,11 +83,11 @@ class EnhancedTestHarness(AgentTestHarness):
                 "All agent classes must implement setup(), run(), and shutdown() methods."
             )
 
-        super().__init__(agent_class, default_config, config_model)
+        super().__init__(agent_class, default_config, config_model, project_root=project_root)
 
 
 @pytest.mark.asyncio
-async def test_incomplete_agent_detection():
+async def test_incomplete_agent_detection(tmp_path):
     """Test that we can detect agents missing required abstract methods."""
     # This should now raise a clear error about missing methods
     with pytest.raises(TypeError, match="abstract method"):
@@ -94,12 +95,12 @@ async def test_incomplete_agent_detection():
         with patch.object(BaseAgent, "__abstractmethods__", {"run", "shutdown"}):
             # Cast to overcome type checker issue
             agent_class = cast(Type[BaseAgent], IncompleteAgent)
-            harness = AgentTestHarness(agent_class)
+            harness = AgentTestHarness(agent_class, project_root=tmp_path)
             await harness.create_agent(name="test-agent")
 
 
 @pytest.mark.asyncio
-async def test_enhanced_harness_validation():
+async def test_enhanced_harness_validation(tmp_path):
     """Test that our enhanced harness validates agent methods properly."""
 
     # Create our own simple class that doesn't implement all methods
@@ -119,6 +120,7 @@ async def test_enhanced_harness_validation():
             agent_class: Type[BaseAgent],
             default_config: Optional[Dict[str, Any]] = None,
             config_model: Type[AgentConfig] = AgentConfig,
+            project_root=None,
         ):
             """Validate agent class first."""
             # Check methods directly
@@ -132,18 +134,18 @@ async def test_enhanced_harness_validation():
                 missing_str = ", ".join(missing)
                 raise ValueError(f"Agent class {agent_class.__name__} is missing methods: {missing_str}")
 
-            super().__init__(agent_class, default_config, config_model)
+            super().__init__(agent_class, default_config, config_model, project_root=project_root)
 
     # Should raise a ValueError for incomplete agents
     with pytest.raises(ValueError, match="is missing methods"):
-        harness = ValidationTestHarness(SimpleIncompleteClass)
+        harness = ValidationTestHarness(SimpleIncompleteClass, project_root=tmp_path)
 
     # Should work fine with proper agents
-    harness = ValidationTestHarness(ProperAgent)
+    harness = ValidationTestHarness(ProperAgent, project_root=tmp_path)
 
     # Test with patched create_agent to avoid config loading
     with patch.object(harness, "create_agent") as mock_create:
-        agent = ProperAgent(name="test-agent")
+        agent = ProperAgent(name="test-agent", project_root=tmp_path)
         mock_create.return_value = agent
 
         # Call create_agent
@@ -157,16 +159,16 @@ async def test_enhanced_harness_validation():
 
 
 @pytest.mark.asyncio
-async def test_agent_start_stop_sequence():
+async def test_agent_start_stop_sequence(tmp_path):
     """Test that agent lifecycle methods are called in the correct order."""
     # Create a test agent that records method calls
     call_sequence = []
 
     class SequenceAgent(BaseAgent):
-        def __init__(self, name="test-agent", config=None):
+        def __init__(self, name="test-agent", config=None, project_root=None):
             """Mock initialization to avoid config loading."""
             config_obj = config or AgentConfig(name=name)
-            super().__init__(config=config_obj, env_prefix="")
+            super().__init__(config=config_obj, env_prefix="", project_root=project_root)
             self.logger = MagicMock()
 
         async def setup(self) -> None:
@@ -187,10 +189,10 @@ async def test_agent_start_stop_sequence():
             await self.shutdown()
 
     # Create a harness and mock agent creation
-    harness = AgentTestHarness(SequenceAgent)
+    harness = AgentTestHarness(SequenceAgent, project_root=tmp_path)
 
     # Create an agent directly
-    agent = SequenceAgent(name="test-agent")
+    agent = SequenceAgent(name="test-agent", project_root=tmp_path)
 
     # Use a patched context manager to simulate running the agent
     with patch.object(harness, "running_agent", return_value=harness.RunningAgent(harness, agent)):

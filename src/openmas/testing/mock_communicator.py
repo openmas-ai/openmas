@@ -4,6 +4,7 @@ This module provides a mock communicator that can be used for testing agents
 without real network dependencies.
 """
 
+import difflib
 from typing import Any, Callable, Dict, List, Optional, Pattern, Tuple, Type, TypeVar
 
 from pydantic import BaseModel
@@ -183,12 +184,20 @@ class MockCommunicator(BaseCommunicator):
         ```
     """
 
-    def __init__(self, agent_name: str, service_urls: Optional[Dict[str, str]] = None):
+    def __init__(
+        self,
+        agent_name: str,
+        service_urls: Optional[Dict[str, str]] = None,
+        config: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> None:
         """Initialize the mock communicator.
 
         Args:
             agent_name: The name of the agent using this communicator
             service_urls: Mapping of service names to URLs (optional for mocking)
+            config: Optional agent config (ignored for mock)
+            **kwargs: Additional keyword arguments (ignored)
         """
         super().__init__(agent_name, service_urls or {})
 
@@ -692,3 +701,14 @@ class MockCommunicator(BaseCommunicator):
             other_communicator._linked_communicators.append(self)
 
         logger.debug("Linked communicators", agent1=self.agent_name, agent2=other_communicator.agent_name)
+
+
+# Enhance MockCommunicator with better error messages for method typos
+def _get_similar_methods(obj: Any, name: str) -> List[str]:
+    """Find methods with similar names to the requested one."""
+    methods = [m for m in dir(obj) if callable(getattr(obj, m)) and not m.startswith("_")]
+    return difflib.get_close_matches(name, methods, n=3, cutoff=0.6)
+
+
+# Patch MockCommunicator to provide better error messages
+original_getattr = getattr(MockCommunicator, "__getattr__", None)

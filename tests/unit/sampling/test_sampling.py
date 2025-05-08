@@ -1,14 +1,17 @@
 """Unit tests for the sampling system."""
 
 import json
+from unittest.mock import Mock
 
 import pytest
 
+from openmas.exceptions import ConfigurationError
 from openmas.prompt.base import Prompt, PromptContent, PromptMetadata
+from openmas.sampling import get_sampler
 from openmas.sampling.base import (
+    BaseSampler,
     Message,
     MessageRole,
-    Sampler,
     SamplerProtocol,
     SamplingContext,
     SamplingParameters,
@@ -261,18 +264,18 @@ class TestSamplingResult:
         assert "  " in result_json  # Check for indentation
 
 
-class TestSampler:
-    """Tests for the Sampler class."""
+class TestBaseSampler:
+    """Tests for the BaseSampler class."""
 
     def test_initialization(self):
-        """Test initialization of Sampler."""
-        sampler = Sampler()
-        assert isinstance(sampler, Sampler)
+        """Test initialization of BaseSampler."""
+        sampler = BaseSampler()
+        assert isinstance(sampler, BaseSampler)
 
     @pytest.mark.asyncio
     async def test_sample_not_implemented(self):
         """Test that sample raises NotImplementedError."""
-        sampler = Sampler()
+        sampler = BaseSampler()
         context = SamplingContext(
             system_prompt="You are a helpful assistant.",
             messages=[Message(role=MessageRole.USER, content="Hello")],
@@ -290,7 +293,7 @@ class TestSampler:
         ]
         parameters = {"temperature": 0.5, "max_tokens": 500}
 
-        context = Sampler.create_context(
+        context = BaseSampler.create_context(
             system=system,
             messages=messages,
             parameters=parameters,
@@ -310,7 +313,7 @@ class TestSampler:
         """Test sampling from a prompt."""
 
         # Create a mock sampler that returns a fixed result
-        class MockSampler(Sampler):
+        class MockSampler(BaseSampler):
             async def sample(self, context, model=None):
                 return SamplingResult(content="Mocked response")
 
@@ -336,8 +339,8 @@ class TestSampler:
 
 
 # Create a protocol implementation for testing
-class TestSamplerImplementation(Sampler):
-    """Concrete implementation of Sampler for testing."""
+class TestSamplerImplementation(BaseSampler):
+    """Concrete implementation of BaseSampler for testing."""
 
     async def sample(self, context, model=None):
         """Sample implementation for testing."""
@@ -360,3 +363,30 @@ class TestSamplerProtocol:
 
         non_sampler = NonProtocolClass()
         assert not isinstance(non_sampler, SamplerProtocol)
+
+
+class TestGetSamplerFactory:
+    def test_get_sampler_mcp_success(self):
+        params = SamplingParameters(provider="mcp", model="test-model")
+        mock_communicator = Mock()
+        sampler = get_sampler(communicator=mock_communicator, params=params)
+        # Import here to avoid circular import at module level
+        from openmas.sampling.providers.mcp import McpSampler
+
+        assert isinstance(sampler, McpSampler)
+        assert sampler.communicator == mock_communicator
+        assert sampler.params == params
+        assert sampler.default_model == "test-model"
+
+    def test_get_sampler_mcp_missing_client(self):
+        params = SamplingParameters(provider="mcp", model="test-model")
+        # The communicator parameter is now required, so we should get a TypeError
+        with pytest.raises(TypeError) as exc:
+            get_sampler(params=params)
+        assert "required positional argument" in str(exc.value)
+
+    def test_get_sampler_unknown_provider(self):
+        params = SamplingParameters(provider="unknown")
+        with pytest.raises(ConfigurationError) as exc:
+            get_sampler(communicator=Mock(), params=params)
+        assert "Unsupported sampling provider: unknown" in str(exc.value)

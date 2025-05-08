@@ -23,20 +23,23 @@ class TestMcpSampler:
 
     def test_initialization(self, communicator):
         """Test initialization of McpSampler."""
-        sampler = McpSampler(communicator=communicator, target_service="llm-service")
+        params = SamplingParameters(model=None)
+        sampler = McpSampler(communicator=communicator, params=params, target_service="llm-service")
         assert sampler.communicator is communicator
         assert sampler.target_service == "llm-service"
         assert sampler.default_model is None
 
     def test_initialization_with_model(self, communicator):
         """Test initialization with a default model."""
-        sampler = McpSampler(communicator=communicator, target_service="llm-service", default_model="claude-3")
+        params = SamplingParameters(model="claude-3")
+        sampler = McpSampler(communicator=communicator, params=params, target_service="llm-service")
         assert sampler.default_model == "claude-3"
 
     @pytest.mark.asyncio
     async def test_sample_text(self, communicator):
         """Test sampling text."""
-        sampler = McpSampler(communicator=communicator, target_service="llm-service")
+        params = SamplingParameters(model=None)
+        sampler = McpSampler(communicator=communicator, params=params, target_service="llm-service")
 
         # Call sample_text
         response = await sampler.sample_text(
@@ -62,7 +65,8 @@ class TestMcpSampler:
     @pytest.mark.asyncio
     async def test_sample_text_with_model(self, communicator):
         """Test sampling text with a specified model."""
-        sampler = McpSampler(communicator=communicator, target_service="llm-service", default_model="claude-3")
+        params = SamplingParameters(model="claude-3")
+        sampler = McpSampler(communicator=communicator, params=params, target_service="llm-service")
 
         # Call sample_text with a different model
         await sampler.sample_text(
@@ -79,7 +83,8 @@ class TestMcpSampler:
     @pytest.mark.asyncio
     async def test_sample_messages(self, communicator):
         """Test sampling from messages."""
-        sampler = McpSampler(communicator=communicator, target_service="llm-service")
+        params = SamplingParameters(model=None)
+        sampler = McpSampler(communicator=communicator, params=params, target_service="llm-service")
 
         # Create messages
         messages = [
@@ -104,7 +109,8 @@ class TestMcpSampler:
     @pytest.mark.asyncio
     async def test_sample_from_context(self, communicator):
         """Test sampling from a context."""
-        sampler = McpSampler(communicator=communicator, target_service="llm-service")
+        params = SamplingParameters(model=None)
+        sampler = McpSampler(communicator=communicator, params=params, target_service="llm-service")
 
         # Create a context
         context = SamplingContext(
@@ -130,7 +136,8 @@ class TestMcpSampler:
         # Mock the communicator to raise a CommunicationError
         communicator.sample_prompt = AsyncMock(side_effect=CommunicationError("Test error"))
 
-        sampler = McpSampler(communicator=communicator, target_service="llm-service")
+        params = SamplingParameters(model=None)
+        sampler = McpSampler(communicator=communicator, params=params, target_service="llm-service")
 
         # Call sample_text and expect an exception
         with pytest.raises(CommunicationError, match="Test error"):

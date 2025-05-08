@@ -11,11 +11,11 @@ from openmas.testing.mock_communicator import MockCommunicator
 
 
 @pytest.mark.asyncio
-async def test_agent_chaining() -> None:
+async def test_agent_chaining(tmp_path) -> None:
     """Test that the producer agent successfully chains with the consumer agent."""
     # Set up a producer-consumer test scenario
     producer_harness, consumer_harness, producer, consumer = await setup_sender_receiver_test(
-        ProducerAgent, ConsumerAgent
+        ProducerAgent, ConsumerAgent, project_root=tmp_path
     )
 
     # Define the data that the producer will send to the consumer

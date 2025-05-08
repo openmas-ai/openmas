@@ -11,10 +11,12 @@ from openmas.testing.mock_communicator import MockCommunicator
 
 
 @pytest.mark.asyncio
-async def test_hello_pair_mock() -> None:
+async def test_hello_pair_mock(tmp_path) -> None:
     """Test that the sender agent successfully sends a message to the receiver agent."""
     # Set up a sender-receiver test scenario
-    sender_harness, receiver_harness, sender, receiver = await setup_sender_receiver_test(SenderAgent, ReceiverAgent)
+    sender_harness, receiver_harness, sender, receiver = await setup_sender_receiver_test(
+        SenderAgent, ReceiverAgent, project_root=tmp_path
+    )
 
     # Set up expectations for the sender's request to the receiver
     expect_sender_request(

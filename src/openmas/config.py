@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from openmas.exceptions import ConfigurationError
 from openmas.logging import get_logger
+from openmas.prompt.base import PromptConfig
+from openmas.sampling.base import SamplingParameters
 
 logger = get_logger(__name__)
 
@@ -69,6 +71,15 @@ class AgentConfig(BaseModel):
     )
     shared_paths: list[str] = Field(default_factory=list, description="List of paths to search for shared code")
 
+    prompts: Optional[List[PromptConfig]] = Field(
+        default=None, description="List of prompt configurations for the agent"
+    )
+    prompts_dir: Optional[Path] = Field(
+        default=Path("prompts"),
+        description="Directory where prompt template files are stored (relative to project root)",
+    )
+    sampling: Optional[SamplingParameters] = Field(default=None, description="Sampling configuration for the agent")
+
 
 class AgentConfigEntry(BaseModel):
     """Configuration for an agent in the project configuration."""
@@ -78,6 +89,14 @@ class AgentConfigEntry(BaseModel):
     communicator: Optional[str] = Field(None, description="Communicator type to use for this agent")
     options: Dict[str, Any] = Field(default_factory=dict, description="Additional options for the agent")
     deploy_config_path: Optional[str] = Field(None, description="Path to deployment configuration for the agent")
+
+    prompts: Optional[List[PromptConfig]] = Field(
+        default=None, description="List of prompt configurations for the agent"
+    )
+    prompts_dir: Optional[Path] = Field(
+        default=None, description="Directory where prompt template files are stored (relative to project root)"
+    )
+    sampling: Optional[SamplingParameters] = Field(default=None, description="Sampling configuration for the agent")
 
     model_config = {"populate_by_name": True}  # Allow using class_ without alias
 

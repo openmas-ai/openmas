@@ -47,8 +47,8 @@ def reset_communicator_registry():
 class SimpleAgent(BaseAgent):
     """A simple agent for testing."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args: Any, project_root=None, **kwargs: Any) -> None:
+        super().__init__(*args, project_root=project_root, **kwargs)
         self.setup_called = False
         self.run_called = False
         self.shutdown_called = False
@@ -101,9 +101,9 @@ def real_mock_communicator(agent_name: str) -> MockCommunicator:
 
 
 @pytest.fixture
-def simple_agent(config: AgentConfig, mock_communicator: mock.AsyncMock) -> SimpleAgent:
+def simple_agent(config: AgentConfig, mock_communicator: mock.AsyncMock, tmp_path) -> SimpleAgent:
     """Create a simple agent instance with the mock communicator."""
-    agent = SimpleAgent(config=config)
+    agent = SimpleAgent(config=config, project_root=tmp_path)
     agent.communicator = mock_communicator
     return agent
 
@@ -115,9 +115,11 @@ def bdi_agent(config: AgentConfig) -> BdiAgent:
 
 
 @pytest.fixture
-def agent_test_harness() -> AgentTestHarness:
+def agent_test_harness(tmp_path) -> AgentTestHarness:
     """Create an AgentTestHarness for testing."""
-    return AgentTestHarness(SimpleAgent, default_config={"name": "test-agent", "service_urls": {}})
+    return AgentTestHarness(
+        SimpleAgent, default_config={"name": "test-agent", "service_urls": {}}, project_root=tmp_path
+    )
 
 
 @pytest.fixture
@@ -129,11 +131,12 @@ async def running_simple_agent(simple_agent: SimpleAgent) -> AsyncGenerator[Simp
 
 
 @pytest.fixture
-async def agent_with_mock_communicator(real_mock_communicator: MockCommunicator) -> SimpleAgent:
+async def agent_with_mock_communicator(real_mock_communicator: MockCommunicator, tmp_path) -> SimpleAgent:
     """Create a SimpleAgent with a real MockCommunicator."""
     agent = SimpleAgent(
         name="test-agent",
         config=AgentConfig(name="test-agent", service_urls={}),
+        project_root=tmp_path,
     )
     agent.communicator = real_mock_communicator
     return agent

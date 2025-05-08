@@ -209,11 +209,14 @@ def test_load_local_communicator_not_found(monkeypatch):
         load_local_communicator("nonexistent_module", "nonexistent")
 
 
-def test_agent_init_with_explicit_communicator():
+def test_agent_init_with_explicit_communicator(tmp_path):
     """Test initializing an agent with an explicit communicator class."""
 
     # Create a mock agent class
     class MockAgent(BaseAgent):
+        def __init__(self, *args, project_root=None, **kwargs):
+            super().__init__(*args, project_root=project_root, **kwargs)
+
         async def setup(self):
             pass
 
@@ -224,13 +227,15 @@ def test_agent_init_with_explicit_communicator():
             pass
 
     # Initialize with explicit communicator class
-    agent = MockAgent(name="test_agent", config={"name": "test_agent"}, communicator_class=MockCommunicator)
+    agent = MockAgent(
+        name="test_agent", config={"name": "test_agent"}, communicator_class=MockCommunicator, project_root=tmp_path
+    )
 
     # Verify the communicator class was used
     assert isinstance(agent.communicator, MockCommunicator)
 
 
-def test_agent_init_with_communicator_type(monkeypatch):
+def test_agent_init_with_communicator_type(monkeypatch, tmp_path):
     """Test initializing an agent with a communicator type."""
     # Register a test communicator
     _COMMUNICATOR_REGISTRY.clear()
@@ -238,6 +243,9 @@ def test_agent_init_with_communicator_type(monkeypatch):
 
     # Create a mock agent class
     class MockAgent(BaseAgent):
+        def __init__(self, *args, project_root=None, **kwargs):
+            super().__init__(*args, project_root=project_root, **kwargs)
+
         async def setup(self):
             pass
 
@@ -248,19 +256,24 @@ def test_agent_init_with_communicator_type(monkeypatch):
             pass
 
     # Initialize with communicator type
-    agent = MockAgent(name="test_agent", config={"name": "test_agent", "communicator_type": "test_type"})
+    agent = MockAgent(
+        name="test_agent", config={"name": "test_agent", "communicator_type": "test_type"}, project_root=tmp_path
+    )
 
     # Verify the communicator type was used
     assert isinstance(agent.communicator, MockBaseCommunicator)
 
 
-def test_agent_init_with_extension_paths(create_extension_dir, monkeypatch):
+def test_agent_init_with_extension_paths(create_extension_dir, monkeypatch, tmp_path):
     """Test initializing an agent with extension_paths in the config."""
     # Add the extension directory to sys.path
     monkeypatch.syspath_prepend(str(create_extension_dir))
 
     # Create a mock agent class
     class MockAgent(BaseAgent):
+        def __init__(self, *args, project_root=None, **kwargs):
+            super().__init__(*args, project_root=project_root, **kwargs)
+
         async def setup(self):
             pass
 
@@ -278,19 +291,23 @@ def test_agent_init_with_extension_paths(create_extension_dir, monkeypatch):
             "communicator_type": "custom_communicator",
             "extension_paths": [str(create_extension_dir)],
         },
+        project_root=tmp_path,
     )
 
     # Verify the custom communicator was used
     assert agent.communicator.__class__.__name__ == "CustomCommunicator"
 
 
-def test_agent_init_with_extension_paths_array(create_extension_dir, monkeypatch):
+def test_agent_init_with_extension_paths_array(create_extension_dir, monkeypatch, tmp_path):
     """Test initializing an agent with multiple extension_paths in the config."""
     # Add the extension directory to sys.path
     monkeypatch.syspath_prepend(str(create_extension_dir))
 
     # Create a mock agent class
     class MockAgent(BaseAgent):
+        def __init__(self, *args, project_root=None, **kwargs):
+            super().__init__(*args, project_root=project_root, **kwargs)
+
         async def setup(self):
             pass
 
@@ -308,6 +325,7 @@ def test_agent_init_with_extension_paths_array(create_extension_dir, monkeypatch
             "communicator_type": "custom_communicator",
             "extension_paths": [str(create_extension_dir), "/another/path"],
         },
+        project_root=tmp_path,
     )
 
     # Verify the custom communicator was used

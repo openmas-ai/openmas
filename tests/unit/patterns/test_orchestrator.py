@@ -33,10 +33,12 @@ class TestOrchestratorAgent:
             pass
 
     @pytest.fixture
-    def orchestrator(self, mock_communicator):
+    def orchestrator(self, mock_communicator, tmp_path):
         # Pass config as a dict to avoid using environment variables
         orchestrator = self.MockOrchestratorAgent(
-            name="test_orchestrator", config={"name": "test_orchestrator", "communicator_type": "mock"}
+            name="test_orchestrator",
+            config={"name": "test_orchestrator", "communicator_type": "mock"},
+            project_root=tmp_path,
         )
         orchestrator.set_communicator(mock_communicator)
         return orchestrator
@@ -232,9 +234,11 @@ class MockWorkerAgent:
             return a * b
 
     @pytest.fixture
-    def worker(self, mock_communicator):
+    def worker(self, mock_communicator, tmp_path):
         # Pass config dict to avoid loading from environment variables
-        worker = self.MockWorker(name="test_worker", config={"name": "test_worker", "communicator_type": "mock"})
+        worker = self.MockWorker(
+            name="test_worker", config={"name": "test_worker", "communicator_type": "mock"}, project_root=tmp_path
+        )
         worker.set_communicator(mock_communicator)
         return worker
 

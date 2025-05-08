@@ -3,6 +3,7 @@
 import abc
 import asyncio
 from contextlib import suppress
+from pathlib import Path
 from typing import Any, Dict, Optional, Set, Type, Union
 
 from pydantic import ValidationError
@@ -29,6 +30,7 @@ class BaseAgent(abc.ABC):
         config_model: Type[AgentConfig] = AgentConfig,
         communicator_class: Optional[Type[BaseCommunicator]] = None,
         env_prefix: str = "",
+        project_root: Optional[Path] = None,
     ):
         """Initialize the agent.
 
@@ -38,6 +40,7 @@ class BaseAgent(abc.ABC):
             config_model: The configuration model class to use
             communicator_class: The communicator class to use (overrides config.communicator_type)
             env_prefix: Optional prefix for environment variables
+            project_root: The project root directory for resolving prompt/template files
         """
         # Load configuration
         # If config is a dict, convert it to an AgentConfig instance
@@ -88,6 +91,9 @@ class BaseAgent(abc.ABC):
         self._is_running = False
         self._task: Optional[asyncio.Task] = None
         self._background_tasks: Set[asyncio.Task] = set()
+
+        # Store project root for prompt/template resolution
+        self.project_root = project_root or Path.cwd()
 
         self.logger.info("Initialized agent", agent_name=self.config.name, agent_type=self.__class__.__name__)
 

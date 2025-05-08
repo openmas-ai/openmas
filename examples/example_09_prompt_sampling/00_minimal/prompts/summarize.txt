@@ -1,0 +1,1 @@
+Summarize the following text: {{text_to_summarize}}

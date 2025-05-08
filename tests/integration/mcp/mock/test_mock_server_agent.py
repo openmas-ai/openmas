@@ -215,10 +215,10 @@ class TestMcpServerAgentIntegration:
     """Integration tests for McpServerAgent with communicator."""
 
     @pytest.mark.asyncio
-    async def test_server_agent_tool_registration(self):
+    async def test_server_agent_tool_registration(self, tmp_path):
         """Test registration of tools in server mode."""
         # Create a test harness
-        harness = AgentTestHarness(MockMcpServerAgent)
+        harness = AgentTestHarness(MockMcpServerAgent, project_root=tmp_path)
 
         # Create an agent
         agent = await harness.create_agent(name="test-server")
@@ -254,10 +254,10 @@ class TestMcpServerAgentIntegration:
             assert "process_input" in communicator.tools_to_register
 
     @pytest.mark.asyncio
-    async def test_server_agent_prompt_registration(self):
+    async def test_server_agent_prompt_registration(self, tmp_path):
         """Test registration of prompts in server mode."""
         # Create a test harness
-        harness = AgentTestHarness(MockMcpServerAgent)
+        harness = AgentTestHarness(MockMcpServerAgent, project_root=tmp_path)
 
         # Create an agent
         agent = await harness.create_agent(name="test-server")
@@ -288,10 +288,10 @@ class TestMcpServerAgentIntegration:
             assert "greeting_template" in communicator.prompts_to_register
 
     @pytest.mark.asyncio
-    async def test_server_agent_resource_registration(self):
+    async def test_server_agent_resource_registration(self, tmp_path):
         """Test registration of resources in server mode."""
         # Create a test harness
-        harness = AgentTestHarness(MockMcpServerAgent)
+        harness = AgentTestHarness(MockMcpServerAgent, project_root=tmp_path)
 
         # Create an agent
         agent = await harness.create_agent(name="test-server")

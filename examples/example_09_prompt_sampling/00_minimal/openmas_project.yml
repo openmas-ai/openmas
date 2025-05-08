@@ -1,0 +1,13 @@
+agents:
+  - name: "prompt_sampling_agent"
+    module: "agents.prompt_sampling_agent"
+    class: "PromptSamplingAgent"
+    prompts_dir: "prompts"
+    prompts:
+      - name: "summarize_text"
+        template_file: "summarize.txt"
+        input_variables: ["text_to_summarize"]
+    sampling:
+      provider: "mock"
+      model: "test-model"
+      temperature: 0.5

@@ -43,6 +43,45 @@ class TestAgentConfig:
         with pytest.raises(ValidationError):
             AgentConfig()
 
+    def test_prompts_and_sampling_fields(self):
+        """Test that prompts, prompts_dir, and sampling fields are parsed correctly."""
+        config = AgentConfig(
+            name="test-agent",
+            prompts=[
+                {"name": "summarize_text", "template_file": "summarize.txt", "input_variables": ["text_to_summarize"]},
+                {
+                    "name": "generate_greeting",
+                    "template": "Hello, {{user_name}}! Welcome to {{service}}.",
+                    "input_variables": ["user_name", "service"],
+                },
+            ],
+            prompts_dir=Path("custom_prompts"),
+            sampling={"temperature": 0.5, "max_tokens": 150, "top_p": 0.9},
+        )
+        assert config.prompts_dir == Path("custom_prompts")
+        assert config.prompts is not None and len(config.prompts) == 2
+        assert config.prompts is not None and config.prompts[0].name == "summarize_text"
+        assert config.prompts is not None and config.prompts[0].template_file == "summarize.txt"
+        assert (
+            config.prompts is not None and config.prompts[1].template == "Hello, {{user_name}}! Welcome to {{service}}."
+        )
+        assert config.prompts is not None and config.prompts[1].input_variables == ["user_name", "service"]
+        assert config.sampling is not None and config.sampling.temperature == 0.5
+        assert config.sampling is not None and config.sampling.max_tokens == 150
+        assert config.sampling is not None and config.sampling.top_p == 0.9
+
+    def test_prompts_defaults(self):
+        """Test that prompts and prompts_dir default as expected."""
+        config = AgentConfig(name="test-agent")
+        assert config.prompts is None
+        assert config.prompts_dir == Path("prompts")
+        assert config.sampling is None
+
+    def test_invalid_prompt_config(self):
+        """Test that invalid prompt config raises validation error."""
+        with pytest.raises(Exception):
+            AgentConfig(name="test-agent", prompts=[{"template": "no name"}])
+
 
 class TestCustomConfig:
     """Tests for custom configurations."""

@@ -10,31 +10,32 @@ from openmas.agent.mcp import McpAgent
 from openmas.communication.base import BaseCommunicator
 from openmas.exceptions import CommunicationError
 from openmas.logging import get_logger
-from openmas.sampling.base import Message, MessageRole, Sampler, SamplingContext, SamplingParameters, SamplingResult
+from openmas.sampling.base import BaseSampler, Message, MessageRole, SamplingContext, SamplingParameters, SamplingResult
 
 # Configure logging
 logger = get_logger(__name__)
 
 
-class McpSampler(Sampler):
+class McpSampler(BaseSampler):
     """Sampler that uses MCP to sample from a language model."""
 
     def __init__(
         self,
         communicator: BaseCommunicator,
-        target_service: str,
-        default_model: Optional[str] = None,
+        params: SamplingParameters,
+        target_service: str = "mcp",
     ) -> None:
         """Initialize the sampler.
 
         Args:
             communicator: The communicator to use for sampling
-            target_service: The target service to sample from
-            default_model: Optional default model to use
+            params: The sampling parameters, including provider and model
+            target_service: The target service to sample from (defaults to "mcp")
         """
         self.communicator = communicator
+        self.params = params
         self.target_service = target_service
-        self.default_model = default_model
+        self.default_model = params.model
 
         # Validate that the communicator supports MCP sampling
         if not hasattr(self.communicator, "sample_prompt"):
@@ -252,7 +253,7 @@ class McpSampler(Sampler):
         )
 
 
-class McpAgentSampler(Sampler):
+class McpAgentSampler(BaseSampler):
     """Sampler that uses an MCP agent to sample from a language model."""
 
     def __init__(

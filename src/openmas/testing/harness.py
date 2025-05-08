@@ -6,6 +6,7 @@ to initialize, run, and interact with agents during tests.
 
 import asyncio
 import contextlib
+from pathlib import Path
 from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypedDict, TypeVar
 
 from openmas.agent.base import BaseAgent
@@ -71,6 +72,10 @@ class AgentTestHarness(Generic[T]):
         agent_class: Type[T],
         default_config: Optional[Dict[str, Any]] = None,
         config_model: Type[AgentConfig] = AgentConfig,
+        project_root: Optional[Path] = None,
+        communicator_class: Optional[Type[Any]] = None,
+        communicator_kwargs: Optional[Dict[str, Any]] = None,
+        agent_init_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """Initialize the agent test harness.
 
@@ -78,18 +83,39 @@ class AgentTestHarness(Generic[T]):
             agent_class: The agent class to test (a subclass of BaseAgent)
             default_config: Default configuration values for test agents
             config_model: The configuration model class to use
+            project_root: The project root directory to pass to agents (for prompt/template resolution)
+            communicator_class: The communicator class to use for agents (default: MockCommunicator)
+            communicator_kwargs: Additional kwargs to pass to communicator constructor
+            agent_init_kwargs: Additional kwargs to pass to agent constructor
         """
         self.agent_class = agent_class
         self.default_config = default_config or {}
         self.config_model = config_model
+        self.project_root = project_root or Path.cwd()
+
+        self._harness_communicator_class = communicator_class or MockCommunicator
+        self._harness_communicator_kwargs = communicator_kwargs or {}
+        self.agent_init_kwargs = agent_init_kwargs or {}
 
         # For multi-agent testing
         self.agents: List[T] = []
-        self.communicators: Dict[str, MockCommunicator] = {}
+        self.communicators: Dict[str, Any] = {}
 
         self.logger = logger.bind(agent_class=agent_class.__name__, harness_id=id(self))
-
         self.logger.debug("Initialized agent test harness")
+
+    def _get_communicator_for_creation(self, agent_name: str, agent_config_obj: AgentConfig) -> Any:
+        """Get a communicator instance for the agent.
+
+        Creates and returns a communicator instance for the agent.
+        The communicator type is determined by the harness configuration,
+        and it's initialized with the agent's specific AgentConfig and any
+        additional harness-level communicator kwargs.
+        """
+        communicator_instance = self._harness_communicator_class(
+            agent_name=agent_name, config=agent_config_obj, **self._harness_communicator_kwargs
+        )
+        return communicator_instance
 
     async def create_agent(
         self,
@@ -99,7 +125,7 @@ class AgentTestHarness(Generic[T]):
         track: bool = True,
         use_real_communicator: bool = False,
     ) -> T:
-        """Create an agent instance with a MockCommunicator or real communicator.
+        """Create an agent instance with the configured communicator.
 
         Args:
             name: The name of the agent (overrides config)
@@ -107,7 +133,7 @@ class AgentTestHarness(Generic[T]):
             env_prefix: Optional prefix for environment variables
             track: Whether to track this agent for multi-agent testing (default: True)
             use_real_communicator: If True, use the communicator type specified in the config
-                                  instead of overriding with MockCommunicator (default: False)
+                                  instead of overriding with the harness communicator (default: False)
 
         Returns:
             An initialized agent instance
@@ -128,33 +154,24 @@ class AgentTestHarness(Generic[T]):
             merged_config["service_urls"] = {}
 
         # Create a config instance directly
-        agent_config = self.config_model(
-            name=merged_config["name"],
-            service_urls=merged_config.get("service_urls", {}),
-            log_level=merged_config.get("log_level", "info"),
-            communicator_type=merged_config.get("communicator_type", "mock"),
-            communicator_options=merged_config.get("communicator_options", {}),
-            extension_paths=merged_config.get("extension_paths", []),
-        )
+        agent_config = self.config_model(**merged_config)
 
         # Create the agent with the config - cast to silence mypy
         agent = self.agent_class(
             config=agent_config,  # type: ignore
             env_prefix=env_prefix,
+            project_root=self.project_root,
+            **self.agent_init_kwargs,
         )
 
-        # Only override with MockCommunicator if use_real_communicator is False
+        # Use the harness-configured communicator unless use_real_communicator is True
         if not use_real_communicator:
-            # Create and assign a unique MockCommunicator for this agent
-            agent_communicator = MockCommunicator(agent_name=agent.name)
+            agent_communicator = self._get_communicator_for_creation(agent.name, agent_config)
             agent.communicator = agent_communicator
-
-            # Store references for multi-agent testing (only for mock communicators)
             if track:
                 self.agents.append(agent)
                 self.communicators[agent.name] = agent_communicator
         elif track:
-            # Still track the agent even with real communicator
             self.agents.append(agent)
 
         self.logger.debug("Created test agent", agent_name=agent.name)

@@ -21,9 +21,12 @@ class SimpleTestAgent(BdiAgent):
         config: AgentConfig = None,
         config_model: Any = AgentConfig,
         env_prefix: str = "",
+        project_root=None,
     ) -> None:
         """Initialize the simple test agent."""
-        super().__init__(name=name, config=config, config_model=config_model, env_prefix=env_prefix)
+        super().__init__(
+            name=name, config=config, config_model=config_model, env_prefix=env_prefix, project_root=project_root
+        )
         self.data_store: Dict[str, Any] = {}
         self.processing_history: List[str] = []
         self.callbacks_received: List[str] = []
@@ -136,10 +139,12 @@ class SimpleTestAgent(BdiAgent):
 
 # Create a test harness specifically for SimpleTestAgent for these tests
 @pytest.fixture
-def test_agent_harness() -> AgentTestHarness:
+def test_agent_harness(tmp_path) -> AgentTestHarness:
     """Create an AgentTestHarness for testing SimpleTestAgent."""
-    # Create the harness with the config
-    return AgentTestHarness(SimpleTestAgent, default_config={"name": "test-agent", "service_urls": {}})
+    # Create the harness with the config and a valid project_root
+    return AgentTestHarness(
+        SimpleTestAgent, default_config={"name": "test-agent", "service_urls": {}}, project_root=tmp_path
+    )
 
 
 class TestAgentHarness:
@@ -758,7 +763,7 @@ class TestAgentHarness:
             test_agent_harness.verify_all_communicators()  # Should pass, no tracked agents
 
     @pytest.mark.asyncio
-    async def test_create_agent_with_custom_config_model(self, test_agent_harness: AgentTestHarness) -> None:
+    async def test_create_agent_with_custom_config_model(self, test_agent_harness: AgentTestHarness, tmp_path) -> None:
         """Test creating an agent with a custom configuration model."""
 
         # Define a custom config model that extends AgentConfig
@@ -770,6 +775,7 @@ class TestAgentHarness:
             SimpleTestAgent,
             default_config={"name": "custom-agent", "custom_option": "test-value"},
             config_model=CustomAgentConfig,
+            project_root=tmp_path,
         )
 
         # Create an agent with the custom harness

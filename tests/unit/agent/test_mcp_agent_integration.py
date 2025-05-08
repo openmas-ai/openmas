@@ -29,7 +29,7 @@ class ModelOutput(BaseModel):
 class MockMcpCommunicator:
     """Mock MCP communicator for testing."""
 
-    def __init__(self, agent_name: str, server_mode: bool = False):
+    def __init__(self, agent_name: str, server_mode: bool = False, config=None, **kwargs):
         """Initialize the mock communicator.
 
         Args:
@@ -50,6 +50,11 @@ class MockMcpCommunicator:
         self.mocked_tool_responses: Dict[str, Any] = {}
         self.mocked_prompt_responses: Dict[str, str] = {}
         self.mocked_resource_responses: Dict[str, bytes] = {}
+
+        # Always initialize registration dicts to avoid AttributeError
+        self.tools_to_register: Dict[str, Dict[str, Any]] = {}
+        self.prompts_to_register: Dict[str, Dict[str, Any]] = {}
+        self.resources_to_register: Dict[str, Dict[str, Any]] = {}
 
     async def start(self) -> None:
         """Start the communicator."""
@@ -329,60 +334,53 @@ class TestMcpAgentIntegration:
     """Integration tests for McpAgent."""
 
     @pytest.mark.asyncio
-    async def test_server_mode_registration(self, mock_communicator_class):
+    async def test_server_mode_registration(self, mock_communicator_class, tmp_path):
         """Test registration of decorated methods in server mode."""
-        # Create a test harness for the TestAgent
-        harness = AgentTestHarness(MockTestAgent)
-
-        # Create an agent
+        harness = AgentTestHarness(
+            MockTestAgent,
+            project_root=tmp_path,
+            communicator_class=mock_communicator_class,
+            communicator_kwargs={"server_mode": True},
+        )
         agent = await harness.create_agent(name="test-agent")
+        agent.communicator.agent = agent
+        await agent.setup()
+        await agent.communicator.start()
 
-        # Replace the mock communicator with our custom one
-        communicator = mock_communicator_class(agent_name=agent.name, server_mode=True)
-        agent.set_communicator(communicator)
+        # Verify that the tools were registered
+        assert "test_tool" in agent.communicator.registered_tools
+        assert agent.communicator.registered_tools["test_tool"]["description"] == "A test tool"
 
-        # Start the agent
-        async with harness.running_agent(agent):
-            # Verify that the tools were registered
-            assert "test_tool" in communicator.registered_tools
-            assert communicator.registered_tools["test_tool"]["description"] == "A test tool"
+        # Verify that the prompts were registered
+        assert "test_prompt" in agent.communicator.registered_prompts
+        assert agent.communicator.registered_prompts["test_prompt"]["description"] == "A test prompt"
 
-            # Verify that the prompts were registered
-            assert "test_prompt" in communicator.registered_prompts
-            assert communicator.registered_prompts["test_prompt"]["description"] == "A test prompt"
+        # Verify that the resources were registered
+        assert "test_resource" in agent.communicator.registered_resources
+        assert agent.communicator.registered_resources["test_resource"]["mime_type"] == "application/json"
 
-            # Verify that the resources were registered
-            assert "test_resource" in communicator.registered_resources
-            assert communicator.registered_resources["test_resource"]["mime_type"] == "application/json"
-
-            # Verify prepare_registration was called with correct data
-            assert len(communicator.tools_to_register) == 1
-            assert "test_tool" in communicator.tools_to_register
-            assert len(communicator.prompts_to_register) == 1
-            assert "test_prompt" in communicator.prompts_to_register
-            assert len(communicator.resources_to_register) == 1
-            assert "/test/resource" in communicator.resources_to_register
+        # Verify prepare_registration was called with correct data
+        assert len(agent.communicator.tools_to_register) == 1
+        assert "test_tool" in agent.communicator.tools_to_register
+        assert len(agent.communicator.prompts_to_register) == 1
+        assert "test_prompt" in agent.communicator.prompts_to_register
+        assert len(agent.communicator.resources_to_register) == 1
+        assert "/test/resource" in agent.communicator.resources_to_register
 
     @pytest.mark.asyncio
-    async def test_client_mode_delegation(self, mock_communicator_class):
+    async def test_client_mode_delegation(self, mock_communicator_class, tmp_path):
         """Test delegation to communicator methods in client mode."""
-        # Create a test harness for the TestAgent
-        harness = AgentTestHarness(MockTestAgent)
-
-        # Create an agent
+        harness = AgentTestHarness(MockTestAgent, project_root=tmp_path, communicator_class=mock_communicator_class)
         agent = await harness.create_agent(name="test-agent")
-
-        # Replace the mock communicator with our custom one - client mode
-        communicator = mock_communicator_class(agent_name=agent.name, server_mode=False)
+        agent.communicator.agent = agent
+        await agent.setup()
+        await agent.communicator.start()
 
         # Set up a mock response for the remote_tool
-        communicator.mocked_tool_responses["remote_tool"] = {
+        agent.communicator.mocked_tool_responses["remote_tool"] = {
             "result": "Remote tool executed",
             "code": 200,
         }
-
-        # Set the communicator
-        agent.set_communicator(communicator)
 
         # Start the agent
         async with harness.running_agent(agent):
@@ -419,13 +417,13 @@ class TestMcpAgentIntegration:
             assert tools[0]["name"] == "remote_tool"
 
     @pytest.mark.asyncio
-    async def test_model_validation(self, mock_communicator_class):
+    async def test_model_validation(self, mock_communicator_class, tmp_path):
         """Test that Pydantic models from decorators are used correctly."""
-        # Create a test harness for the TestAgent
-        harness = AgentTestHarness(MockTestAgent)
-
-        # Create an agent
+        harness = AgentTestHarness(MockTestAgent, project_root=tmp_path, communicator_class=mock_communicator_class)
         agent = await harness.create_agent(name="test-agent")
+        agent.communicator.agent = agent
+        await agent.setup()
+        await agent.communicator.start()
 
         # Check that the models were correctly stored in metadata
         tool_data = agent._tools["test_tool"]
