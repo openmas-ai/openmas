@@ -13,6 +13,7 @@ import typer
 import yaml
 
 from openmas import __version__
+from openmas.cli.prompts import prompts
 from openmas.cli.validate import validate_config
 from openmas.logging import get_logger
 
@@ -32,6 +33,9 @@ def cli() -> None:
 
 # Register the deploy command group - we'll define this separately later
 # cli.add_command(deploy_cmd)
+
+# Register the prompts command group
+cli.add_command(prompts)
 
 
 @cli.command()

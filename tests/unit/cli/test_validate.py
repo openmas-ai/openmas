@@ -1,5 +1,6 @@
 """Tests for the validate command."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
@@ -7,6 +8,10 @@ import yaml
 from click.testing import CliRunner
 
 from openmas.cli.main import validate
+from openmas.cli.validate import validate_prompt_configs, validate_sampling_config
+from openmas.config import AgentConfigEntry
+from openmas.prompt.base import PromptConfig
+from openmas.sampling.base import SamplingParameters
 
 
 @pytest.fixture
@@ -23,6 +28,43 @@ def valid_config():
         },
         "shared_paths": [],
         "extension_paths": [],
+    }
+
+
+@pytest.fixture
+def prompt_config_agent():
+    """Create a test agent config with prompts."""
+    return {
+        "module": "agents.prompt_agent",
+        "class": "PromptAgent",
+        "prompts_dir": "prompts",
+        "prompts": [
+            {
+                "name": "greeting",
+                "template": "Hello, {{name}}!",
+                "input_variables": ["name"],
+            },
+            {
+                "name": "summary",
+                "template_file": "summary.txt",
+                "input_variables": ["text"],
+            },
+        ],
+    }
+
+
+@pytest.fixture
+def sampling_config_agent():
+    """Create a test agent config with sampling."""
+    return {
+        "module": "agents.sample_agent",
+        "class": "SampleAgent",
+        "communicator": "mcp_stdio",
+        "sampling": {
+            "provider": "mcp",
+            "model": "claude-3-sonnet-20240229",
+            "temperature": 0.7,
+        },
     }
 
 
@@ -228,3 +270,239 @@ def test_validate_yaml_error():
 
     assert result.exit_code == 1
     assert "❌ Error parsing YAML file 'openmas_project.yml'" in result.output
+
+
+def test_validate_prompt_configs_success():
+    """Test validate_prompt_configs function with a valid config."""
+    agent_config = AgentConfigEntry(
+        module="test.module",
+        class_="TestAgent",
+        prompts_dir="prompts",
+        prompts=[
+            PromptConfig(
+                name="greeting",
+                template="Hello, {{name}}!",
+                input_variables=["name"],
+            ),
+            PromptConfig(
+                name="summary",
+                template_file="summary.txt",
+                input_variables=["text"],
+            ),
+        ],
+    )
+
+    # Patch Path.exists to make all templates exist
+    with patch("pathlib.Path.exists", return_value=True):
+        errors = validate_prompt_configs("test_agent", agent_config, Path("/project"))
+
+    assert len(errors) == 0
+
+
+def test_validate_prompt_configs_missing_template_file():
+    """Test validate_prompt_configs with a missing template file."""
+    agent_config = AgentConfigEntry(
+        module="test.module",
+        class_="TestAgent",
+        prompts_dir="prompts",
+        prompts=[
+            PromptConfig(
+                name="summary",
+                template_file="missing.txt",
+                input_variables=["text"],
+            ),
+        ],
+    )
+
+    # Patch Path.exists to simulate missing file
+    with patch("pathlib.Path.exists", return_value=False):
+        errors = validate_prompt_configs("test_agent", agent_config, Path("/project"))
+
+    assert len(errors) == 1
+    assert "Prompt template file 'missing.txt' not found" in errors[0]
+
+
+def test_validate_prompt_configs_duplicate_names():
+    """Test validate_prompt_configs with duplicate prompt names."""
+    agent_config = AgentConfigEntry(
+        module="test.module",
+        class_="TestAgent",
+        prompts=[
+            PromptConfig(
+                name="greeting",
+                template="Hello, {{name}}!",
+                input_variables=["name"],
+            ),
+            PromptConfig(
+                name="greeting",  # Duplicate name
+                template="Hi there, {{name}}!",
+                input_variables=["name"],
+            ),
+        ],
+    )
+
+    errors = validate_prompt_configs("test_agent", agent_config, Path("/project"))
+
+    assert len(errors) == 1
+    assert "Duplicate prompt name 'greeting'" in errors[0]
+
+
+def test_validate_prompt_configs_missing_variable():
+    """Test validate_prompt_configs with a variable missing from the template."""
+    agent_config = AgentConfigEntry(
+        module="test.module",
+        class_="TestAgent",
+        prompts=[
+            PromptConfig(
+                name="greeting",
+                template="Hello, {{name}}!",
+                input_variables=["name", "age"],  # 'age' is missing from template
+            ),
+        ],
+    )
+
+    errors = validate_prompt_configs("test_agent", agent_config, Path("/project"))
+
+    assert len(errors) == 1
+    assert "Variable 'age' is listed in input_variables but not found in the template" in errors[0]
+
+
+def test_validate_sampling_config_success():
+    """Test validate_sampling_config with a valid config."""
+    agent_config = AgentConfigEntry(
+        module="test.module",
+        class_="TestAgent",
+        communicator="mcp_stdio",
+        sampling=SamplingParameters(
+            provider="mcp",
+            model="claude-3-sonnet-20240229",
+            temperature=0.7,
+        ),
+    )
+
+    errors = validate_sampling_config("test_agent", agent_config)
+
+    assert len(errors) == 0
+
+
+def test_validate_sampling_config_unsupported_provider():
+    """Test validate_sampling_config with an unsupported provider."""
+    agent_config = AgentConfigEntry(
+        module="test.module",
+        class_="TestAgent",
+        communicator="http",
+        sampling=SamplingParameters(
+            provider="unknown_provider",
+            model="test-model",
+        ),
+    )
+
+    errors = validate_sampling_config("test_agent", agent_config)
+
+    assert len(errors) == 1
+    assert "Unsupported sampling provider 'unknown_provider'" in errors[0]
+
+
+def test_validate_sampling_config_mcp_with_non_mcp_communicator():
+    """Test validate_sampling_config with MCP provider but non-MCP communicator."""
+    agent_config = AgentConfigEntry(
+        module="test.module",
+        class_="TestAgent",
+        communicator="http",  # Not an MCP communicator
+        sampling=SamplingParameters(
+            provider="mcp",
+            model="claude-3-sonnet-20240229",
+        ),
+    )
+
+    errors = validate_sampling_config("test_agent", agent_config)
+
+    assert len(errors) == 1
+    assert "Using 'mcp' sampling provider with non-MCP communicator 'http'" in errors[0]
+
+
+def test_validate_with_prompt_config(prompt_config_agent):
+    """Test validate command with prompts configuration."""
+    config = {
+        "name": "test-project",
+        "version": "0.1.0",
+        "agents": {
+            "prompt_agent": prompt_config_agent,
+        },
+    }
+
+    runner = CliRunner()
+
+    with (
+        patch("pathlib.Path.exists", return_value=True),  # Make all paths exist
+        patch("builtins.open", mock_open(read_data=yaml.dump(config))),
+    ):
+        result = runner.invoke(validate)
+
+    assert result.exit_code == 0
+    assert "✅ Project configuration 'openmas_project.yml' is valid" in result.output
+
+
+def test_validate_with_prompt_config_missing_template(prompt_config_agent):
+    """Test that template files are validated in prompt configurations."""
+    from openmas.cli.validate import validate_prompt_configs
+
+    # Create a proper AgentConfigEntry
+    agent_config = AgentConfigEntry(
+        module="test.module",
+        class_="TestAgent",
+        prompts_dir="prompts",
+        prompts=[
+            PromptConfig(
+                name="summary",
+                template_file="missing.txt",
+                input_variables=["text"],
+            ),
+        ],
+    )
+
+    # Test directly the validation function
+    with patch("pathlib.Path.exists", return_value=False):  # Simulate missing file
+        errors = validate_prompt_configs("test_agent", agent_config, Path("/project"))
+
+    assert len(errors) == 1
+    assert "Prompt template file 'missing.txt' not found" in errors[0]
+
+
+def test_validate_with_sampling_config(sampling_config_agent):
+    """Test validate command with sampling configuration."""
+    config = {
+        "name": "test-project",
+        "version": "0.1.0",
+        "agents": {
+            "sample_agent": sampling_config_agent,
+        },
+    }
+
+    runner = CliRunner()
+
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data=yaml.dump(config))),
+    ):
+        result = runner.invoke(validate)
+
+    assert result.exit_code == 0
+    assert "✅ Project configuration 'openmas_project.yml' is valid" in result.output
+
+
+def test_validate_with_invalid_sampling_provider(sampling_config_agent):
+    """Test that invalid sampling providers are detected."""
+    from openmas.cli.validate import validate_sampling_config
+
+    # Modify agent config to have an unsupported provider
+    sampling_config_agent["sampling"]["provider"] = "unknown_provider"
+
+    # Create a proper AgentConfigEntry
+    agent_config = AgentConfigEntry(**sampling_config_agent)
+
+    # Test directly the validation function
+    errors = validate_sampling_config("test_agent", agent_config)
+
+    assert len(errors) == 1
+    assert "Unsupported sampling provider 'unknown_provider'" in errors[0]
