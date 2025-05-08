@@ -1,12 +1,13 @@
 # OpenMAS CLI
 
-OpenMAS includes a command-line interface (CLI) to help you manage your multi-agent system projects. The CLI provides tools for project initialization, validation, agent listing, dependency management, and running agents locally.
+OpenMAS includes a command-line interface (CLI) to help you manage your multi-agent system projects. The CLI provides tools for project initialization, validation, agent listing, dependency management, prompt management, and running agents locally.
 
 ## Available Commands
 
 - **[openmas init](./init.md)**: Initialize a new OpenMAS project with standard directory structure
 - **[openmas validate](./validate.md)**: Validate the OpenMAS project configuration
 - **[openmas list agents](./list.md)**: List agents defined in the project
+- **[openmas prompts list](./prompts.md)**: List prompts defined in the project
 - **[openmas run](./run.md)**: Run an agent from the OpenMAS project
 - **[openmas deps](./deps.md)**: Manage project dependencies
 - **[openmas generate-dockerfile](./generate-dockerfile.md)**: Generate a Dockerfile for an agent

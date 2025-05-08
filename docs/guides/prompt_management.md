@@ -18,6 +18,86 @@ These features are particularly useful for building agents that need to:
 - Sample from language models with consistent parameters
 - Share prompts between agents or expose them via MCP
 
+## Configuring Prompts in Project Files
+
+The simplest way to configure prompts for an agent is through the `openmas_project.yml` file. This method is recommended for most applications and provides a clean, declarative way to define prompts.
+
+### Prompt Configuration Structure
+
+Prompts are configured using the `prompts` field in an agent's configuration:
+
+```yaml
+agents:
+  analyzer:
+    module: "agents.analyzer"
+    class: "AnalyzerAgent"
+    prompts_dir: "prompts"  # Optional, defaults to "prompts"
+    prompts:
+      - name: "analyze_text"
+        template_file: "analysis.txt"
+        input_variables: ["text_content", "analysis_depth"]
+      - name: "summarize"
+        template: "Summarize the following text in {{num_sentences}} sentences: {{text}}"
+        input_variables: ["text", "num_sentences"]
+```
+
+### Inline vs. File-Based Templates
+
+OpenMAS supports two ways to define prompt templates:
+
+1. **Inline Templates**: Defined directly in the YAML configuration using the `template` field.
+
+   ```yaml
+   prompts:
+     - name: "greet_user"
+       template: "Hello, {{user_name}}! Welcome to {{service_name}}."
+       input_variables: ["user_name", "service_name"]
+   ```
+
+2. **File-Based Templates**: Stored in separate files and referenced using the `template_file` field.
+
+   ```yaml
+   prompts:
+     - name: "chess_analysis"
+       template_file: "chess_analysis.txt"
+       input_variables: ["board_state", "last_move"]
+   ```
+
+   The template file (e.g., `prompts/chess_analysis.txt`) would contain the full prompt text with variables:
+
+   ```
+   You are a chess analysis assistant.
+
+   Current board state:
+   {{board_state}}
+
+   Last move played: {{last_move}}
+
+   Please analyze the position and suggest the best move.
+   ```
+
+### Using `prompts_dir`
+
+The `prompts_dir` field specifies the directory where template files are stored:
+
+- It defaults to `prompts` if not specified
+- The path is relative to the project root
+- All template files referenced in `template_file` are looked up in this directory
+
+Custom prompt directories help organize prompts in larger projects:
+
+```yaml
+agents:
+  chess_agent:
+    module: "agents.chess_agent"
+    class: "ChessAgent"
+    prompts_dir: "agents/chess_agent/prompts"
+    prompts:
+      - name: "analyze_position"
+        template_file: "position_analysis.txt"
+        input_variables: ["fen", "move_history"]
+```
+
 ## Prompt Management
 
 ### Core Components

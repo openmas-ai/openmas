@@ -70,6 +70,9 @@ The examples are organized into the following categories:
     │   └── 01_mcp_sse_tool_call/                        # MCP SSE tool call
     │   └── 02_mcp_stdio_tool_call/                      # MCP stdio tool call
     │   └── README.md                                    # Category README
+    ├── example_09_prompt_sampling/                      # Prompt and sampling examples
+    │   └── 00_minimal/                                  # Minimal prompt & sampling usage
+    │   └── README.md                                    # Category README
 
 
 Each leaf example directory typically contains:

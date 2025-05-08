@@ -52,6 +52,7 @@ nav:
         - Broadcast: guides/communication/broadcast.md
       - LLM Integration: guides/llm_integration.md
       - Prompt Management: guides/prompt_management.md
+      - Sampling Configuration: guides/sampling_configuration.md
       - Reasoning Integration: guides/reasoning_integration.md
       - Patterns: guides/patterns.md
       - MCP Developer Guide: guides/mcp_developer_guide.md

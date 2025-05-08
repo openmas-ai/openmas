@@ -41,6 +41,64 @@ default_config:
 
 The `default_config` section provides base configuration values for all agents in the project. The `shared_paths` and `extension_paths` sections define locations where OpenMAS will look for project-specific shared code or framework extensions (like custom communicators).
 
+### Agent Configuration with Prompts and Sampling
+
+OpenMAS supports defining prompts and sampling parameters directly in the agent configuration.
+These configurations can be specified in the `openmas_project.yml` file:
+
+```yaml
+agents:
+  llm_analyst:
+    module: "agents.llm_analyst"
+    class: "LlmAnalystAgent"
+    prompts_dir: "prompts"  # Directory relative to project root
+    prompts:
+      - name: "summarize_text"
+        template_file: "summarize.txt"  # File in prompts_dir
+        input_variables: ["text_to_summarize"]
+      - name: "generate_greeting"
+        template: "Hello, {{user_name}}! Welcome to {{service}}."
+        input_variables: ["user_name", "service"]
+    sampling:
+      provider: "mcp"       # "mcp", "mock", or others supported
+      model: "claude-3-opus-20240229"  # model identifier
+      temperature: 0.7      # Controls randomness (0.0-1.0)
+      max_tokens: 2000      # Maximum tokens in completion
+      top_p: 0.9            # Nucleus sampling parameter
+```
+
+#### Prompt Configuration
+
+The `prompts` field is a list of prompt configurations with these properties:
+
+| Property | Description | Required |
+|----------|-------------|----------|
+| `name` | Unique name for the prompt | Yes |
+| `template` | Inline template with variables in Handlebars syntax (`{{variable}}`) | One of `template` or `template_file` required |
+| `template_file` | Path to template file (relative to `prompts_dir`) | One of `template` or `template_file` required |
+| `input_variables` | List of variable names used in the template | No, but recommended for validation |
+
+The `prompts_dir` field specifies the directory where template files are stored, relative to the project root. It defaults to `prompts` if not specified.
+
+#### Sampling Configuration
+
+The `sampling` field configures how the agent samples from language models:
+
+| Property | Description | Default |
+|----------|-------------|---------|
+| `provider` | Sampling provider (e.g., "mcp", "mock") | None |
+| `model` | Model name/identifier to use for sampling | None |
+| `temperature` | Controls randomness (0.0-1.0) | 0.7 |
+| `max_tokens` | Maximum tokens to generate | None |
+| `top_p` | Nucleus sampling parameter (0.0-1.0) | None |
+| `top_k` | Top-k sampling parameter | None |
+| `stop_sequences` | List of strings that stop generation | None |
+| `frequency_penalty` | Penalizes repeated tokens | None |
+| `presence_penalty` | Penalizes repeated topics | None |
+| `seed` | Seed for random sampling | None |
+
+When using the `"mcp"` provider, the MCP communication protocol will be used to interact with language models. This requires an appropriate MCP communicator configuration.
+
 ### Environment Configuration Files
 
 OpenMAS looks for YAML configuration files in the `config/` directory of your project:

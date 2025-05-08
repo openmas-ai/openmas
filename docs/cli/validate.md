@@ -17,6 +17,8 @@ This command performs a series of validation checks on your OpenMAS project to e
 3. All referenced shared and plugin paths exist
 4. Dependencies are correctly specified
 5. The configuration format is valid
+6. Prompt configurations are valid and reference existing files
+7. Sampling configurations are compatible with the agent's communicator
 
 It helps identify issues early, such as missing files or invalid references, before you try to run your agents.
 
@@ -43,6 +45,21 @@ For each agent defined in the `agents` section:
 - Validates that the agent directory exists
 - Checks that the agent directory contains an `agent.py` file
 - Verifies that `agent.py` contains a `BaseAgent` subclass
+
+### Prompt Configuration
+
+For each agent with prompt configurations:
+- Validates that each prompt has a unique name within the agent
+- Checks that template files referenced by `template_file` exist in the `prompts_dir`
+- Verifies that variables listed in `input_variables` appear in the template with the expected `{{variable}}` syntax
+- Confirms that either `template` or `template_file` is provided for each prompt
+
+### Sampling Configuration
+
+For each agent with sampling configurations:
+- Validates the sampling provider (if specified)
+- Checks that the provider is compatible with the communicator type (e.g., "mcp" provider with "mcp_sse" communicator)
+- Verifies that required parameters for the provider are present
 
 ### Shared and Plugin Paths
 

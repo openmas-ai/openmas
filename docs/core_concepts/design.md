@@ -6,25 +6,76 @@ OpenMAS is built to enable the rapid development and deployment of robust Multi-
 
 The primary goal of the OpenMAS ecosystem is to provide a cohesive Pythonic environment that simplifies the end-to-end lifecycle of MAS development. This means:
 
-* **Reducing Boilerplate:** Offer a lightweight SDK (the `openmas` library) to handle common tasks like agent lifecycle management, configuration loading, and communication setup, allowing developers to focus on core agent logic.
+* **Reducing Boilerplate:** Offer a lightweight framework to handle common tasks like agent lifecycle management, configuration loading, and communication setup, allowing developers to focus on core agent logic.
 * **Promoting Structure:** Provide conventions and optional tooling (like the `openmas` CLI and project templates) to help organize MAS projects, making them more understandable, maintainable, and scalable.
 * **Enabling Modularity:** Design for easy integration and extension, allowing agents to use various communication protocols and incorporate custom or shared components.
 * **Streamlining Development:** Offer tools and utilities to simplify common development workflows, including local execution, dependency management (for agent components), and testing.
 
 ## Core Principles
 
-* **Simplicity & Composability:** We favor simple, understandable components (like `BaseAgent` and `BaseCommunicator`) that serve as building blocks. We aim to avoid complex, opaque abstractions where possible.
-* **Transparency:** Interactions between components, especially communication, should be reasonably clear to aid understanding and debugging.
-* **Modularity & Pluggability:** The system is designed for extension. Key components like communicators are pluggable, allowing support for different protocols (HTTP, MCP, gRPC, MQTT, etc.) without altering core agent logic. The architecture supports project-local extensions (`extensions/`) and shareable external packages (`packages/`).
-* **Pragmatism:** We focus on solving common, practical challenges encountered in MAS development, such as configuration management, communication abstraction, reducing repetitive code, and standardizing project structure.
-* **Protocol Flexibility:** While providing robust support for common web protocols (HTTP) and specialized ones like MCP, the communication system is designed to be extensible to other protocols via custom `BaseCommunicator` implementations.
-* **Agent Reasoning Agnosticism:** The OpenMAS SDK provides the agent's "body" (its structure, lifecycle, communication capabilities) but does not dictate its "brain" (the internal reasoning or decision-making logic). Developers are free to implement simple logic, complex state machines, BDI patterns, or integrate with external reasoning engines (like LLMs).
-* **Separation of Concerns:**
-    * **SDK (`openmas` library):** Core abstractions (`BaseAgent`, `BaseCommunicator`), lifecycle management, configuration interfaces, core exceptions.
-    * **Application Structure (Project Layout):** Organizes developer code (`agents/`, `shared/`, `extensions/`), dependencies (`packages/`), and configuration (`openmas_project.yml`, `config/`). See [Project Structure](project_structure.md).
-    * **CLI Tooling (`openmas` command):** Aids developer workflow (init, run, validate, deps, generate-*). See [CLI Docs](../cli/index.md).
-    * **Deployment:** Facilitated by generated artifacts (e.g., Dockerfiles, Compose files via `openmas generate-*`), separating development from operational concerns. See [Deployment Guide](../guides/deployment.md).
-* **Lazy Loading:** Optional components, especially those with extra dependencies (like specific communicators for gRPC, MCP, MQTT), are loaded dynamically using `importlib` only when configured and needed. This keeps the core library lightweight and minimizes unnecessary package installations for users. See [Architecture Overview](architecture.md) and [Communication Guide](../guides/communication/index.md).
+OpenMAS is architected around several core principles to ensure it is robust, extensible, maintainable, and developer-friendly. These principles guide the design of the framework, the structure of OpenMAS projects, and the developer experience.
+
+* **Simplicity & Composability:** We favor simple, understandable components (like `BaseAgent` and `BaseCommunicator`) that serve as building blocks. We aim to avoid complex, opaque abstractions where possible, allowing developers to compose sophisticated systems from these fundamental parts.
+* **Transparency:** Interactions between components, especially communication, should be as clear as possible to aid understanding, debugging, and system monitoring.
+* **Pragmatism:** We focus on solving common, practical challenges encountered in MAS development, such as configuration management, communication abstraction, reducing repetitive code, and standardizing project structure, providing tangible benefits to the developer.
+* **Protocol Flexibility:** While providing robust support for common web protocols (HTTP) and specialized ones like MCP, the communication system is designed to be extensible to other protocols via custom `BaseCommunicator` implementations, ensuring OpenMAS can adapt to diverse integration needs.
+* **Agent Reasoning Agnosticism:** The OpenMAS framework provides the agent's "body" (its structure, lifecycle, communication capabilities) but does not dictate its "brain" (the internal reasoning or decision-making logic). Developers are free to implement simple logic, complex state machines, BDI patterns, or integrate with external reasoning engines (like LLMs), offering maximum flexibility in agent design.
+
+### Separation of Concerns
+
+OpenMAS rigorously distinguishes between the core framework, the developer's application logic, the tools for managing the development lifecycle, and operational deployment. This separation allows developers to focus on their specific tasks at the appropriate level of abstraction, enhancing clarity and maintainability.
+
+* **1. OpenMAS Framework (The `openmas` Python Library):**
+    * This is the foundational engine providing the core building blocks, extensible abstractions, and runtime environment for multi-agent systems. It acts as the "backend" SDK that developers build upon.
+    * **Key Components:**
+        * Core abstractions like `BaseAgent`, `BaseCommunicator`, `BasePromptManager`, and `BaseSampler`.
+        * Agent lifecycle management and inter-agent communication mechanisms.
+        * Standardized Pydantic-based interfaces (e.g., `AgentConfig`, `PromptConfig`, `SamplingParams`) for configuring framework components.
+        * A system of core exceptions for predictable error handling.
+    * *Developers primarily interact with this layer by extending its base classes and utilizing its core services within their custom agent logic.*
+
+* **2. Developer's Application Layer (Your OpenMAS Project):**
+    * This is where you, the developer, define the unique intelligence, behavior, and composition of your multi-agent system by utilizing and extending the OpenMAS Framework.
+    * **Project Structure:** Follows a standardized [Project Layout](project_structure.md) for organizing:
+        * Custom agent implementations (e.g., in `agents/`).
+        * Shared business logic or data models (e.g., in `shared/`).
+        * Custom framework extensions (e.g., new communicator types in `extensions/`).
+    * **Declarative Configuration (`openmas_project.yml`):** This YAML file is the primary "developer-facing interface" for defining and configuring your system. It's where you:
+        * Specify which agents to run, their classes, and initial parameters.
+        * Select and configure framework components (e.g., choosing an agent's communicator, defining its prompt templates, setting LLM sampling parameters).
+        * Manage project-level settings and dependencies.
+    * *This layer allows you to focus on your application's specific domain, declaratively wiring up and customizing framework capabilities like prompting and sampling through the `openmas_project.yml` file.*
+
+* **3. Developer Experience Tooling (The `openmas` CLI):**
+    * A command-line interface designed to streamline the development workflow and provide an "operational frontend" for managing OpenMAS projects.
+    * **Key Commands:**
+        * Project scaffolding (`openmas init`).
+        * Local development runs (`openmas run`).
+        * Configuration and dependency validation (`openmas validate`, `openmas deps`).
+        * Code/artifact generation (e.g., `openmas generate-dockerfile`).
+    * *The CLI interacts with both the framework (e.g., to validate configurations against defined Pydantic models) and your application structure.*
+    * See [CLI Docs](../cli/index.md) for more details.
+
+* **4. Operational Deployment:**
+    * OpenMAS aims to simplify the path from development to production by enabling the generation of standardized deployment artifacts (e.g., Dockerfiles, Docker Compose files via `openmas generate-*`).
+    * This clearly separates the concerns of application development from the intricacies of operational deployment, promoting best practices and consistency.
+    * See the [Deployment Guide](../guides/deployment.md).
+
+### Modularity, Extensibility, and Lazy Loading
+
+OpenMAS is fundamentally designed for modularity and extension, ensuring the core system remains lightweight while supporting a rich ecosystem of capabilities.
+
+* **Pluggable Architecture:** Key components, such as communicators, are designed to be pluggable. This allows developers to introduce support for different communication protocols (e.g., HTTP, MCP, gRPC, MQTT) or even entirely new types of framework extensions without altering core agent logic. The architecture facilitates this through project-local extensions (via the `extensions/` directory) and the ability to integrate shareable external packages (via the `packages/` directory or standard Python dependencies).
+
+* **Lazy Loading for Efficiency:** To maintain a lean core footprint, optional components—especially those with significant external dependencies (like specific communicators such as `GrpcCommunicator` or `MqttCommunicator`, or specialized LLM samplers from different providers)—are loaded dynamically using `importlib` only when explicitly configured and required by an application.
+    * **Benefits:**
+        * Keeps the core `openmas` library lean and fast to install.
+        * Minimizes unnecessary package installations for users who don't need certain specialized features.
+        * Enhances overall extensibility, as new components can be discovered and loaded without requiring modifications to the core framework.
+    * *For example, if an agent in `openmas_project.yml` is configured with `communicator: {type: "mqtt", ...}`, only then will the `MqttCommunicator` code and its dependencies (like `paho-mqtt`) be imported and utilized by that agent's process.*
+    * This principle is crucial for managing dependencies effectively and ensuring that projects only carry the performance and size overhead of the components they actively use.
+
+*See [Architecture Overview](architecture.md) and [Communication Guide](../guides/communication/index.md) for further details on these architectural aspects.*
 
 ## Inspiration & Vision
 
