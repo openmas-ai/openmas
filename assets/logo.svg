@@ -1,0 +1,18 @@
+            <svg class="logo-svg" width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" fill="#FFFFFF" stroke="#1A73E8" stroke-width="3"/>
+                <g transform="translate(20, 20)">
+                    <!-- Connected Agent Nodes -->
+                    <circle cx="15" cy="15" r="12" fill="#1A73E8"/>
+                    <circle cx="45" cy="15" r="8" fill="#1A73E8"/>
+                    <circle cx="30" cy="45" r="10" fill="#1A73E8"/>
+
+                    <!-- Connection Lines -->
+                    <line x1="15" y1="15" x2="45" y2="15" stroke="#1A73E8" stroke-width="2.5"/>
+                    <line x1="15" y1="15" x2="30" y2="45" stroke="#1A73E8" stroke-width="2.5"/>
+                    <line x1="45" y1="15" x2="30" y2="45" stroke="#1A73E8" stroke-width="2.5"/>
+
+                    <!-- Subtle Code Reference -->
+                    <path d="M18,11 L12,15 L18,19" stroke="#FFFFFF" stroke-width="1.5" fill="none" />
+                    <path d="M42,11 L48,15 L42,19" stroke="#FFFFFF" stroke-width="1.5" fill="none" />
+                </g>
+            </svg>

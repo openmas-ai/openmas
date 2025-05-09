@@ -1,0 +1,34 @@
+/* Custom header color for MkDocs Material theme */
+
+/* Primary header background color */
+:root {
+    --md-primary-fg-color: #1A73E8; /* Blue background */
+    --md-primary-fg-color--light: #5b9cf0;
+    --md-primary-fg-color--dark: #0a4ea6;
+}
+
+/* Set the header text and icon colors */
+.md-header__button.md-logo, /* Site logo/icon and name */
+.md-header__button[for="__palette"], /* Theme toggle button */
+.md-header__button.md-icon[title*="repository"], /* Repository icon */
+.md-header__topic .md-ellipsis /* Site name text */
+{
+  color: white !important; /* Change to white for contrast against blue background */
+}
+
+.md-header {
+  /* Ensure background uses the variable */
+  background-color: var(--md-primary-fg-color) !important;
+  /* The text color set here might be overridden by more specific selectors, so we target elements directly above */
+  color: white; /* Default text color for header if not specifically targeted */
+}
+
+/* Keep tabs background consistent if needed */
+.md-tabs {
+  background-color: var(--md-primary-fg-color) !important;
+}
+
+/* Ensure icons within buttons inherit color correctly */
+.md-header__button.md-icon svg {
+    fill: currentColor;
+}
