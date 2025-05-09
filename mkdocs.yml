@@ -53,6 +53,7 @@ nav:
       - LLM Integration: guides/llm_integration.md
       - Prompt Management: guides/prompt_management.md
       - Sampling Configuration: guides/sampling_configuration.md
+      - Asset Management: guides/asset_management.md
       - Reasoning Integration: guides/reasoning_integration.md
       - Patterns: guides/patterns.md
       - MCP Developer Guide: guides/mcp_developer_guide.md
@@ -76,6 +77,8 @@ nav:
       - deps: cli/deps.md
       - generate-dockerfile: cli/generate-dockerfile.md
       - generate-compose: cli/generate-compose.md
+      - assets: cli/assets.md
+      - prompts: cli/prompts.md
   - Contributing:
       - Guidelines: contributing/contributing.md
       - Testing: contributing/testing_strategy.md

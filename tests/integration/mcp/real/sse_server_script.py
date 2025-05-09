@@ -6,12 +6,13 @@ import asyncio
 import json
 import logging
 import sys
-from typing import Any  # Import Any
+from typing import Any, Dict  # Import Any and Dict
 
 import uvicorn
 from fastapi import FastAPI, Request  # Import FastAPI
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.sse import SseServerTransport  # Import SSE Transport
+from mcp.types import Root
 from starlette.routing import Mount  # type: ignore
 
 # Set up logging
@@ -25,11 +26,28 @@ logger = logging.getLogger("sse_server")
 # 1. Create FastAPI app instance
 app = FastAPI(title="MCP Test Server", version="1.0")
 
-# 2. Create the MCP server instance
-mcp_server = FastMCP(
-    name="TestSseServer",
-    log_level="DEBUG",
-)
+# 2. Create the MCP server instance with new sampling configuration
+try:
+    # Create sampling parameters to support new prompt capabilities
+    sampling_params: Dict[str, Any] = {
+        "temperature": 0.7,
+        "max_tokens": 1000,
+    }
+    mcp_server = FastMCP(
+        name="TestSseServer",
+        log_level="DEBUG",
+        sampling_parameters=sampling_params,  # Pass as dict instead of explicit class instance
+        root=Root(type="sse"),
+    )
+    logger.debug("FastMCP server instance created successfully with sampling parameters")
+except Exception as e:
+    logger.error(f"Error creating FastMCP server with sampling params: {e}", exc_info=True)
+    # Fall back to basic initialization if the new parameters cause issues
+    mcp_server = FastMCP(
+        name="TestSseServer",
+        log_level="DEBUG",
+    )
+    logger.debug("Falling back to basic FastMCP server initialization")
 
 # 3. Create SSE Transport
 # Use a distinct path for message posting if needed, though FastMCP might handle this internally via /sse
@@ -73,13 +91,17 @@ async def handle_sse(request: Request):
             write_stream,
         ):
             logger.info("SSE connection established, running MCP server loop.")
-            # Run the actual MCP server logic using the established streams
-            await mcp_server._mcp_server.run(
-                read_stream,
-                write_stream,
-                mcp_server._mcp_server.create_initialization_options(),
-            )
-            logger.info("MCP server loop finished for this connection.")
+            try:
+                # Run the actual MCP server logic using the established streams
+                await mcp_server._mcp_server.run(
+                    read_stream,
+                    write_stream,
+                    mcp_server._mcp_server.create_initialization_options(),
+                )
+                logger.info("MCP server loop finished for this connection.")
+            except Exception as e:
+                logger.error(f"Error in MCP server loop: {e}", exc_info=True)
+                # Continue and let the connection close gracefully
     except Exception as e:
         # Log errors during SSE connection handling
         logger.error(f"Error during SSE handling: {e}", exc_info=True)

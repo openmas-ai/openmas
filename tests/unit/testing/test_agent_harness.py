@@ -1,11 +1,12 @@
 """Tests for the agent harness module."""
 
 import asyncio
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
 from openmas.agent.bdi import BdiAgent
+from openmas.assets.manager import AssetManager
 from openmas.config import AgentConfig
 from openmas.exceptions import ServiceNotFoundError
 from openmas.testing.harness import AgentTestHarness
@@ -22,10 +23,16 @@ class SimpleTestAgent(BdiAgent):
         config_model: Any = AgentConfig,
         env_prefix: str = "",
         project_root=None,
+        asset_manager: Optional[AssetManager] = None,
     ) -> None:
         """Initialize the simple test agent."""
         super().__init__(
-            name=name, config=config, config_model=config_model, env_prefix=env_prefix, project_root=project_root
+            name=name,
+            config=config,
+            config_model=config_model,
+            env_prefix=env_prefix,
+            project_root=project_root,
+            asset_manager=asset_manager,
         )
         self.data_store: Dict[str, Any] = {}
         self.processing_history: List[str] = []

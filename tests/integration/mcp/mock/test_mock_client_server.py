@@ -243,11 +243,11 @@ class TestMcpClientServerIntegration:
     """Integration tests for MCP client-server interaction."""
 
     @pytest.mark.asyncio
-    async def test_client_server_tool_interaction(self, tmp_path):
+    async def test_client_server_tool_interaction(self):
         """Test client calling a tool on the server using linked mock communicators."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(MockServerAgent, project_root=tmp_path)
-        client_harness = AgentTestHarness(MockClientAgent, project_root=tmp_path)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")
@@ -334,11 +334,11 @@ class TestMcpClientServerIntegration:
             client_communicator.verify_all_expectations_met()
 
     @pytest.mark.asyncio
-    async def test_client_server_simple_tool_interaction(self, tmp_path):
+    async def test_client_server_simple_tool_interaction(self):
         """Test client calling a simple tool on the server."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(MockServerAgent, project_root=tmp_path)
-        client_harness = AgentTestHarness(MockClientAgent, project_root=tmp_path)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")
@@ -397,11 +397,11 @@ class TestMcpClientServerIntegration:
             client_communicator.verify_all_expectations_met()
 
     @pytest.mark.asyncio
-    async def test_client_server_prompt_interaction(self, tmp_path):
-        """Test client calling a prompt on the server."""
+    async def test_client_server_prompt_interaction(self):
+        """Test client getting a prompt from the server."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(MockServerAgent, project_root=tmp_path)
-        client_harness = AgentTestHarness(MockClientAgent, project_root=tmp_path)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")
@@ -437,11 +437,11 @@ class TestMcpClientServerIntegration:
             client_communicator.verify_all_expectations_met()
 
     @pytest.mark.asyncio
-    async def test_client_server_resource_interaction(self, tmp_path):
-        """Test client calling a resource on the server."""
+    async def test_client_server_resource_interaction(self):
+        """Test client reading a resource from the server."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(MockServerAgent, project_root=tmp_path)
-        client_harness = AgentTestHarness(MockClientAgent, project_root=tmp_path)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")
@@ -508,11 +508,11 @@ class TestMcpClientServerIntegration:
             client_communicator.verify_all_expectations_met()
 
     @pytest.mark.asyncio
-    async def test_multiple_client_requests(self, tmp_path):
+    async def test_multiple_client_requests(self):
         """Test multiple client requests to the server."""
         # Create test harnesses for each agent type
-        server_harness = AgentTestHarness(MockServerAgent, project_root=tmp_path)
-        client_harness = AgentTestHarness(MockClientAgent, project_root=tmp_path)
+        server_harness = AgentTestHarness(MockServerAgent)
+        client_harness = AgentTestHarness(MockClientAgent)
 
         # Create server agent
         server_agent = await server_harness.create_agent(name="server-agent")

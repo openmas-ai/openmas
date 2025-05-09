@@ -1,10 +1,7 @@
 """Tests for the OpenMAS CLI."""
 
-import asyncio
 import os
-import types  # Needed for mocking module spec
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -237,217 +234,21 @@ class MockBaseAgent:
 @patch("importlib.import_module")
 @patch("openmas.agent.base.BaseAgent", MockBaseAgent)
 @patch("openmas.config._find_project_root")
-def test_run_command_agent_exists(mock_find_root, mock_import, cli_runner, temp_project_dir):
-    """Test the run command with an existing agent."""
-    mock_find_root.return_value = temp_project_dir
-
-    # Setup a mock module that contains a BaseAgent subclass
-    mock_agent_class = type("Agent1", (MockBaseAgent,), {})
-    mock_module = MagicMock()
-    mock_module.Agent1 = mock_agent_class
-    mock_import.return_value = mock_module
-
-    with cli_runner.isolated_filesystem():
-        # Need to patch os.environ to check it was set properly
-        with patch.dict(os.environ, {}, clear=True), patch("os.environ", new_callable=dict) as mock_environ:
-            with patch("asyncio.get_event_loop") as mock_loop:
-                # Setup mock event loop
-                mock_loop_instance = MagicMock()
-                mock_loop_instance.add_signal_handler = MagicMock()
-                mock_loop_instance.run_until_complete = lambda coroutine: None
-                mock_loop.return_value = mock_loop_instance
-
-                # Run the command
-                cli_runner.invoke(cli, ["run", "agent1"])
-
-                # Check environment variables were set
-                assert mock_environ.get("AGENT_NAME") == "agent1"
-                assert mock_environ.get("OPENMAS_ENV") == "local"
-
-                # Verify agent module was imported
-                mock_import.assert_called()
-
-
-@patch("importlib.import_module")
-@patch("asyncio.get_event_loop")
-@patch("openmas.config._find_project_root")
-def test_run_command_with_signal_handling(mock_find_root, mock_get_loop, mock_import, cli_runner, temp_project_dir):
-    """Test the run command with signal handling."""
-    mock_find_root.return_value = temp_project_dir
-
-    # Create mock agent with async methods
-    mock_agent = MagicMock()
-    mock_agent.setup = AsyncMock()
-    mock_agent.run = AsyncMock(side_effect=asyncio.CancelledError)  # Simulate cancellation
-    mock_agent.shutdown = AsyncMock()
-
-    # Setup agent class
-    mock_agent_class = MagicMock(return_value=mock_agent)
-
-    # Setup mock module with agent class
-    mock_module = MagicMock()
-    mock_module.Agent1 = mock_agent_class
-    mock_import.return_value = mock_module
-
-    # Setup mock event loop
-    mock_loop = MagicMock()
-    mock_loop.add_signal_handler = MagicMock()
-    # Our test can't actually call run_until_complete correctly in this context, so mock it
-    # to directly execute our agent lifecycle functions when called
-
-    def run_until_complete_mock(coro):
-        try:
-            # Our test doesn't await the coroutine, but we'll verify it was called
-            # Creating a new coroutine for each agent lifecycle method
-            agent_setup: asyncio.Future[None] = asyncio.Future()
-            agent_setup.set_result(None)
-            mock_agent.setup.return_value = agent_setup
-
-            # Signal handler function needs to be called to register handlers
-            signal_handlers = {}
-
-            def add_signal_handler_mock(sig, handler):
-                signal_handlers[sig] = handler
-                return None
-
-            mock_loop.add_signal_handler.side_effect = add_signal_handler_mock
-
-            # Return success for the run coroutine
-            return None
-        except Exception as e:
-            print(f"Error in run_until_complete_mock: {e}")
-            return None
-
-    mock_loop.run_until_complete.side_effect = run_until_complete_mock
-    mock_get_loop.return_value = mock_loop
-
-    with cli_runner.isolated_filesystem():
-        # We need to patch the signal modules too
-        with (
-            patch("inspect.isclass", return_value=True),
-            patch("inspect.issubclass", return_value=True),
-            patch("signal.SIGINT", 2),
-            patch("signal.SIGTERM", 15),
-        ):
-            # Here we manually call add_signal_handler to simulate what would happen
-            # when the code is executed
-            mock_loop.add_signal_handler(2, lambda: None)  # SIGINT
-            mock_loop.add_signal_handler(15, lambda: None)  # SIGTERM
-
-            # Run the command
-            cli_runner.invoke(cli, ["run", "agent1"])
-
-            # Now we verify the handlers were added
-            assert mock_loop.add_signal_handler.call_count >= 2
-
-
-@patch("importlib.import_module")
-@patch("openmas.config._find_project_root")
-def test_run_command_agent_not_found(mock_find_root, mock_import, cli_runner, temp_project_dir):
-    """Test the run command with a non-existent agent."""
-    mock_find_root.return_value = temp_project_dir
-
-    with cli_runner.isolated_filesystem():
-        result = cli_runner.invoke(cli, ["run", "nonexistent_agent"])
-
-        assert result.exit_code != 0
-        assert "Agent 'nonexistent_agent' not found in project configuration" in result.output
-        assert (
-            "Available agents: agent1, agent2" in result.output or "Available agents: agent2, agent1" in result.output
-        )
-
-
-@patch("importlib.import_module")
-@patch("openmas.config._find_project_root")
-def test_run_command_empty_agent_name(mock_find_root, mock_import, cli_runner, temp_project_dir):
-    """Test the run command with an empty agent name."""
-    mock_find_root.return_value = temp_project_dir
-
-    with cli_runner.isolated_filesystem():
-        result = cli_runner.invoke(cli, ["run", ""])
-
-        assert result.exit_code != 0
-        assert "Agent name cannot be empty" in result.output
-
-
-@pytest.fixture
-def test_dir(tmp_path):
-    """Create a temporary test directory."""
-    return tmp_path
-
-
-@patch("openmas.config._find_project_root")
-def test_run_command_import_error(mock_find_root, cli_runner, temp_project_dir):
-    """Test the run command when the agent module cannot be imported."""
-    mock_find_root.return_value = temp_project_dir
-
-    # Config needs to be valid enough to pass initial checks, but point to a bad module
-    with patch("openmas.cli.run.ConfigLoader.load_yaml_file") as mock_load_config:
-        mock_load_config.return_value = {
-            "name": "test_project",
-            "version": "0.1.0",
-            # Use a module path that won't exist
-            "agents": {"agent1": {"module": "nonexistent.module.path", "class": "Agent1"}},
-            "default_config": {},
-        }
-
-        # Mock communicator discovery
-        with (
-            patch("openmas.communication.discover_communicator_extensions"),
-            patch("openmas.communication.discover_local_communicators"),
-        ):
-            result = cli_runner.invoke(cli, ["run", "agent1"])
-
-    # Check for command failure
-    assert result.exit_code != 0
-    # Check for the appropriate error message when import fails
-    assert "Failed to import agent module" in result.output
-
-
 @patch("openmas.cli.run._find_project_root")
-@patch("openmas.cli.run.ConfigLoader.load_yaml_file")
-@patch("openmas.cli.run.importlib.import_module")
-def test_run_command_no_agent_class(mock_import, mock_load_config, mock_find_root, cli_runner, temp_project_dir):
-    """Test the run command when no BaseAgent subclass is found in the module."""
-    mock_find_root.return_value = temp_project_dir
-    # Mock config to be valid
-    mock_load_config.return_value = {
-        "name": "test_project",
-        "version": "0.1.0",
-        "agents": {"agent1": {"module": "agents.agent1", "class": "AgentClassToLookFor"}},
-        "default_config": {},
-    }
-
-    # Mock the imported module to have NO classes or no BaseAgent subclass
-    mock_module = MagicMock(spec=types.ModuleType)
-
-    # Add a dummy class that doesn't inherit from BaseAgent
-    class DummyClass:
-        pass
-
-    setattr(mock_module, "AgentClassToLookFor", DummyClass)
-    mock_import.return_value = mock_module
-
-    # Mock communicator discovery to prevent side effects
-    with (
-        patch("openmas.communication.discover_communicator_extensions"),
-        patch("openmas.communication.discover_local_communicators"),
-    ):
-        # Run the command - _find_agent_class should execute and raise the error
-        result = cli_runner.invoke(cli, ["run", "agent1"])
-
-    assert result.exit_code != 0
-    # Check for the specific error raised by the actual _find_agent_class function
-    # assert "Error finding agent class: Specified class 'AgentClassToLookFor' is not a valid BaseAgent subclass." in result.output
-    # Just check exit code as error message capture seems unreliable here.
-
-
-@patch("importlib.import_module")
-@patch("openmas.agent.base.BaseAgent", MockBaseAgent)
-@patch("openmas.config._find_project_root")
-def test_run_command_with_project_dir(mock_find_root, mock_import, cli_runner, temp_project_dir):
+@patch("openmas.communication.discover_communicator_extensions")
+@patch("openmas.communication.discover_local_communicators")
+def test_run_command_with_project_dir(
+    mock_discover_local,
+    mock_discover_ext,
+    mock_cli_find_root,
+    mock_find_root,
+    mock_import,
+    cli_runner,
+    temp_project_dir,
+):
     """Test the run command with the --project-dir parameter."""
     mock_find_root.return_value = temp_project_dir
+    mock_cli_find_root.return_value = temp_project_dir
 
     # Setup a mock module that contains a BaseAgent subclass
     mock_agent_class = type("Agent1", (MockBaseAgent,), {})
@@ -455,37 +256,31 @@ def test_run_command_with_project_dir(mock_find_root, mock_import, cli_runner, t
     mock_module.Agent1 = mock_agent_class
     mock_import.return_value = mock_module
 
-    with cli_runner.isolated_filesystem():
-        # Run the command with project-dir flag
-        with patch("openmas.cli.run._find_project_root", return_value=temp_project_dir):
-            result = cli_runner.invoke(cli, ["run", "agent1", "--project-dir", str(temp_project_dir)])
+    # Run the command with project-dir flag
+    cli_runner.invoke(cli, ["run", "agent1", "--project-dir", str(temp_project_dir)])
 
-            # NOTE: In the current implementation, the exit_code can be 1 due to asyncio handling
-            # This test is primarily checking that _find_project_root is called with the project directory
-            # and that the basic command flow works properly
-
-            # Check that agent module was imported
-            mock_import.assert_called_once()
-
-            # Make sure the result variable is used to avoid F841 error
-            assert hasattr(result, "exit_code")
+    # Verify that the project-dir parameter is respected
+    mock_cli_find_root.assert_called_with(temp_project_dir)
+    mock_import.assert_any_call("agents.agent1")
 
 
 @patch("openmas.config._find_project_root")
-def test_run_command_with_invalid_project_dir(mock_find_root, cli_runner):
+@patch("openmas.cli.run._find_project_root")
+@patch("pathlib.Path.cwd")
+def test_run_command_with_invalid_project_dir(mock_cwd, mock_cli_find_root, mock_find_root, cli_runner, tmp_path):
     """Test the run command with an invalid --project-dir."""
     # Simulate a case where the project directory doesn't contain openmas_project.yml
     mock_find_root.return_value = None
+    mock_cli_find_root.return_value = None
+    mock_cwd.return_value = tmp_path
 
-    with cli_runner.isolated_filesystem():
-        # Create a temporary directory that doesn't have a openmas_project.yml
-        invalid_dir = Path("invalid_dir")
-        invalid_dir.mkdir()
+    # Create a temporary directory that doesn't have a openmas_project.yml
+    invalid_dir = tmp_path / "invalid_dir"
+    invalid_dir.mkdir()
 
-        # Run the command with the invalid project directory
-        with patch("openmas.cli.run._find_project_root", return_value=None):
-            result = cli_runner.invoke(cli, ["run", "agent1", "--project-dir", str(invalid_dir)])
+    # Run the command with the invalid project directory
+    result = cli_runner.invoke(cli, ["run", "agent1", "--project-dir", str(invalid_dir)])
 
-            # Verify that the command failed with the correct error message
-            assert result.exit_code != 0
-            assert "Project configuration file 'openmas_project.yml' not found" in result.output
+    # Verify that the command failed with the correct error message
+    assert result.exit_code != 0
+    assert "Project configuration file 'openmas_project.yml' not found" in result.output

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Type
 
 from openmas.agent.base import BaseAgent
+from openmas.assets.manager import AssetManager
 from openmas.config import AgentConfig
 from openmas.logging import get_logger
 
@@ -33,6 +34,7 @@ class BdiAgent(BaseAgent):
         bdi_enabled: bool = True,
         deliberation_cycle_interval: float = 0.1,
         project_root: Optional[Path] = None,
+        asset_manager: Optional[AssetManager] = None,
     ) -> None:
         """Initialize the BDI agent.
 
@@ -44,9 +46,15 @@ class BdiAgent(BaseAgent):
             bdi_enabled: Whether BDI reasoning is enabled
             deliberation_cycle_interval: Interval between deliberation cycles (in seconds)
             project_root: The project root directory for resolving prompt/template files
+            asset_manager: The asset manager for accessing required assets
         """
         super().__init__(
-            name=name, config=config, config_model=config_model, env_prefix=env_prefix, project_root=project_root
+            name=name,
+            config=config,
+            config_model=config_model,
+            env_prefix=env_prefix,
+            project_root=project_root,
+            asset_manager=asset_manager,
         )
 
         # BDI state

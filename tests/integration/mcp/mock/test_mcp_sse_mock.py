@@ -6,6 +6,8 @@ using mock objects rather than real network communication.
 
 import asyncio
 import json
+import logging
+import time
 from typing import Any, Dict, List, TypedDict
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,6 +15,9 @@ import pytest
 
 from openmas.communication.mcp.sse_communicator import McpSseCommunicator
 from openmas.exceptions import CommunicationError
+
+# Configure logging for tests
+logger = logging.getLogger(__name__)
 
 
 # Type definitions for test cases
@@ -190,7 +195,7 @@ async def test_mcp_sse_argument_extraction():
             extracted = communicator._extract_arguments_from_mcp_context(mock_ctx)
 
             # Verify result
-            assert extracted == test_case["expected"], f"Test case {i+1} failed"
+            assert extracted == test_case["expected"], f"Test case {i + 1} failed"
 
 
 @pytest.mark.asyncio
@@ -263,17 +268,17 @@ async def test_mcp_sse_result_formatting():
 
                 # Test for empty results
                 if test_case.get("expected_empty", False):
-                    assert len(formatted) == 0, f"Test case {case_idx+1} failed: expected empty list"
+                    assert len(formatted) == 0, f"Test case {case_idx + 1} failed: expected empty list"
                     continue
 
                 # For non-empty results, verify the content
-                assert len(formatted) == 1, f"Test case {case_idx+1} failed: expected single item"
+                assert len(formatted) == 1, f"Test case {case_idx + 1} failed: expected single item"
 
                 # Verify the text content matches expectations
-                assert hasattr(formatted[0], "text"), f"Test case {case_idx+1} failed: result has no text attribute"
+                assert hasattr(formatted[0], "text"), f"Test case {case_idx + 1} failed: result has no text attribute"
                 assert (
                     formatted[0].text == test_case["expected_text"]
-                ), f"Test case {case_idx+1} failed: expected '{test_case['expected_text']}', got '{formatted[0].text}'"
+                ), f"Test case {case_idx + 1} failed: expected '{test_case['expected_text']}', got '{formatted[0].text}'"
 
             # Verify the method was called the right number of times
             assert mock_format.call_count == len(test_cases)
@@ -390,3 +395,181 @@ async def test_mcp_sse_concurrent_tool_calls():
         # Verify results were returned - order may vary due to concurrency
         for result in results:
             assert result in communicator.responses
+
+
+@pytest.mark.asyncio
+@pytest.mark.mcp
+async def test_call_tool_with_system_tools(mcp_sse_test_harness):
+    """Test calling a system tool."""
+    # Await the fixture
+    harness = await mcp_sse_test_harness
+    server_communicator = harness["server_communicator"]
+    client_communicator = harness["client_communicator"]
+
+    try:
+        # Register a system tool
+        async def system_tool(command: str):
+            """System tool that simulates running a command."""
+            return {"command": command, "status": "executed"}
+
+        await server_communicator.register_tool(
+            name="system",
+            description="Run a system command",
+            function=system_tool,
+        )
+
+        # Mock the client's send_request method
+        with patch.object(client_communicator, "send_request") as mock_send_request:
+            mock_send_request.return_value = {"command": "ls -la", "status": "executed"}
+
+            start_time = time.time()
+
+            # Call the tool
+            result = await client_communicator.call_tool(
+                target_service="test_server",
+                tool_name="system",
+                arguments={"command": "ls -la"},
+            )
+
+            elapsed_time = time.time() - start_time
+            logger.info(f"Time to execute: {elapsed_time:.2f} seconds")
+
+            # Verify the result
+            assert result["command"] == "ls -la"
+            assert result["status"] == "executed"
+
+            # Verify the call
+            mock_send_request.assert_called_once()
+            assert mock_send_request.call_args[0][0] == "test_server"
+            assert mock_send_request.call_args[0][1] == "tool/call/system"
+            assert "command" in mock_send_request.call_args[0][2]
+            assert mock_send_request.call_args[0][2]["command"] == "ls -la"
+    finally:
+        # Clean up
+        await server_communicator.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.mcp
+async def test_tool_call_with_different_tool_providers(mcp_sse_test_harness):
+    """Test tool calls with different tool providers."""
+    # Await the fixture
+    harness = await mcp_sse_test_harness
+    server_communicator = harness["server_communicator"]
+    client_communicator = harness["client_communicator"]
+
+    try:
+        # Define test tools
+        async def test_tool(request_id: str = "test_id"):
+            """Simple test tool."""
+            logger.debug(f"Test tool called with request ID: {request_id}")
+            return {"status": "success", "request_id": request_id}
+
+        async def test_error_tool(request_id: str = "test_id"):
+            """Tool that raises an error."""
+            logger.debug(f"Error tool called with request ID: {request_id}")
+            raise ValueError("Test error")
+
+        async def test_async_tool(request_id: str = "test_id"):
+            """Tool with async operation."""
+            logger.debug(f"Async tool called with request ID: {request_id}")
+            await asyncio.sleep(0.1)
+            return {"status": "success_async", "request_id": request_id}
+
+        async def test_timeout_tool(request_id: str = "test_id"):
+            """Tool that times out."""
+            logger.debug(f"Timeout tool called with request ID: {request_id}")
+            await asyncio.sleep(2.0)  # This should timeout
+            return {"status": "should_not_reach", "request_id": request_id}
+
+        # Register the tools
+        await server_communicator.register_tool(
+            name="test_tool",
+            description="Basic test tool",
+            function=test_tool,
+        )
+
+        await server_communicator.register_tool(
+            name="error_tool",
+            description="Tool that raises an error",
+            function=test_error_tool,
+        )
+
+        await server_communicator.register_tool(
+            name="async_tool",
+            description="Tool with async operation",
+            function=test_async_tool,
+        )
+
+        await server_communicator.register_tool(
+            name="timeout_tool",
+            description="Tool that times out",
+            function=test_timeout_tool,
+        )
+
+        # Mock client's send_request method
+        with patch.object(client_communicator, "send_request") as mock_send_request:
+            # Configure responses for each tool
+            mock_send_request.side_effect = [
+                {"status": "success", "request_id": "first_call"},
+                ValueError("Test error"),  # This will be raised
+                {"status": "success_async", "request_id": "third_call"},
+                asyncio.TimeoutError(),  # This will be raised
+            ]
+
+            # Test normal tool call
+            start_time = time.time()
+
+            # First call - should succeed
+            result1 = await client_communicator.call_tool(
+                target_service="test_server",
+                tool_name="test_tool",
+                arguments={"request_id": "first_call"},
+            )
+
+            elapsed_time_1 = time.time() - start_time
+            logger.info(f"Time to execute first tool call: {elapsed_time_1:.2f} seconds")
+
+            assert result1["status"] == "success"
+            assert result1["request_id"] == "first_call"
+
+            # Second call - should raise an error
+            with pytest.raises(ValueError) as excinfo:
+                await client_communicator.call_tool(
+                    target_service="test_server",
+                    tool_name="error_tool",
+                    arguments={"request_id": "second_call"},
+                )
+
+            elapsed_time_2 = time.time() - start_time
+            logger.info(f"Time to execute second tool call: {elapsed_time_2:.2f} seconds")
+
+            assert "Test error" in str(excinfo.value)
+
+            # Third call - should succeed
+            result3 = await client_communicator.call_tool(
+                target_service="test_server",
+                tool_name="async_tool",
+                arguments={"request_id": "third_call"},
+            )
+
+            elapsed_time_3 = time.time() - start_time
+            logger.info(f"Time to execute third tool call: {elapsed_time_3:.2f} seconds")
+
+            handler_elapsed = elapsed_time_3 - elapsed_time_2
+            logger.info(f"Time for custom handler retry: {handler_elapsed:.2f} seconds")
+
+            assert result3["status"] == "success_async"
+            assert result3["request_id"] == "third_call"
+
+            # Fourth call - should timeout
+            with pytest.raises(asyncio.TimeoutError):
+                await client_communicator.call_tool(
+                    target_service="test_server",
+                    tool_name="timeout_tool",
+                    arguments={"request_id": "fourth_call"},
+                    timeout=1.0,
+                )
+    finally:
+        # Clean up
+        await server_communicator.stop()

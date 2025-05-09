@@ -25,8 +25,8 @@ OpenMAS is architected around several core principles to ensure it is robust, ex
 
 OpenMAS rigorously distinguishes between the core framework, the developer's application logic, the tools for managing the development lifecycle, and operational deployment. This separation allows developers to focus on their specific tasks at the appropriate level of abstraction, enhancing clarity and maintainability.
 
-* **1. OpenMAS Framework (The `openmas` Python Library):**
-    * This is the foundational engine providing the core building blocks, extensible abstractions, and runtime environment for multi-agent systems. It acts as the "backend" SDK that developers build upon.
+* **1. The OpenMAS Core Framework:**
+    * This is the foundational engine providing the core building blocks, extensible abstractions, and runtime environment for multi-agent systems. It acts as the "backend" framework that developers build upon.
     * **Key Components:**
         * Core abstractions like `BaseAgent`, `BaseCommunicator`, `BasePromptManager`, and `BaseSampler`.
         * Agent lifecycle management and inter-agent communication mechanisms.

@@ -9,14 +9,13 @@ def test_event_loop_consistency():
     This test verifies the fix for the asyncio loop conflict by ensuring
     that both parent and child tasks can use the same event loop.
     """
-    # Save the current event loop
-    old_loop = asyncio.get_event_loop_policy().get_event_loop()
+    # Create a new clean event loop
+    loop = asyncio.new_event_loop()
+
+    # Set it as the current event loop
+    asyncio.set_event_loop(loop)
 
     try:
-        # Create a new clean event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
         # Track task execution
         parent_loop = None
         child_loop = None
@@ -58,5 +57,5 @@ def test_event_loop_consistency():
         except Exception:
             pass
 
-        # Restore the original loop
-        asyncio.set_event_loop(old_loop)
+        # Create a new event loop for subsequent tests
+        asyncio.set_event_loop(asyncio.new_event_loop())

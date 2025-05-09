@@ -32,6 +32,15 @@ shared_paths:
 # Define paths for project-local framework extensions (e.g., custom communicators)
 extension_paths:
   - "extensions"
+# Define assets required by agents
+assets:
+  - name: "llama3-8b"
+    version: "1.0"
+    source:
+      type: "hf"
+      repo_id: "meta-llama/Llama-3-8B"
+      filename: "model.safetensors"
+    checksum: "sha256:a1b2c3d4e5f6..."
 default_config:
   log_level: "INFO"
   communicator_type: "http"
@@ -41,9 +50,11 @@ default_config:
 
 The `default_config` section provides base configuration values for all agents in the project. The `shared_paths` and `extension_paths` sections define locations where OpenMAS will look for project-specific shared code or framework extensions (like custom communicators).
 
-### Agent Configuration with Prompts and Sampling
+The `assets` section defines external resources that your agents might need. See the [Asset Management guide](asset_management.md) for details on configuring and using assets.
 
-OpenMAS supports defining prompts and sampling parameters directly in the agent configuration.
+### Agent Configuration with Prompts, Sampling, and Assets
+
+OpenMAS supports defining prompts, sampling parameters, and required assets directly in the agent configuration.
 These configurations can be specified in the `openmas_project.yml` file:
 
 ```yaml
@@ -51,6 +62,7 @@ agents:
   llm_analyst:
     module: "agents.llm_analyst"
     class: "LlmAnalystAgent"
+    # Define prompts for the agent
     prompts_dir: "prompts"  # Directory relative to project root
     prompts:
       - name: "summarize_text"
@@ -59,12 +71,16 @@ agents:
       - name: "generate_greeting"
         template: "Hello, {{user_name}}! Welcome to {{service}}."
         input_variables: ["user_name", "service"]
+    # Define sampling parameters
     sampling:
       provider: "mcp"       # "mcp", "mock", or others supported
       model: "claude-3-opus-20240229"  # model identifier
       temperature: 0.7      # Controls randomness (0.0-1.0)
       max_tokens: 2000      # Maximum tokens in completion
       top_p: 0.9            # Nucleus sampling parameter
+    # Define required assets
+    required_assets:
+      - "llama3-8b"         # References an asset defined in the global assets list
 ```
 
 #### Prompt Configuration

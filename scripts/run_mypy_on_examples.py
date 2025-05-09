@@ -49,7 +49,7 @@ def run_mypy_on_directory(directory: str, config_file: str) -> bool:
         return True
 
 
-def main():
+def main() -> int:
     """Main function to run mypy on all example directories."""
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     config_file = os.path.join(base_dir, "mypy.ini")

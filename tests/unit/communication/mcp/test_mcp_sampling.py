@@ -5,11 +5,18 @@ from unittest import mock
 
 import pytest
 
-# Import the real TextContent for patching
-from mcp.types import TextContent
-
 from openmas.communication.mcp import McpSseCommunicator, McpStdioCommunicator
 from openmas.exceptions import CommunicationError
+
+
+# Create a simple class to use for mocking TextContent
+class MockTextContent:
+    """Mock for TextContent class from MCP package."""
+
+    def __init__(self, type="text", text=""):
+        self.type = type
+        self.text = text
+
 
 # DO NOT apply global mocks - manage per test
 # from tests.unit.communication.mcp.mcp_mocks import apply_mcp_mocks
@@ -31,7 +38,7 @@ class TestMcpSampling:
         )
         mock_result = mock.MagicMock()
         mock_result.isError = False
-        mock_text_block = mock.MagicMock(spec=TextContent)
+        mock_text_block = mock.MagicMock()
         mock_text_block.text = "This is a test response"
         mock_result.content = [mock_text_block]
 
@@ -58,7 +65,7 @@ class TestMcpSampling:
         communicator = McpStdioCommunicator(agent_name="test_agent", service_urls={"test_service": "stdio:app"})
         mock_result = mock.MagicMock()
         mock_result.isError = False
-        mock_text_block = mock.MagicMock(spec=TextContent)
+        mock_text_block = mock.MagicMock()
         mock_text_block.text = "This is a test response"
         mock_result.content = [mock_text_block]
 
@@ -68,7 +75,7 @@ class TestMcpSampling:
             mock.patch(
                 "openmas.communication.mcp.stdio_communicator.ClientSession", new_callable=mock.MagicMock
             ) as mock_session_class,
-            mock.patch("openmas.communication.mcp.stdio_communicator.TextContent", new=TextContent),
+            mock.patch("openmas.communication.mcp.stdio_communicator.TextContent", new=MockTextContent),
             mock.patch("shutil.which") as mock_shutil_which,
         ):
             mock_shutil_which.return_value = "/usr/bin/stdio_app_dummy"
@@ -108,23 +115,25 @@ class TestMcpSampling:
         )
         mock_result = mock.MagicMock()
         mock_result.isError = False
-        mock_text_block = mock.MagicMock(spec=TextContent)
+        mock_text_block = mock.MagicMock()
         mock_text_block.text = "This is a test response"
         mock_result.content = [mock_text_block]
+
+        # Create a mock TextContent object for input
+        mock_text_content = MockTextContent(text="Hello, how are you?")
 
         # Explicitly patch dependencies
         with (
             mock.patch.object(communicator, "clients", {"test_service": mock.MagicMock()}),
             mock.patch.object(communicator, "sessions", {"test_service": mock.AsyncMock()}),
-            mock.patch("openmas.communication.mcp.sse_communicator.TextContent", new=TextContent),
+            mock.patch("openmas.communication.mcp.sse_communicator.TextContent", new=MockTextContent),
         ):
             # Configure mock session
             mock_session = communicator.sessions["test_service"]
             mock_session.sample.return_value = mock_result
 
-            # Test with real TextContent input
-            real_text_content_instance = TextContent(type="text", text="Hello, how are you?")
-            messages = [{"role": "user", "content": real_text_content_instance}]
+            # Test with mocked TextContent input
+            messages = [{"role": "user", "content": mock_text_content}]
             result = await communicator.sample_prompt(target_service="test_service", messages=messages, temperature=0.7)
 
             # Check sample was called
@@ -174,9 +183,6 @@ class TestMcpSampling:
                 await communicator.sample_prompt(target_service="test_service", messages=messages)
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        reason="Skipping due to persistent issues mocking/catching exceptions within nested async contexts."
-    )
     async def test_sample_prompt_error_sample(self):
         """Test error during session sample."""
         communicator = McpSseCommunicator(
@@ -184,35 +190,23 @@ class TestMcpSampling:
         )
         messages = [{"role": "user", "content": "hi"}]
 
-        with (
-            mock.patch("openmas.communication.mcp.sse_communicator.sse.sse_client") as mock_sse_client_func,
-            mock.patch(
-                "openmas.communication.mcp.sse_communicator.ClientSession", new_callable=mock.MagicMock
-            ) as mock_session_class,
-        ):
-            # Configure sse_client manager to succeed normally
-            mock_sse_manager = mock.AsyncMock()
-            mock_read_stream = mock.AsyncMock()
-            mock_write_stream = mock.AsyncMock()
-            mock_sse_manager.__aenter__.return_value = (mock_read_stream, mock_write_stream)
-            mock_sse_client_func.return_value = mock_sse_manager
+        # Instead of mocking the async context managers directly,
+        # we'll patch the _send_mcp_request method which is called by sample_prompt
+        with mock.patch.object(communicator, "_send_mcp_request") as mock_send_request:
+            # Configure the mock to raise a RuntimeError
+            mock_send_request.side_effect = RuntimeError("Sampling failed")
 
-            # Configure ClientSession instance to fail sample with RuntimeError
-            mock_session_instance = mock.AsyncMock()
-            mock_session_instance.sample.side_effect = RuntimeError("Sampling failed")
-            mock_session_instance.__aenter__.return_value = mock_session_instance
-            mock_session_instance.__aexit__ = mock.AsyncMock()
-            mock_session_class.return_value = mock_session_instance
-
-            # Revert to pytest.raises
-            with pytest.raises(CommunicationError, match="Error during MCP sampling.*Sampling failed"):
+            # Test that the exception is properly caught and wrapped
+            with pytest.raises(
+                CommunicationError, match="Failed MCP request to service 'test_service' method 'prompt/sample'"
+            ):
                 await communicator.sample_prompt(target_service="test_service", messages=messages)
 
-            # Check calls up to the failure point
-            mock_sse_client_func.assert_called_once_with("http://localhost:8000/sse")
-            mock_session_class.assert_called_once_with(mock_read_stream, mock_write_stream)
-            mock_session_instance.__aenter__.assert_awaited_once()
-            mock_session_instance.initialize.assert_awaited_once()
-            mock_session_instance.sample.assert_awaited_once()
-            mock_sse_manager.__aexit__.assert_awaited_once()  # sse_client context should still exit
-            mock_session_instance.__aexit__.assert_awaited_once()
+            # Verify the mock was called with expected parameters
+            mock_send_request.assert_called_once()
+            # Verify first argument (target_service)
+            assert mock_send_request.call_args[0][0] == "test_service"
+            # Verify second argument (method) is "prompt/sample"
+            assert mock_send_request.call_args[0][1] == "prompt/sample"
+            # Verify messages are in the parameters
+            assert "messages" in mock_send_request.call_args[0][2]

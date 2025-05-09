@@ -10,6 +10,7 @@ import yaml
 from dotenv import load_dotenv  # type: ignore
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
+from openmas.assets.config import AssetConfig, AssetSettings
 from openmas.exceptions import ConfigurationError
 from openmas.logging import get_logger
 from openmas.prompt.base import PromptConfig
@@ -56,6 +57,12 @@ class ConfigLoader:
             raise ConfigurationError(message)
 
 
+class SettingsConfig(BaseModel):
+    """Global settings configuration for a project."""
+
+    assets: Optional[AssetSettings] = None
+
+
 class AgentConfig(BaseModel):
     """Base configuration model for agents."""
 
@@ -79,6 +86,7 @@ class AgentConfig(BaseModel):
         description="Directory where prompt template files are stored (relative to project root)",
     )
     sampling: Optional[SamplingParameters] = Field(default=None, description="Sampling configuration for the agent")
+    required_assets: List[str] = Field(default_factory=list, description="List of asset names required by the agent")
 
 
 class AgentConfigEntry(BaseModel):
@@ -117,6 +125,8 @@ class ProjectConfig(BaseModel):
         default_factory=dict, description="Default communicator configuration"
     )
     dependencies: List[Dict[str, Any]] = Field(default_factory=list, description="External dependencies")
+    assets: List[AssetConfig] = Field(default_factory=list, description="List of assets used in the project")
+    settings: Optional[SettingsConfig] = Field(default_factory=SettingsConfig, description="Global project settings")
 
     @field_validator("agents")
     def validate_agent_names(cls, agents: Mapping[str, Any]) -> Mapping[str, Any]:

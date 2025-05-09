@@ -1246,15 +1246,15 @@ files = [
 
 [[package]]
 name = "mcp"
-version = "1.7.1"
+version = "1.8.0"
 description = "Model Context Protocol SDK"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"mcp\" or extra == \"all\""
 files = [
-    {file = "mcp-1.7.1-py3-none-any.whl", hash = "sha256:f7e6108977db6d03418495426c7ace085ba2341b75197f8727f96f9cfd30057a"},
-    {file = "mcp-1.7.1.tar.gz", hash = "sha256:eb4f1f53bd717f75dda8a1416e00804b831a8f3c331e23447a03b78f04b43a6e"},
+    {file = "mcp-1.8.0-py3-none-any.whl", hash = "sha256:889d9d3b4f12b7da59e7a3933a0acadae1fce498bfcd220defb590aa291a1334"},
+    {file = "mcp-1.8.0.tar.gz", hash = "sha256:263dfb700540b726c093f0c3e043f66aded0730d0b51f04eb0a3eb90055fe49b"},
 ]
 
 [package.dependencies]
@@ -2625,6 +2625,18 @@ shellingham = ">=1.3.0"
 typing-extensions = ">=3.7.4.3"
 
 [[package]]
+name = "types-filelock"
+version = "3.2.7"
+description = "Typing stubs for filelock"
+optional = false
+python-versions = "*"
+groups = ["dev"]
+files = [
+    {file = "types-filelock-3.2.7.tar.gz", hash = "sha256:0673a25b45725c5c45661fe3744c3d8058653a16e683f0ae4a74afb44a0cdef4"},
+    {file = "types_filelock-3.2.7-py3-none-any.whl", hash = "sha256:ee0ee2b4ec3d491ebe71f7343e21435c3a07f910881275a94788cac42acf4339"},
+]
+
+[[package]]
 name = "types-paho-mqtt"
 version = "1.6.0.20240321"
 description = "Typing stubs for paho-mqtt"
@@ -2971,4 +2983,4 @@ mqtt = ["paho-mqtt"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "669107b79738cd0ebc89f63883b7f4f1cbfe0d4058e88b21554d843bf7a25803"
+content-hash = "3163c071d97ec4d5f941954044da9e4c70db5f153201624c887cb2a1ede1ea72"

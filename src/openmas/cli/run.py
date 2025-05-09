@@ -17,6 +17,7 @@ import typer
 import yaml
 
 from openmas.agent.base import BaseAgent
+from openmas.assets.manager import AssetManager
 from openmas.config import AgentConfigEntry, ConfigLoader, ProjectConfig, _find_project_root, logger
 from openmas.exceptions import ConfigurationError, LifecycleError
 
@@ -327,9 +328,13 @@ def run_project(agent_name: str, project_dir: Optional[Path] = None, env: Option
 
     # Initialize the agent with error handling
     try:
-        # Initialize agent with configuration
+        # Initialize asset manager
+        click.echo("Initializing asset manager...")
+        asset_manager = AssetManager(project_config)
+
+        # Initialize agent with configuration and asset manager
         click.echo(f"Starting agent '{agent_name}' ({agent_class.__name__})")
-        agent = agent_class(name=agent_name)
+        agent = agent_class(name=agent_name, asset_manager=asset_manager)
     except (ImportError, AttributeError, TypeError, ConfigurationError) as e:
         click.echo(f"❌ Error initializing agent '{agent_name}': {e}")
         click.echo("This may be due to configuration issues or missing dependencies.")

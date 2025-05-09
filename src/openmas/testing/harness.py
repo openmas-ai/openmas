@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypedDict, TypeVar
 
 from openmas.agent.base import BaseAgent
+from openmas.assets.manager import AssetManager
 from openmas.config import AgentConfig
 from openmas.logging import get_logger
 from openmas.testing.mock_communicator import MockCommunicator
@@ -76,6 +77,7 @@ class AgentTestHarness(Generic[T]):
         communicator_class: Optional[Type[Any]] = None,
         communicator_kwargs: Optional[Dict[str, Any]] = None,
         agent_init_kwargs: Optional[Dict[str, Any]] = None,
+        default_asset_manager: Optional[AssetManager] = None,
     ):
         """Initialize the agent test harness.
 
@@ -87,11 +89,13 @@ class AgentTestHarness(Generic[T]):
             communicator_class: The communicator class to use for agents (default: MockCommunicator)
             communicator_kwargs: Additional kwargs to pass to communicator constructor
             agent_init_kwargs: Additional kwargs to pass to agent constructor
+            default_asset_manager: Default AssetManager instance to use for all agents
         """
         self.agent_class = agent_class
         self.default_config = default_config or {}
         self.config_model = config_model
         self.project_root = project_root or Path.cwd()
+        self.default_asset_manager = default_asset_manager
 
         self._harness_communicator_class = communicator_class or MockCommunicator
         self._harness_communicator_kwargs = communicator_kwargs or {}
@@ -124,6 +128,7 @@ class AgentTestHarness(Generic[T]):
         env_prefix: str = "",
         track: bool = True,
         use_real_communicator: bool = False,
+        asset_manager: Optional[AssetManager] = None,
     ) -> T:
         """Create an agent instance with the configured communicator.
 
@@ -134,6 +139,7 @@ class AgentTestHarness(Generic[T]):
             track: Whether to track this agent for multi-agent testing (default: True)
             use_real_communicator: If True, use the communicator type specified in the config
                                   instead of overriding with the harness communicator (default: False)
+            asset_manager: Optional AssetManager instance (overrides default_asset_manager)
 
         Returns:
             An initialized agent instance
@@ -156,11 +162,15 @@ class AgentTestHarness(Generic[T]):
         # Create a config instance directly
         agent_config = self.config_model(**merged_config)
 
+        # Determine which asset manager to use
+        effective_asset_manager = asset_manager or self.default_asset_manager
+
         # Create the agent with the config - cast to silence mypy
         agent = self.agent_class(
             config=agent_config,  # type: ignore
             env_prefix=env_prefix,
             project_root=self.project_root,
+            asset_manager=effective_asset_manager,
             **self.agent_init_kwargs,
         )
 

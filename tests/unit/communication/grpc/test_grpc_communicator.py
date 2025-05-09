@@ -575,8 +575,8 @@ class TestGrpcCommunicator:
         service_urls = {"test-service": "localhost:50051"}
         communicator = GrpcCommunicator("test-agent", service_urls)
 
-        # Create a mock response
-        mock_response = mock.MagicMock(spec=pb2.ResponseMessage)
+        # Create a mock response without using spec
+        mock_response = mock.MagicMock()
         mock_response.id = str(uuid.uuid4())
         mock_response.source = "test-service"
         mock_response.target = "test-agent"

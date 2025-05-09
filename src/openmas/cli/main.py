@@ -13,6 +13,7 @@ import typer
 import yaml
 
 from openmas import __version__
+from openmas.cli.assets import assets_app
 from openmas.cli.prompts import prompts
 from openmas.cli.validate import validate_config
 from openmas.logging import get_logger
@@ -36,6 +37,16 @@ def cli() -> None:
 
 # Register the prompts command group
 cli.add_command(prompts)
+
+# Register the assets command group as an app that uses Typer
+try:
+    from typer.main import get_command
+
+    cli.add_command(get_command(assets_app), name="assets")
+except ImportError:
+    logger.warning("Typer not installed, assets commands will not be available")
+except Exception as e:
+    logger.error(f"Failed to register assets commands: {e}")
 
 
 @cli.command()

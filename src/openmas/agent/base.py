@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Set, Type, Union
 
 from pydantic import ValidationError
 
+from openmas.assets.manager import AssetManager
 from openmas.communication import BaseCommunicator, discover_local_communicators
 from openmas.config import AgentConfig, load_config
 from openmas.exceptions import ConfigurationError, DependencyError, LifecycleError
@@ -31,6 +32,7 @@ class BaseAgent(abc.ABC):
         communicator_class: Optional[Type[BaseCommunicator]] = None,
         env_prefix: str = "",
         project_root: Optional[Path] = None,
+        asset_manager: Optional[AssetManager] = None,
     ):
         """Initialize the agent.
 
@@ -41,6 +43,7 @@ class BaseAgent(abc.ABC):
             communicator_class: The communicator class to use (overrides config.communicator_type)
             env_prefix: Optional prefix for environment variables
             project_root: The project root directory for resolving prompt/template files
+            asset_manager: Optional asset manager for retrieving external resources
         """
         # Load configuration
         # If config is a dict, convert it to an AgentConfig instance
@@ -94,6 +97,11 @@ class BaseAgent(abc.ABC):
 
         # Store project root for prompt/template resolution
         self.project_root = project_root or Path.cwd()
+
+        # Store asset manager for accessing external resources
+        self.asset_manager = asset_manager
+        if self.asset_manager:
+            self.logger.debug("Asset manager provided", manager=self.asset_manager)
 
         self.logger.info("Initialized agent", agent_name=self.config.name, agent_type=self.__class__.__name__)
 

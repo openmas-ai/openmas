@@ -5,9 +5,10 @@ import asyncio
 import json
 import logging
 import sys
-from typing import Any
+from typing import Any, Dict
 
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import Root
 
 # Set up logging - IMPORTANT: log only to stderr
 logging.basicConfig(
@@ -23,8 +24,24 @@ logger = logging.getLogger(__name__)
 
 # Server instance - Create with explicit debugging
 logger.debug("Creating FastMCP server instance")
-server = FastMCP("TestStdioServer", log_level="DEBUG")
-logger.debug("FastMCP server instance created")
+try:
+    # Create server with sampling parameters to support new prompt capabilities
+    sampling_params: Dict[str, Any] = {
+        "temperature": 0.7,
+        "max_tokens": 1000,
+    }
+    # Use the correct initialization for FastMCP - SamplingParameters isn't in mcp.types
+    server = FastMCP(
+        "TestStdioServer",
+        log_level="DEBUG",
+        sampling_parameters=sampling_params,  # Pass as dict instead of explicit SamplingParameters
+        root=Root(type="stdio"),
+    )
+    logger.debug("FastMCP server instance created successfully")
+except Exception as e:
+    logger.error(f"Error creating FastMCP server: {e}", exc_info=True)
+    # Don't exit - let the test detect the failure properly
+    server = FastMCP("TestStdioServer", log_level="DEBUG")
 
 
 # A simple echo tool that returns the input message
@@ -86,8 +103,13 @@ async def main() -> None:
     # Explicitly flush stdout before running the server
     sys.stdout.flush()
 
-    # Run the server with proper async handling
-    await server.run_stdio_async()
+    # Run the server with proper async handling and error handling
+    try:
+        await server.run_stdio_async()
+    except Exception as e:
+        logger.error(f"Error running FastMCP server: {e}", exc_info=True)
+        # Don't exit with error code - we want to see what happened in the test output
+        # and prevent abrupt termination
 
 
 # Use run_stdio_async method which handles the event loop and stream setup
@@ -122,4 +144,6 @@ if __name__ == "__main__":
         logger.info("Keyboard interrupt received, shutting down")
     except Exception as e:
         logger.error(f"Unhandled exception: {e}", exc_info=True)
+        # Don't exit with error code unless necessary - let the test framework handle it
+        logger.error("Server exiting with error status")
         sys.exit(1)

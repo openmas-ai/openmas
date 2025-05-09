@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "openmas"
-version = "0.1.5"
+version = "0.2.0"
 description = "OpenMAS: Easily Build Smart Multi-Agent Systems"
 authors = ["Wilson Urdaneta <wilson.urdaneta@gmail.com>"]
 license = "MIT"
@@ -79,6 +79,7 @@ mkdocs-material = "==9.6.12"
 mkdocstrings = {version = "==0.29.1", extras = ["python"]}
 pymdown-extensions = "==10.15"
 mkdocs-include-markdown-plugin = "==7.1.5"
+types-filelock = "^3.2.7"
 
 [build-system]
 requires = ["poetry-core"]

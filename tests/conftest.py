@@ -11,6 +11,7 @@ import pytest
 
 from openmas.agent import BaseAgent
 from openmas.agent.bdi import BdiAgent
+from openmas.assets.manager import AssetManager
 from openmas.communication.base import _COMMUNICATOR_REGISTRY, register_communicator
 from openmas.communication.http import HttpCommunicator
 from openmas.config import AgentConfig
@@ -101,9 +102,19 @@ def real_mock_communicator(agent_name: str) -> MockCommunicator:
 
 
 @pytest.fixture
-def simple_agent(config: AgentConfig, mock_communicator: mock.AsyncMock, tmp_path) -> SimpleAgent:
+def mock_asset_manager() -> mock.MagicMock:
+    """Create a mock AssetManager for testing."""
+    mock_manager = mock.MagicMock(spec=AssetManager)
+    mock_manager.get_asset_path = mock.AsyncMock(return_value="/mock/path/to/asset")
+    return mock_manager
+
+
+@pytest.fixture
+def simple_agent(
+    config: AgentConfig, mock_communicator: mock.AsyncMock, mock_asset_manager: mock.MagicMock, tmp_path
+) -> SimpleAgent:
     """Create a simple agent instance with the mock communicator."""
-    agent = SimpleAgent(config=config, project_root=tmp_path)
+    agent = SimpleAgent(config=config, project_root=tmp_path, asset_manager=mock_asset_manager)
     agent.communicator = mock_communicator
     return agent
 
@@ -115,10 +126,13 @@ def bdi_agent(config: AgentConfig) -> BdiAgent:
 
 
 @pytest.fixture
-def agent_test_harness(tmp_path) -> AgentTestHarness:
+def agent_test_harness(tmp_path, mock_asset_manager: mock.MagicMock) -> AgentTestHarness:
     """Create an AgentTestHarness for testing."""
     return AgentTestHarness(
-        SimpleAgent, default_config={"name": "test-agent", "service_urls": {}}, project_root=tmp_path
+        SimpleAgent,
+        default_config={"name": "test-agent", "service_urls": {}},
+        project_root=tmp_path,
+        default_asset_manager=mock_asset_manager,
     )
 
 

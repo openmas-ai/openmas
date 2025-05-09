@@ -581,7 +581,7 @@ async def test_server_restarts() -> None:
             try:
                 async with sse_client(sse_endpoint_url) as (read_stream, write_stream):
                     async with ClientSession(read_stream, write_stream) as session:
-                        logger.info(f"Attempt {attempt+1}: initializing session")
+                        logger.info(f"Attempt {attempt + 1}: initializing session")
                         await asyncio.wait_for(session.initialize(), timeout=CLIENT_TIMEOUT)
 
                         # Make a test call to verify connection works
@@ -592,7 +592,7 @@ async def test_server_restarts() -> None:
                         connected = True
                         break
             except Exception as e:
-                logger.warning(f"Attempt {attempt+1} failed: {e}")
+                logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)

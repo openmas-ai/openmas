@@ -38,6 +38,7 @@ class TestAgentConfig:
         assert config.name == "test-agent"
         assert config.log_level == "INFO"
         assert config.service_urls == {}
+        assert config.required_assets == []
 
         # Should fail without a name
         with pytest.raises(ValidationError):
@@ -81,6 +82,11 @@ class TestAgentConfig:
         """Test that invalid prompt config raises validation error."""
         with pytest.raises(Exception):
             AgentConfig(name="test-agent", prompts=[{"template": "no name"}])
+
+    def test_required_assets(self):
+        """Test that required_assets field is parsed correctly."""
+        config = AgentConfig(name="test-agent", required_assets=["gpt-model", "whisper-tiny"])
+        assert config.required_assets == ["gpt-model", "whisper-tiny"]
 
 
 class TestCustomConfig:
@@ -1276,6 +1282,59 @@ class TestProjectConfig:
 
         with pytest.raises(ValidationError):
             ProjectConfig(**config_data)
+
+    def test_assets_config(self):
+        """Test that assets are parsed correctly in project config."""
+        from openmas.assets.config import AssetConfig
+
+        config = ProjectConfig(
+            name="test-project",
+            version="0.1.0",
+            agents={"agent1": "agents/agent1"},
+            assets=[
+                {"name": "gpt-model", "source": {"type": "http", "url": "https://example.com/model.bin"}},
+                {
+                    "name": "whisper-tiny",
+                    "version": "1.0.0",
+                    "asset_type": "speech-model",
+                    "source": {"type": "hf", "repo_id": "openai/whisper-tiny", "revision": "main"},
+                    "checksum": "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                    "unpack": True,
+                    "unpack_format": "tar.gz",
+                },
+            ],
+        )
+
+        assert len(config.assets) == 2
+        assert isinstance(config.assets[0], AssetConfig)
+        assert config.assets[0].name == "gpt-model"
+        assert config.assets[0].source.type == "http"
+        assert config.assets[0].source.url == "https://example.com/model.bin"
+
+        assert config.assets[1].name == "whisper-tiny"
+        assert config.assets[1].version == "1.0.0"
+        assert config.assets[1].asset_type == "speech-model"
+        assert config.assets[1].source.type == "hf"
+        assert config.assets[1].source.repo_id == "openai/whisper-tiny"
+        assert config.assets[1].checksum.startswith("sha256:")
+        assert config.assets[1].unpack is True
+        assert config.assets[1].unpack_format == "tar.gz"
+
+    def test_settings_config(self):
+        """Test that settings are parsed correctly in project config."""
+        from openmas.assets.config import AssetSettings
+
+        config = ProjectConfig(
+            name="test-project",
+            version="0.1.0",
+            agents={"agent1": "agents/agent1"},
+            settings={"assets": {"cache_dir": "/custom/cache/dir"}},
+        )
+
+        assert config.settings is not None
+        assert config.settings.assets is not None
+        assert isinstance(config.settings.assets, AssetSettings)
+        assert config.settings.assets.cache_dir == Path("/custom/cache/dir")
 
 
 class TestConfigLoader:

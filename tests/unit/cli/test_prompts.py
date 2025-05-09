@@ -203,9 +203,12 @@ class TestPromptsCommands:
         # We need to properly mock the file opening
         mocked_open = mock_open(read_data="Goodbye, {{name}}!")
 
-        with patch("openmas.cli.prompts._find_project_root", return_value=Path("/fake/path")), patch(
-            "openmas.cli.prompts._load_project_config", return_value=mock_project_config
-        ), patch.object(Path, "exists", return_value=True), patch("builtins.open", mocked_open):
+        with (
+            patch("openmas.cli.prompts._find_project_root", return_value=Path("/fake/path")),
+            patch("openmas.cli.prompts._load_project_config", return_value=mock_project_config),
+            patch.object(Path, "exists", return_value=True),
+            patch("builtins.open", mocked_open),
+        ):
             # Test rendering a file-based prompt
             result = cli_runner.invoke(prompts, ["render", "agent1", "farewell", "--var", "name=Test User"])
             assert result.exit_code == 0
