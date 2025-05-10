@@ -1,0 +1,2764 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://docs.openmas.ai/guides/communication/">
+      
+      
+        <link rel="prev" href="../deployment/">
+      
+      
+        <link rel="next" href="message_patterns/">
+      
+      
+      <link rel="icon" href="../../assets/logo.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.12">
+    
+    
+      
+        <title>Overview - OpenMAS</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.2afb09e1.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#communication-in-openmas" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="OpenMAS" class="md-header__button md-logo" aria-label="OpenMAS" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            OpenMAS
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/openmas-ai/openmas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    openmas-ai/openmas
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../why_openmas/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Why OpenMAS?
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../core_concepts/design/" class="md-tabs__link">
+          
+  
+  
+  Core Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../installation/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/" class="md-tabs__link">
+          
+  
+  
+  Examples & Use Cases
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../communicator_extensions/" class="md-tabs__link">
+          
+  
+  
+  Extending OpenMAS
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../cli/" class="md-tabs__link">
+          
+  
+  
+  Command Line Interface
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/contributing/" class="md-tabs__link">
+          
+  
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../api_reference/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://www.openmas.ai/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  OpenMAS Home
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="OpenMAS" class="md-nav__button md-logo" aria-label="OpenMAS" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="logo">
+
+    </a>
+    OpenMAS
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/openmas-ai/openmas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    openmas-ai/openmas
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../why_openmas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Why OpenMAS?
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Core Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Core Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core_concepts/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Design Philosophy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core_concepts/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Architecture
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core_concepts/project_structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Project Structure
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Guides
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Guides
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Communication
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            Communication
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#communication-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Communication Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lazy-loading-of-communicators" class="md-nav__link">
+    <span class="md-ellipsis">
+      Lazy Loading of Communicators
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#available-protocols-communicators" class="md-nav__link">
+    <span class="md-ellipsis">
+      Available Protocols &amp; Communicators
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Available Protocols &amp; Communicators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#http-httpcommunicator" class="md-nav__link">
+    <span class="md-ellipsis">
+      HTTP (HttpCommunicator)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-context-protocol-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      Model Context Protocol (MCP)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grpc-grpccommunicator" class="md-nav__link">
+    <span class="md-ellipsis">
+      gRPC (GrpcCommunicator)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mqtt-mqttcommunicator" class="md-nav__link">
+    <span class="md-ellipsis">
+      MQTT (MqttCommunicator)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-the-right-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      Choosing the Right Protocol
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#communicator-configuration-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Communicator Configuration Options
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mcp-method-mapping-client-perspective" class="md-nav__link">
+    <span class="md-ellipsis">
+      MCP Method Mapping (Client Perspective)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extending-with-custom-protocols" class="md-nav__link">
+    <span class="md-ellipsis">
+      Extending with Custom Protocols
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="message_patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Message Patterns
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="request_response/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Request-Response
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="command_response/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Command-Response
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="broadcast/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Broadcast
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LLM Integration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prompt_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Prompt Management
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sampling_configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Sampling Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../asset_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Asset Management
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reasoning_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Reasoning Integration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Patterns
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp_developer_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MCP Developer Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp_sse_tool_call_tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MCP SSE Tool Call Tutorial
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MCP Integration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp_stdio_tool_call_tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MCP stdio Tool Call Tutorial
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing-utilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Testing Utilities
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Examples & Use Cases
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Examples & Use Cases
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use_cases/chesspal_ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Chesspal.ai Refactoring
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Extending OpenMAS
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Extending OpenMAS
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../communicator_extensions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Custom Communicators
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Command Line Interface
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Command Line Interface
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/init/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    init
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/validate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    validate
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/list/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    list
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    run
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/deps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    deps
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/generate-dockerfile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    generate-dockerfile
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/generate-compose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    generate-compose
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/assets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    assets
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    prompts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            Contributing
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Guidelines
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/testing_strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Testing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/development_workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Development Workflow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/docstring_policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Docstring Policy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/example_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Example Prompts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/prompt_and_sampling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Prompt & Sampling Implementation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://www.openmas.ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    OpenMAS Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="communication-in-openmas">Communication in OpenMAS<a class="headerlink" href="#communication-in-openmas" title="Permanent link">&para;</a></h1>
+<p>This document provides an overview of the communication protocols in OpenMAS, explaining when and how to use each one.</p>
+<h2 id="communication-overview">Communication Overview<a class="headerlink" href="#communication-overview" title="Permanent link">&para;</a></h2>
+<p>OpenMAS provides a flexible communication layer that abstracts away the complexity of different communication protocols. The core of this system is the <code>BaseCommunicator</code> abstract base class, which defines the standard interface for sending requests (<code>send_request</code>), sending notifications (<code>send_notification</code>), and registering handlers for incoming messages (<code>register_handler</code>). All specific protocol implementations (like <code>HttpCommunicator</code>, <code>McpSseCommunicator</code>, etc.) inherit from <code>BaseCommunicator</code>.</p>
+<p>An agent's communicator is typically instantiated automatically by <code>BaseAgent</code> based on the <code>communicator_type</code> and <code>communicator_options</code> specified in the agent's configuration.</p>
+<h2 id="lazy-loading-of-communicators">Lazy Loading of Communicators<a class="headerlink" href="#lazy-loading-of-communicators" title="Permanent link">&para;</a></h2>
+<p>A key design principle in OpenMAS is <strong>lazy loading</strong> for optional components, especially communicators that require extra dependencies.</p>
+<ul>
+<li><strong>Core vs. Optional:</strong> The <code>HttpCommunicator</code> (using <code>httpx</code>) might be considered core or have minimal dependencies. Communicators for MCP (<code>mcp</code>), gRPC (<code>grpcio</code>), and MQTT (<code>paho-mqtt</code>) require specific third-party libraries.</li>
+<li><strong>Mechanism:</strong> OpenMAS does <em>not</em> require you to install all possible communication libraries just to use the core framework. When <code>BaseAgent</code> initializes, it looks at the configured <code>communicator_type</code>. If it's a non-core type (e.g., "grpc", "mcp_sse", "mqtt"), the framework attempts to dynamically import the necessary communicator class (<code>GrpcCommunicator</code>, <code>McpSseCommunicator</code>, etc.) using <code>importlib</code>.</li>
+<li><strong>Dependency Management:</strong> If the import fails because the required underlying library (e.g., <code>grpcio</code> for <code>GrpcCommunicator</code>) is not installed in your environment, OpenMAS will raise an <code>ImportError</code> or a specific <code>ConfigurationError</code> guiding you to install the necessary optional dependency.</li>
+<li><strong>Installation:</strong> You install support for optional communicators using pip extras:
+    <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Install core openmas</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pip<span class="w"> </span>install<span class="w"> </span>openmas
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Install support for gRPC</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;openmas[grpc]&#39;</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Install support for MCP (includes mcp-sdk)</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;openmas[mcp]&#39;</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Install support for MQTT</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;openmas[mqtt]&#39;</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># Install multiple extras</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;openmas[grpc,mcp]&#39;</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># Install all optional communicators and features</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;openmas[all]&#39;</span>
+</span></code></pre></div>
+    (Use <code>poetry add 'openmas[extra]'</code> if using Poetry).</li>
+</ul>
+<p>This approach keeps the core <code>openmas</code> package lightweight and ensures users only install what they need.</p>
+<h2 id="available-protocols-communicators">Available Protocols &amp; Communicators<a class="headerlink" href="#available-protocols-communicators" title="Permanent link">&para;</a></h2>
+<p>OpenMAS provides multiple communication protocols to suit different needs:</p>
+<h3 id="http-httpcommunicator">HTTP (<code>HttpCommunicator</code>)<a class="headerlink" href="#http-httpcommunicator" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Protocol:</strong> Standard HTTP/1.1 (using <code>httpx</code>).</li>
+<li><strong>Best For:</strong> RESTful API interactions, web service integration, general-purpose request/response communication between agents/services across processes or machines.</li>
+<li><strong>Dependencies:</strong> <code>httpx</code> (likely a core dependency).</li>
+<li><strong>Configuration:</strong> <code>communicator_type: http</code>. Options like <code>http_port</code> (server mode), <code>timeout</code>, <code>retries</code> can be set in <code>communicator_options</code>.</li>
+</ul>
+<h3 id="model-context-protocol-mcp">Model Context Protocol (MCP)<a class="headerlink" href="#model-context-protocol-mcp" title="Permanent link">&para;</a></h3>
+<p>MCP is designed for interacting with AI models and tools, particularly from Anthropic. OpenMAS provides two communicators for MCP. Requires <code>openmas[mcp]</code>.</p>
+<ol>
+<li>
+<p><strong><code>McpSseCommunicator</code></strong></p>
+<ul>
+<li><strong>Protocol:</strong> MCP over HTTP Server-Sent Events (SSE).</li>
+<li><strong>Best For:</strong> Networked MCP communication. Running an agent as an HTTP-based MCP server (e.g., for a UI to connect to) or connecting to remote HTTP-based MCP services.</li>
+<li><strong>Dependencies:</strong> <code>mcp</code> SDK, <code>fastapi</code>, <code>uvicorn</code>, <code>httpx</code>.</li>
+<li><strong>Configuration:</strong> <code>communicator_type: mcp_sse</code>. Options: <code>server_mode</code> (bool), <code>http_port</code> (server mode).</li>
+</ul>
+</li>
+<li>
+<p><strong><code>McpStdioCommunicator</code></strong></p>
+<ul>
+<li><strong>Protocol:</strong> MCP over standard input/output.</li>
+<li><strong>Best For:</strong> Running an agent as an MCP service interacted with via stdin/stdout (e.g., as a CLI tool or managed subprocess). Connecting to external tools/engines that expose an MCP interface via stdio (like Stockfish configured for MCP).</li>
+<li><strong>Dependencies:</strong> <code>mcp</code> SDK.</li>
+<li><strong>Configuration:</strong> <code>communicator_type: mcp_stdio</code>. Options: <code>server_mode</code> (bool).</li>
+</ul>
+</li>
+</ol>
+<h3 id="grpc-grpccommunicator">gRPC (<code>GrpcCommunicator</code>)<a class="headerlink" href="#grpc-grpccommunicator" title="Permanent link">&para;</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Experimental Feature</p>
+<p>Please note that the <code>GrpcCommunicator</code> is considered <strong>experimental</strong> in OpenMAS v0.1.0. While providing basic gRPC functionality, it has undergone limited testing compared to the core HTTP and MCP communicators and may have an unstable API subject to change in future releases. It may lack comprehensive error handling or support for advanced gRPC features like streaming patterns. <strong>It is not recommended for use in production environments at this stage.</strong> Feedback and contributions to improve gRPC integration are welcome.</p>
+</div>
+<ul>
+<li><strong>Protocol:</strong> gRPC (using <code>grpcio</code>).</li>
+<li><strong>Best For:</strong> High-performance, low-latency RPC between services, potentially across different languages. Streaming scenarios. Microservice architectures where gRPC is standard. Requires <code>openmas[grpc]</code>.</li>
+<li><strong>Dependencies:</strong> <code>grpcio</code>, <code>grpcio-tools</code>.</li>
+<li><strong>Configuration:</strong> <code>communicator_type: grpc</code>. Options: <code>server_mode</code> (bool), <code>grpc_port</code> (server mode).</li>
+<li><strong>Note:</strong> The default implementation uses a generic dictionary format. For type-safe communication using Protobuf definitions, customization might be needed.</li>
+</ul>
+<h3 id="mqtt-mqttcommunicator">MQTT (<code>MqttCommunicator</code>)<a class="headerlink" href="#mqtt-mqttcommunicator" title="Permanent link">&para;</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Experimental Feature</p>
+<p>Please note that the <code>MqttCommunicator</code> is considered <strong>experimental</strong> in OpenMAS v0.1.0. While providing basic MQTT connectivity, it has undergone limited testing compared to the core HTTP and MCP communicators and may have an unstable API subject to change in future releases. Known limitations might include incomplete support for all MQTT QoS levels or specific broker configurations. <strong>It is not recommended for use in production environments at this stage.</strong> Feedback and contributions to enhance MQTT support are welcome.</p>
+</div>
+<ul>
+<li><strong>Protocol:</strong> MQTT (using <code>paho-mqtt</code>).</li>
+<li><strong>Best For:</strong> Publish/subscribe messaging patterns, event-driven architectures, decoupled communication, IoT applications. Requires an external MQTT broker. Requires <code>openmas[mqtt]</code>.</li>
+<li><strong>Dependencies:</strong> <code>paho-mqtt</code>.</li>
+<li><strong>Configuration:</strong> <code>communicator_type: mqtt</code>. Options: <code>broker_host</code>, <code>broker_port</code>, <code>username</code>, <code>password</code>, <code>client_id</code>, TLS settings.</li>
+</ul>
+<h2 id="choosing-the-right-protocol">Choosing the Right Protocol<a class="headerlink" href="#choosing-the-right-protocol" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Scenario</th>
+<th style="text-align: left;">Recommended Communicator(s)</th>
+<th style="text-align: left;">Why?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">General Request/Response between Agents/Services</td>
+<td style="text-align: left;"><code>HttpCommunicator</code></td>
+<td style="text-align: left;">Standard, widely supported, good for RESTful patterns.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Interacting with Anthropic Models/MCP Services</td>
+<td style="text-align: left;"><code>McpSseCommunicator</code></td>
+<td style="text-align: left;">Native MCP support over standard web protocols.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Exposing Agent as HTTP-based MCP Server</td>
+<td style="text-align: left;"><code>McpSseCommunicator</code></td>
+<td style="text-align: left;">Allows web clients/other services to interact via MCP over HTTP/SSE.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Agent as CLI Tool using MCP</td>
+<td style="text-align: left;"><code>McpStdioCommunicator</code></td>
+<td style="text-align: left;">Uses stdin/stdout for MCP interaction.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Connecting to MCP Tool via Subprocess (e.g. Stockfish)</td>
+<td style="text-align: left;"><code>McpStdioCommunicator</code></td>
+<td style="text-align: left;">Manages subprocess communication via MCP over stdio.</td>
+</tr>
+<tr>
+<td style="text-align: left;">High-Performance RPC</td>
+<td style="text-align: left;"><code>GrpcCommunicator</code></td>
+<td style="text-align: left;">Efficient binary protocol, good for low-latency internal comms.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Publish/Subscribe, Event-Driven Systems</td>
+<td style="text-align: left;"><code>MqttCommunicator</code></td>
+<td style="text-align: left;">Decoupled messaging via a broker, suitable for event notifications.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Agents in the Same Process (Testing/Simple)</td>
+<td style="text-align: left;"><code>MockCommunicator</code> (testing) or potentially a future <code>InMemoryCommunicator</code></td>
+<td style="text-align: left;">Lowest latency, avoids network overhead.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="communicator-configuration-options">Communicator Configuration Options<a class="headerlink" href="#communicator-configuration-options" title="Permanent link">&para;</a></h2>
+<p>Refer to the specific communicator class documentation (or source code) and the <a href="../configuration/">Configuration Guide</a> for detailed options applicable to each communicator type (e.g., <code>http_port</code>, <code>grpc_port</code>, <code>broker_host</code>, <code>server_mode</code>, <code>timeout</code>). These are typically set within the <code>communicator_options</code> dictionary in your configuration.</p>
+<h2 id="mcp-method-mapping-client-perspective">MCP Method Mapping (Client Perspective)<a class="headerlink" href="#mcp-method-mapping-client-perspective" title="Permanent link">&para;</a></h2>
+<p>When an OpenMAS agent uses an MCP communicator (<code>McpSseCommunicator</code> or <code>McpStdioCommunicator</code>) in <em>client mode</em> to interact with a remote MCP server, the standard OpenMAS communicator methods (<code>send_request</code>, <code>send_notification</code>) are mapped to the underlying MCP protocol actions on the remote server:</p>
+<table>
+<thead>
+<tr>
+<th>Your Agent's Call (<code>self.communicator.&lt;method&gt;</code>)</th>
+<th>Remote MCP Action Triggered</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>send_request(target_service="svc", method="tool/list")</code></td>
+<td><code>list_tools()</code></td>
+<td>Lists tools on the remote MCP server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="tool/call", params={"name": "calc", "arguments": {"a":1}})</code></td>
+<td><code>call_tool("calc", {"a":1})</code></td>
+<td>Calls the tool named "calc" on the remote server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="prompt/list")</code></td>
+<td><code>list_prompts()</code></td>
+<td>Lists prompts on the remote server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="prompt/get", params={"name": "qa", "arguments": {"q":"Hi"}})</code></td>
+<td><code>get_prompt("qa", {"q":"Hi"})</code></td>
+<td>Gets the prompt named "qa" from the remote server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="resource/list")</code></td>
+<td><code>list_resources()</code></td>
+<td>Lists resources on the remote server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="resource/read", params={"uri": "/data.json"})</code></td>
+<td><code>read_resource("/data.json")</code></td>
+<td>Reads the resource at the specified URI from server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="some_custom_name", params={...})</code></td>
+<td><code>call_tool("some_custom_name", {...})</code></td>
+<td>By convention, non-prefixed methods often map to <code>call_tool</code> on the server.</td>
+</tr>
+<tr>
+<td><code>send_notification(target_service="svc", method="log_event", params={...})</code></td>
+<td>Async <code>call_tool("log_event", {...})</code></td>
+<td>Sends a notification, often mapped to an asynchronous tool call on the server <code>svc</code> where no response is expected by the caller.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note:</strong> This mapping applies when your OpenMAS agent is acting as an <em>MCP client</em>. When your agent acts as an <em>MCP server</em> (using <code>MCPServerAgent</code> or a communicator in <code>server_mode=True</code>), incoming MCP requests trigger the methods decorated with <code>@mcp_tool</code>, <code>@mcp_prompt</code>, or <code>@mcp_resource</code> within your agent. See the <a href="../mcp_integration/">MCP Integration Guide</a>.</p>
+<h2 id="extending-with-custom-protocols">Extending with Custom Protocols<a class="headerlink" href="#extending-with-custom-protocols" title="Permanent link">&para;</a></h2>
+<p>OpenMAS allows you to create custom protocol implementations by extending the <code>BaseCommunicator</code> class and potentially leveraging the communicator extension system (see <code>communicator_extensions.md</code>).</p>
+<h1 id="communication-in-openmas-old">Communication in OpenMAS (OLD)<a class="headerlink" href="#communication-in-openmas-old" title="Permanent link">&para;</a></h1>
+<p>This document provides an overview of the communication protocols in OpenMAS, explaining when and how to use each one.</p>
+<h2 id="communication-overview_1">Communication Overview<a class="headerlink" href="#communication-overview_1" title="Permanent link">&para;</a></h2>
+<p>OpenMAS provides a flexible communication layer that abstracts away the complexity of different communication protocols. The core of this system is the <code>BaseCommunicator</code> interface, which all protocol implementations extend.</p>
+<h2 id="available-protocols">Available Protocols<a class="headerlink" href="#available-protocols" title="Permanent link">&para;</a></h2>
+<h3 id="http-communication">HTTP Communication<a class="headerlink" href="#http-communication" title="Permanent link">&para;</a></h3>
+<p>The HTTP protocol implementation uses standard HTTP requests for communication between agents and services. It's suitable for:
+- RESTful API interactions
+- Web-based service integration
+- Scenarios where agents run in different processes or machines</p>
+<p><strong>Configuration Example:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.communication</span><span class="w"> </span><span class="kn">import</span> <span class="n">HTTPCommunicator</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">communicator</span> <span class="o">=</span> <span class="n">HTTPCommunicator</span><span class="p">(</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;agent1&quot;</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">service_urls</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="s2">&quot;service1&quot;</span><span class="p">:</span> <span class="s2">&quot;http://localhost:8000/service1&quot;</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        <span class="s2">&quot;service2&quot;</span><span class="p">:</span> <span class="s2">&quot;http://localhost:8001/service2&quot;</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="p">}</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">)</span>
+</span></code></pre></div></p>
+<h3 id="message-channel-protocol-mcp">Message Channel Protocol (MCP)<a class="headerlink" href="#message-channel-protocol-mcp" title="Permanent link">&para;</a></h3>
+<p>The Message Channel Protocol is optimized for high-performance, in-memory communication. It's ideal for:
+- Agents running in the same process
+- High-frequency message passing
+- Testing and development
+- Integration with AI models and tools via Anthropic's MCP</p>
+<p>OpenMAS provides specialized MCP communicator implementations:</p>
+<h4 id="mcp-stdio-communicator">MCP Stdio Communicator<a class="headerlink" href="#mcp-stdio-communicator" title="Permanent link">&para;</a></h4>
+<p>Specifically designed for MCP communication over standard input/output. Can operate in both client and server roles.</p>
+<p><strong>Client Mode Example - Connecting to an External MCP Server:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.communication.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">McpStdioCommunicator</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">communicator</span> <span class="o">=</span> <span class="n">McpStdioCommunicator</span><span class="p">(</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;agent1&quot;</span><span class="p">,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">service_urls</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="s2">&quot;local_service&quot;</span><span class="p">:</span> <span class="s2">&quot;python -m service_script.py&quot;</span><span class="p">,</span>  <span class="c1"># Command to run a local MCP service</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="s2">&quot;external_service&quot;</span><span class="p">:</span> <span class="s2">&quot;stdio:/path/to/external/executable&quot;</span>  <span class="c1"># Connection to external executable</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="p">}</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="p">)</span>
+</span></code></pre></div></p>
+<p><strong>Server Mode Example:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.communication.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">McpStdioCommunicator</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">communicator</span> <span class="o">=</span> <span class="n">McpStdioCommunicator</span><span class="p">(</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;agent1&quot;</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">service_urls</span><span class="o">=</span><span class="p">{},</span>  <span class="c1"># Not used in server mode</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">server_mode</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">server_instructions</span><span class="o">=</span><span class="s2">&quot;This agent provides analysis tools.&quot;</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">)</span>
+</span></code></pre></div></p>
+<h4 id="mcp-sse-communicator">MCP SSE Communicator<a class="headerlink" href="#mcp-sse-communicator" title="Permanent link">&para;</a></h4>
+<p>Uses HTTP with Server-Sent Events for MCP communication. Can operate in both client and server roles.</p>
+<p><strong>Client Mode Example - Connecting to External MCP Servers:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.communication.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">McpSseCommunicator</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">communicator</span> <span class="o">=</span> <span class="n">McpSseCommunicator</span><span class="p">(</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;agent1&quot;</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">service_urls</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="s2">&quot;local_service&quot;</span><span class="p">:</span> <span class="s2">&quot;http://localhost:8000/mcp&quot;</span><span class="p">,</span>  <span class="c1"># Local MCP service</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="s2">&quot;external_service&quot;</span><span class="p">:</span> <span class="s2">&quot;http://external-server.example.com:8080&quot;</span>  <span class="c1"># External MCP server</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="p">}</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">)</span>
+</span></code></pre></div></p>
+<p><strong>Server Mode Example:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.communication.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">McpSseCommunicator</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Optional: Create a FastAPI app (will create one if not provided)</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">&quot;MCP Agent&quot;</span><span class="p">)</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">communicator</span> <span class="o">=</span> <span class="n">McpSseCommunicator</span><span class="p">(</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;agent1&quot;</span><span class="p">,</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="n">service_urls</span><span class="o">=</span><span class="p">{},</span>  <span class="c1"># Not used in server mode</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="n">server_mode</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="n">http_port</span><span class="o">=</span><span class="mi">8000</span><span class="p">,</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="n">server_instructions</span><span class="o">=</span><span class="s2">&quot;This agent provides analysis tools.&quot;</span><span class="p">,</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="n">app</span><span class="o">=</span><span class="n">app</span>  <span class="c1"># Optional</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="p">)</span>
+</span></code></pre></div></p>
+<h2 id="when-to-use-each-protocol">When to Use Each Protocol<a class="headerlink" href="#when-to-use-each-protocol" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Protocol</th>
+<th>Best For</th>
+<th>Limitations</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTP</td>
+<td>Cross-process/cross-machine communication</td>
+<td>Higher latency, network dependency</td>
+</tr>
+<tr>
+<td>MCP Stdio</td>
+<td>MCP with subprocess or CLI</td>
+<td>Requires subprocess management</td>
+</tr>
+<tr>
+<td>MCP SSE</td>
+<td>MCP with web services</td>
+<td>Requires HTTP infrastructure</td>
+</tr>
+</tbody>
+</table>
+<h2 id="when-to-use-each-mcp-communicator">When to Use Each MCP Communicator<a class="headerlink" href="#when-to-use-each-mcp-communicator" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Communicator</th>
+<th>Client Mode</th>
+<th>Server Mode</th>
+<th>Best For</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>McpStdioCommunicator</td>
+<td>Spawn and connect to subprocess MCP services or external executables</td>
+<td>Run as MCP server via stdin/stdout</td>
+<td>CLI tools, subprocess integration, connecting to existing MCP tools like Stockfish</td>
+</tr>
+<tr>
+<td>McpSseCommunicator</td>
+<td>Connect to HTTP-based MCP services (local or external)</td>
+<td>Run as HTTP/SSE MCP server</td>
+<td>Web services, UI integration, API gateway patterns, connecting to cloud-based MCP services</td>
+</tr>
+</tbody>
+</table>
+<h2 id="connecting-to-external-mcp-servers">Connecting to External MCP Servers<a class="headerlink" href="#connecting-to-external-mcp-servers" title="Permanent link">&para;</a></h2>
+<p>OpenMAS supports connecting to external MCP servers in both stdio and SSE modes:</p>
+<h3 id="stdio-connection-format">Stdio Connection Format<a class="headerlink" href="#stdio-connection-format" title="Permanent link">&para;</a></h3>
+<p>For stdio connections to external executables, use the <code>stdio:</code> protocol prefix:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">service_urls</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="s2">&quot;stockfish&quot;</span><span class="p">:</span> <span class="s2">&quot;stdio:/usr/local/bin/stockfish&quot;</span><span class="p">,</span>  <span class="c1"># Path to Stockfish executable</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="s2">&quot;custom_tool&quot;</span><span class="p">:</span> <span class="s2">&quot;stdio:/path/to/custom/tool&quot;</span>     <span class="c1"># Path to any MCP-compatible executable</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>When using the stdio protocol prefix, OpenMAS will execute the specified binary and communicate with it via stdin/stdout.</p>
+<h3 id="sse-connection-format">SSE Connection Format<a class="headerlink" href="#sse-connection-format" title="Permanent link">&para;</a></h3>
+<p>For SSE connections to external HTTP-based MCP servers, use standard HTTP URLs:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">service_urls</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="s2">&quot;local_service&quot;</span><span class="p">:</span> <span class="s2">&quot;http://localhost:8000&quot;</span><span class="p">,</span>              <span class="c1"># Local MCP server</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="s2">&quot;cloud_service&quot;</span><span class="p">:</span> <span class="s2">&quot;https://api.example.com/mcp-server&quot;</span>  <span class="c1"># External cloud MCP server</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="mcp-method-mapping">MCP Method Mapping<a class="headerlink" href="#mcp-method-mapping" title="Permanent link">&para;</a></h2>
+<p>When an OpenMAS agent uses an MCP communicator (<code>McpSseCommunicator</code> or <code>McpStdioCommunicator</code>) in <em>client mode</em> to interact with a remote MCP server, the standard OpenMAS communicator methods (<code>send_request</code>, <code>send_notification</code>) are mapped to the underlying MCP protocol actions on the remote server:</p>
+<table>
+<thead>
+<tr>
+<th>Your Agent's Call (<code>self.communicator.&lt;method&gt;</code>)</th>
+<th>Remote MCP Action Triggered</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>send_request(target_service="svc", method="tool/list")</code></td>
+<td><code>list_tools()</code></td>
+<td>Lists tools on the remote MCP server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="tool/call", params={"name": "calc", "arguments": {"a":1}})</code></td>
+<td><code>call_tool("calc", {"a":1})</code></td>
+<td>Calls the tool named "calc" on the remote server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="prompt/list")</code></td>
+<td><code>list_prompts()</code></td>
+<td>Lists prompts on the remote server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="prompt/get", params={"name": "qa", "arguments": {"q":"Hi"}})</code></td>
+<td><code>get_prompt("qa", {"q":"Hi"})</code></td>
+<td>Gets the prompt named "qa" from the remote server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="resource/list")</code></td>
+<td><code>list_resources()</code></td>
+<td>Lists resources on the remote server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="resource/read", params={"uri": "/data.json"})</code></td>
+<td><code>read_resource("/data.json")</code></td>
+<td>Reads the resource at the specified URI from server <code>svc</code>.</td>
+</tr>
+<tr>
+<td><code>send_request(target_service="svc", method="some_custom_name", params={...})</code></td>
+<td><code>call_tool("some_custom_name", {...})</code></td>
+<td>By convention, non-prefixed methods often map to <code>call_tool</code> on the server.</td>
+</tr>
+<tr>
+<td><code>send_notification(target_service="svc", method="log_event", params={...})</code></td>
+<td>Async <code>call_tool("log_event", {...})</code></td>
+<td>Sends a notification, often mapped to an asynchronous tool call on the server <code>svc</code> where no response is expected by the caller.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note:</strong> This mapping applies when your OpenMAS agent is acting as an <em>MCP client</em>. When your agent acts as an <em>MCP server</em> (using <code>MCPServerAgent</code> or a communicator in <code>server_mode=True</code>), incoming MCP requests trigger the methods decorated with <code>@mcp_tool</code>, <code>@mcp_prompt</code>, or <code>@mcp_resource</code> within your agent.</p>
+<h2 id="extending-with-custom-protocols_1">Extending with Custom Protocols<a class="headerlink" href="#extending-with-custom-protocols_1" title="Permanent link">&para;</a></h2>
+<p>OpenMAS allows you to create custom protocol implementations by extending the <code>BaseCommunicator</code> class. See the developer documentation for details on implementing your own communicator.</p>
+<h2 id="communicator-extension-system">Communicator Extension System<a class="headerlink" href="#communicator-extension-system" title="Permanent link">&para;</a></h2>
+<p>OpenMAS includes an extension system that allows developers to create and register their own communicator implementations. This system enables easy extension of OpenMAS with custom communication protocols.</p>
+<h3 id="using-the-extension-system">Using the Extension System<a class="headerlink" href="#using-the-extension-system" title="Permanent link">&para;</a></h3>
+<p>The communicator extension system allows users to specify a communicator type in their agent configuration:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseAgent</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentConfig</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Configure through environment variables</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># COMMUNICATOR_TYPE=mcp_stdio</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># COMMUNICATOR_OPTION_SERVER_MODE=true</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="c1"># Or through direct initialization with config</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">BaseAgent</span><span class="p">(</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;my-agent&quot;</span><span class="p">,</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="n">config</span><span class="o">=</span><span class="n">AgentConfig</span><span class="p">(</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;my-agent&quot;</span><span class="p">,</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>        <span class="n">communicator_type</span><span class="o">=</span><span class="s2">&quot;http&quot;</span><span class="p">,</span>  <span class="c1"># or &quot;mcp_stdio&quot;, &quot;mcp_sse&quot;, etc.</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>        <span class="n">communicator_options</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>            <span class="s2">&quot;server_mode&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>            <span class="s2">&quot;http_port&quot;</span><span class="p">:</span> <span class="mi">8000</span>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>        <span class="p">}</span>
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>    <span class="p">)</span>
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="p">)</span>
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="c1"># Or just override the communicator class directly</span>
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.communication</span><span class="w"> </span><span class="kn">import</span> <span class="n">HttpCommunicator</span>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">BaseAgent</span><span class="p">(</span>
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;my-agent&quot;</span><span class="p">,</span>
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>    <span class="n">communicator_class</span><span class="o">=</span><span class="n">HttpCommunicator</span>
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="available-configuration-options">Available Configuration Options<a class="headerlink" href="#available-configuration-options" title="Permanent link">&para;</a></h3>
+<h4 id="http-communicator">HTTP Communicator<a class="headerlink" href="#http-communicator" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>None currently</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="mcp-stdio-communicator_1">MCP Stdio Communicator<a class="headerlink" href="#mcp-stdio-communicator_1" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>server_mode</code></td>
+<td><code>False</code></td>
+<td>Whether to run in server mode</td>
+</tr>
+<tr>
+<td><code>server_instructions</code></td>
+<td><code>None</code></td>
+<td>Instructions for the server</td>
+</tr>
+</tbody>
+</table>
+<h4 id="mcp-sse-communicator_1">MCP SSE Communicator<a class="headerlink" href="#mcp-sse-communicator_1" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>server_mode</code></td>
+<td><code>False</code></td>
+<td>Whether to run in server mode</td>
+</tr>
+<tr>
+<td><code>http_port</code></td>
+<td><code>8000</code></td>
+<td>Port for the HTTP server (server mode only)</td>
+</tr>
+<tr>
+<td><code>server_instructions</code></td>
+<td><code>None</code></td>
+<td>Instructions for the server</td>
+</tr>
+</tbody>
+</table>
+<h4 id="grpc-communicator">gRPC Communicator<a class="headerlink" href="#grpc-communicator" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>server_mode</code></td>
+<td><code>False</code></td>
+<td>Whether to run in server mode</td>
+</tr>
+<tr>
+<td><code>server_address</code></td>
+<td><code>[::]:50051</code></td>
+<td>Address to bind the server to (server mode only)</td>
+</tr>
+<tr>
+<td><code>max_workers</code></td>
+<td><code>10</code></td>
+<td>Maximum number of server worker threads</td>
+</tr>
+<tr>
+<td><code>channel_options</code></td>
+<td><code>{}</code></td>
+<td>Additional gRPC channel options</td>
+</tr>
+</tbody>
+</table>
+<h3 id="grpc-communication">gRPC Communication<a class="headerlink" href="#grpc-communication" title="Permanent link">&para;</a></h3>
+<p>The gRPC communicator provides efficient, high-performance communication using Google's gRPC framework. It requires the <code>openmas[grpc]</code> extra to be installed.</p>
+<p>It's suitable for:</p>
+<ul>
+<li>High-performance, type-safe communication (if using Protobuf definitions)</li>
+<li>Cross-language interoperability</li>
+<li>Streaming scenarios</li>
+<li>Microservice architectures where gRPC is already in use</li>
+</ul>
+<p><strong>Configuration Example (Client Mode):</strong></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># In config (e.g., YAML or environment variables)</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># COMMUNICATOR_TYPE=grpc</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># SERVICE_URL_MY_GRPC_SERVICE=localhost:50051</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.communication.grpc</span><span class="w"> </span><span class="kn">import</span> <span class="n">GrpcCommunicator</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Or instantiated directly:</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">communicator</span> <span class="o">=</span> <span class="n">GrpcCommunicator</span><span class="p">(</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;my-grpc-client&quot;</span><span class="p">,</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">service_urls</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>        <span class="s2">&quot;my_grpc_service&quot;</span><span class="p">:</span> <span class="s2">&quot;localhost:50051&quot;</span> <span class="c1"># Address of the target gRPC server</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>    <span class="p">},</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>    <span class="c1"># server_mode=False # Default</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Configuration Example (Server Mode):</strong></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># In config:</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="c1"># COMMUNICATOR_TYPE=grpc</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># COMMUNICATOR_OPTION_SERVER_MODE=true</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># COMMUNICATOR_OPTION_GRPC_PORT=50052</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.communication.grpc</span><span class="w"> </span><span class="kn">import</span> <span class="n">GrpcCommunicator</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="c1"># Or instantiated directly:</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="n">communicator</span> <span class="o">=</span> <span class="n">GrpcCommunicator</span><span class="p">(</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;my-grpc-server&quot;</span><span class="p">,</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="n">service_urls</span><span class="o">=</span><span class="p">{},</span> <span class="c1"># Not needed for server</span>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>    <span class="n">server_mode</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>    <span class="n">grpc_port</span><span class="o">=</span><span class="mi">50052</span> <span class="c1"># Port for this agent&#39;s gRPC server to listen on</span>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Note:</strong> The current <code>GrpcCommunicator</code> uses a generic dictionary-based request/response format over gRPC. For type safety using Protobuf definitions, you would typically implement a custom communicator or extend the existing one.</p>
+<h3 id="mqtt-communication">MQTT Communication<a class="headerlink" href="#mqtt-communication" title="Permanent link">&para;</a></h3>
+<p>The MQTT communicator uses the MQTT protocol for publish/subscribe messaging, typically via an MQTT broker. It requires the <code>openmas[mqtt]</code> extra.</p>
+<p>It's suitable for:</p>
+<ul>
+<li>Event-driven architectures</li>
+<li>Decoupled communication where agents publish or subscribe to topics</li>
+<li>IoT scenarios</li>
+<li>Situations where a message broker is preferred</li>
+</ul>
+<p><strong>Configuration Example:</strong></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># In config:</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># COMMUNICATOR_TYPE=mqtt</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># COMMUNICATOR_OPTION_BROKER_HOST=mqtt.eclipseprojects.io</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># COMMUNICATOR_OPTION_BROKER_PORT=1883</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="c1"># SERVICE_URLS={} # Often not used directly, communication is via pub/sub</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openmas.communication.mqtt</span><span class="w"> </span><span class="kn">import</span> <span class="n">MqttCommunicator</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="c1"># Or instantiated directly:</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="n">communicator</span> <span class="o">=</span> <span class="n">MqttCommunicator</span><span class="p">(</span>
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>    <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;my-mqtt-agent&quot;</span><span class="p">,</span>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>    <span class="n">service_urls</span><span class="o">=</span><span class="p">{},</span> <span class="c1"># Agents typically discover each other via topics</span>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>    <span class="n">broker_host</span><span class="o">=</span><span class="s2">&quot;mqtt.eclipseprojects.io&quot;</span><span class="p">,</span> <span class="c1"># Address of the MQTT broker</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>    <span class="n">broker_port</span><span class="o">=</span><span class="mi">1883</span><span class="p">,</span>
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>    <span class="c1"># Optional: username=&quot;user&quot;, password=&quot;pass&quot;, client_id=&quot;custom_id&quot;</span>
+</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Note:</strong> With MQTT, agents usually communicate via topics rather than direct service names in <code>service_urls</code>. The <code>send_request</code> and <code>send_notification</code> methods in the <code>MqttCommunicator</code> likely map <code>target_service</code> and <code>method</code> to specific MQTT topics based on internal conventions.</p>
+<h3 id="mqtt-communicator">MQTT Communicator<a class="headerlink" href="#mqtt-communicator" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>broker_host</code></td>
+<td><code>"localhost"</code></td>
+<td>Hostname or IP address of the MQTT broker.</td>
+</tr>
+<tr>
+<td><code>broker_port</code></td>
+<td><code>1883</code></td>
+<td>Port of the MQTT broker.</td>
+</tr>
+<tr>
+<td><code>username</code></td>
+<td><code>None</code></td>
+<td>Username for MQTT broker authentication.</td>
+</tr>
+<tr>
+<td><code>password</code></td>
+<td><code>None</code></td>
+<td>Password for MQTT broker authentication.</td>
+</tr>
+<tr>
+<td><code>client_id</code></td>
+<td>Auto-generated</td>
+<td>MQTT client ID. If empty, one is generated.</td>
+</tr>
+<tr>
+<td><code>keepalive</code></td>
+<td><code>60</code></td>
+<td>MQTT keepalive interval in seconds.</td>
+</tr>
+<tr>
+<td><code>tls_enabled</code></td>
+<td><code>False</code></td>
+<td>Enable TLS/SSL encryption.</td>
+</tr>
+<tr>
+<td><code>tls_ca_certs</code></td>
+<td><code>None</code></td>
+<td>Path to CA certificate file for TLS.</td>
+</tr>
+<tr>
+<td><code>tls_certfile</code></td>
+<td><code>None</code></td>
+<td>Path to client certificate file for TLS.</td>
+</tr>
+<tr>
+<td><code>tls_keyfile</code></td>
+<td><code>None</code></td>
+<td>Path to client private key file for TLS.</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+  © 2025 <a href="https://www.linkedin.com/in/wilsonurdaneta/">Wilson Urdaneta</a>
+  | <a href="https://www.openmas.ai/" target="_blank" rel="noopener">OpenMAS Website</a>
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy"], "search": "../../assets/javascripts/workers/search.f8cc74c7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>
