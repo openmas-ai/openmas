@@ -1,6 +1,7 @@
 """Main CLI module for OpenMAS."""
 
 import json
+import os
 import platform
 import sys
 import traceback
@@ -11,6 +12,7 @@ from typing import Any, Dict, Optional
 import click
 import typer
 import yaml
+from dotenv import load_dotenv  # type: ignore
 
 from openmas import __version__
 from openmas.cli.assets import assets_app
@@ -698,6 +700,20 @@ def info(output_json: bool = False) -> None:
 def main() -> int:
     """Main entry point for the OpenMAS CLI tool."""
     try:
+        # Load .env file if it exists in the current working directory (project root)
+        dotenv_path = Path(os.getcwd()) / ".env"
+        if dotenv_path.exists() and dotenv_path.is_file():
+            load_dotenv(dotenv_path=str(dotenv_path), override=True)
+            logger.info(f"Loaded environment variables from: {dotenv_path}")
+        else:
+            # Check common alternative: .env in parent if CWD is a subdir
+            alt_dotenv_path = Path(os.getcwd()).parent / ".env"
+            if alt_dotenv_path.exists() and alt_dotenv_path.is_file():
+                load_dotenv(dotenv_path=str(alt_dotenv_path), override=True)
+                logger.info(f"Loaded environment variables from: {alt_dotenv_path}")
+            else:
+                logger.debug("No .env file found in current or parent directory.")
+
         cli()
         return 0
     except Exception as e:

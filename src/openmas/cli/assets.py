@@ -85,11 +85,15 @@ def list_assets() -> None:
 
 
 @assets_app.command("download")
-def download_asset(asset_name: str) -> None:
+def download_asset(
+    asset_name: str,
+    force: bool = typer.Option(False, "--force", "-f", help="Force re-download even if the asset exists in cache."),
+) -> None:
     """Download an asset to the cache.
 
     Args:
         asset_name: The name of the asset to download.
+        force: If True, force re-download even if the asset already exists in cache.
     """
     try:
         # Load the project configuration
@@ -112,14 +116,14 @@ def download_asset(asset_name: str) -> None:
         # Show progress during download
         with Progress(
             SpinnerColumn(),
-            TextColumn(f"[bold green]Downloading asset {asset_name}...[/bold green]"),
+            TextColumn(f"[bold green]Downloading asset {asset_name}{'(forced)' if force else ''}...[/bold green]"),
             transient=True,
         ) as progress:
             progress.add_task(f"Downloading {asset_name}", total=None)
 
             # Download the asset (run synchronously)
             try:
-                asset_path = asyncio.run(asset_manager.get_asset_path(asset_name))
+                asset_path = asyncio.run(asset_manager.get_asset_path(asset_name, force_download=force))
                 console.print(f"[bold green]Successfully downloaded asset '{asset_name}' to {asset_path}[/bold green]")
             except KeyError as e:
                 console.print(f"[bold red]Asset '{asset_name}' not found: {str(e)}[/bold red]")

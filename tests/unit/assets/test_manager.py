@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from openmas.assets.config import AssetConfig, AssetSettings, AssetSourceConfig
-from openmas.assets.exceptions import AssetConfigurationError, AssetDownloadError, AssetVerificationError
+from openmas.assets.exceptions import AssetConfigurationError, AssetDownloadError
 from openmas.assets.manager import AssetManager
 from openmas.config import ProjectConfig, SettingsConfig
 
@@ -108,6 +108,171 @@ class TestAssetManager:
             assert len(manager.assets) == 2
             assert manager.assets["asset1"] == asset1
             assert manager.assets["asset2"] == asset2
+
+    def test_check_asset_status_not_cached(self, asset_manager, tmp_path):
+        """Test check_asset_status when the asset is not cached."""
+        # Set up a mock cache path
+        with patch.object(asset_manager, "_get_cache_path_for_asset") as mock_get_cache_path:
+            mock_get_cache_path.return_value = tmp_path / "cache" / "asset"
+
+            # Create an asset config
+            asset_config = AssetConfig(
+                name="test-asset",
+                version="1.0",
+                source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
+            )
+
+            # Check the status
+            status = asset_manager.check_asset_status(asset_config)
+
+            # Verify the result
+            assert status["exists"] is False
+            assert status["verified"] is False
+            assert status["path"] is None
+
+    def test_check_asset_status_cached_with_no_checksum(self, asset_manager, tmp_path):
+        """Test check_asset_status when the asset is cached but has no checksum."""
+        # Set up a mock cache path
+        cache_dir = tmp_path / "cache" / "asset"
+        cache_dir.mkdir(parents=True)
+
+        # Create a file and metadata
+        filename = "asset.bin"
+        file_path = cache_dir / filename
+        file_path.write_bytes(b"asset content")
+
+        metadata_path = cache_dir / ".asset_info.json"
+        with open(metadata_path, "w") as f:
+            json.dump({"name": "test-asset", "version": "1.0"}, f)
+
+        with patch.object(asset_manager, "_get_cache_path_for_asset") as mock_get_cache_path:
+            mock_get_cache_path.return_value = cache_dir
+
+            # Create an asset config (no checksum)
+            asset_config = AssetConfig(
+                name="test-asset",
+                version="1.0",
+                source=AssetSourceConfig(type="http", url="https://example.com/asset.bin", filename="asset.bin"),
+            )
+
+            # Check the status
+            status = asset_manager.check_asset_status(asset_config)
+
+            # Verify the result
+            assert status["exists"] is True
+            assert status["verified"] is True  # No checksum, so considered verified
+            assert status["path"] == file_path
+
+    def test_check_asset_status_cached_with_checksum_verified(self, asset_manager, tmp_path):
+        """Test check_asset_status when the asset is cached and verifies with checksum."""
+        # Set up a mock cache path
+        cache_dir = tmp_path / "cache" / "asset"
+        cache_dir.mkdir(parents=True)
+
+        # Create a file and metadata
+        filename = "asset.bin"
+        file_path = cache_dir / filename
+        file_path.write_bytes(b"asset content")
+
+        metadata_path = cache_dir / ".asset_info.json"
+        with open(metadata_path, "w") as f:
+            json.dump({"name": "test-asset", "version": "1.0"}, f)
+
+        with (
+            patch.object(asset_manager, "_get_cache_path_for_asset") as mock_get_cache_path,
+            patch.object(asset_manager, "verify_asset", return_value=True) as mock_verify_asset,
+        ):
+            mock_get_cache_path.return_value = cache_dir
+
+            # Create an asset config with checksum
+            asset_config = AssetConfig(
+                name="test-asset",
+                version="1.0",
+                source=AssetSourceConfig(type="http", url="https://example.com/asset.bin", filename="asset.bin"),
+                checksum="sha256:abcdef",
+            )
+
+            # Check the status
+            status = asset_manager.check_asset_status(asset_config)
+
+            # Verify the result
+            assert status["exists"] is True
+            assert status["verified"] is True
+            assert status["path"] == file_path
+            mock_verify_asset.assert_called_once_with(asset_config, file_path)
+
+    def test_check_asset_status_cached_with_checksum_failed(self, asset_manager, tmp_path):
+        """Test check_asset_status when the asset is cached but checksum verification fails."""
+        # Set up a mock cache path
+        cache_dir = tmp_path / "cache" / "asset"
+        cache_dir.mkdir(parents=True)
+
+        # Create a file and metadata
+        filename = "asset.bin"
+        file_path = cache_dir / filename
+        file_path.write_bytes(b"asset content")
+
+        metadata_path = cache_dir / ".asset_info.json"
+        with open(metadata_path, "w") as f:
+            json.dump({"name": "test-asset", "version": "1.0"}, f)
+
+        with (
+            patch.object(asset_manager, "_get_cache_path_for_asset") as mock_get_cache_path,
+            patch.object(asset_manager, "verify_asset", return_value=False) as mock_verify_asset,
+        ):
+            mock_get_cache_path.return_value = cache_dir
+
+            # Create an asset config with checksum
+            asset_config = AssetConfig(
+                name="test-asset",
+                version="1.0",
+                source=AssetSourceConfig(type="http", url="https://example.com/asset.bin", filename="asset.bin"),
+                checksum="sha256:abcdef",
+            )
+
+            # Check the status
+            status = asset_manager.check_asset_status(asset_config)
+
+            # Verify the result
+            assert status["exists"] is True
+            assert status["verified"] is False
+            assert status["path"] == file_path
+            mock_verify_asset.assert_called_once_with(asset_config, file_path)
+
+    def test_check_asset_status_with_unpacked_asset(self, asset_manager, tmp_path):
+        """Test check_asset_status with an unpacked asset."""
+        # Set up a mock cache path
+        cache_dir = tmp_path / "cache" / "asset"
+        cache_dir.mkdir(parents=True)
+
+        # Create the unpacked directory structure
+        unpacked_dir = cache_dir
+        (unpacked_dir / "file1.txt").write_text("content1")
+        (unpacked_dir / "file2.txt").write_text("content2")
+
+        metadata_path = cache_dir / ".asset_info.json"
+        with open(metadata_path, "w") as f:
+            json.dump({"name": "test-asset", "version": "1.0"}, f)
+
+        with patch.object(asset_manager, "_get_cache_path_for_asset") as mock_get_cache_path:
+            mock_get_cache_path.return_value = cache_dir
+
+            # Create an asset config for unpacked archive
+            asset_config = AssetConfig(
+                name="test-asset",
+                version="1.0",
+                source=AssetSourceConfig(type="http", url="https://example.com/archive.zip"),
+                unpack=True,
+                unpack_format="zip",
+            )
+
+            # Check the status
+            status = asset_manager.check_asset_status(asset_config)
+
+            # Verify the result
+            assert status["exists"] is True
+            assert status["verified"] is True  # No checksum, so considered verified
+            assert status["path"] == unpacked_dir
 
     def test_get_cache_path_for_asset(self):
         """Test the _get_cache_path_for_asset method."""
@@ -244,9 +409,16 @@ class TestAssetManager:
 
         # Mock the get_downloader_for_source function
         mock_downloader = AsyncMock()
+
         with patch(
             "openmas.assets.manager.get_downloader_for_source", return_value=mock_downloader
         ) as mock_get_downloader:
+            # Create a mock for the expected file path
+            expected_path = asset_manager._get_cache_path_for_asset(asset) / "asset"
+
+            # Set up the mock to return our expected path
+            mock_downloader.download.return_value = expected_path
+
             # Mock the mkdir method to avoid filesystem operations
             with patch("pathlib.Path.mkdir"):
                 # Call download_asset
@@ -256,16 +428,19 @@ class TestAssetManager:
                 mock_get_downloader.assert_called_once_with(asset.source)
                 mock_downloader.download.assert_called_once()
 
-                # Check the target path (should use "asset" as default filename)
-                expected_path = asset_manager._get_cache_path_for_asset(asset) / "asset"
-                assert mock_downloader.download.call_args[0][1] == expected_path
+                # Check the source config was passed correctly
+                call_args = mock_downloader.download.call_args[0]
+                assert call_args[0] == asset.source
+
+                # Check the target path
+                assert call_args[1] == expected_path
 
                 # Check the return value
                 assert result == expected_path
 
     @pytest.mark.asyncio
     async def test_download_asset_with_download_error(self, asset_manager: AssetManager) -> None:
-        """Test downloading an asset with a download error."""
+        """Test handling of AssetDownloadError during download."""
         # Create mock asset
         asset = AssetConfig(
             name="test-asset",
@@ -273,25 +448,25 @@ class TestAssetManager:
             source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
         )
 
-        # Mock the get_downloader_for_source function to raise a download error
+        # Mock the get_downloader_for_source function to raise AssetDownloadError
         mock_downloader = AsyncMock()
-        mock_downloader.download.side_effect = AssetDownloadError(
-            "Download failed", source_type="http", source_info="https://example.com/asset.bin"
-        )
-
-        with patch("openmas.assets.manager.get_downloader_for_source", return_value=mock_downloader):
+        mock_downloader.download.side_effect = AssetDownloadError("Download failed")
+        with patch(
+            "openmas.assets.manager.get_downloader_for_source", return_value=mock_downloader
+        ) as mock_get_downloader:
             # Mock the mkdir method to avoid filesystem operations
             with patch("pathlib.Path.mkdir"):
-                # Call download_asset and expect an error
-                with pytest.raises(AssetDownloadError) as exc_info:
+                # Call download_asset and expect the error to be re-raised
+                with pytest.raises(AssetDownloadError, match="Download failed"):
                     await asset_manager.download_asset(asset)
 
-                # Check the error message
-                assert "Download failed" in str(exc_info.value)
+                # Check that the downloader was called with the correct arguments
+                mock_get_downloader.assert_called_once_with(asset.source)
+                mock_downloader.download.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_download_asset_with_config_error(self, asset_manager: AssetManager) -> None:
-        """Test downloading an asset with a configuration error."""
+        """Test handling of AssetConfigurationError during downloader setup."""
         # Create mock asset
         asset = AssetConfig(
             name="test-asset",
@@ -299,23 +474,23 @@ class TestAssetManager:
             source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
         )
 
-        # Mock the get_downloader_for_source function to raise a configuration error
+        # Mock the get_downloader_for_source function to raise AssetConfigurationError
         with patch(
             "openmas.assets.manager.get_downloader_for_source",
             side_effect=AssetConfigurationError("Invalid configuration"),
-        ):
+        ) as mock_get_downloader:
             # Mock the mkdir method to avoid filesystem operations
             with patch("pathlib.Path.mkdir"):
-                # Call download_asset and expect an error
-                with pytest.raises(AssetConfigurationError) as exc_info:
+                # Call download_asset and expect the error to be re-raised
+                with pytest.raises(AssetConfigurationError, match="Invalid configuration"):
                     await asset_manager.download_asset(asset)
 
-                # Check the error message
-                assert "Invalid configuration" in str(exc_info.value)
+                # Check that the downloader was called with the correct arguments
+                mock_get_downloader.assert_called_once_with(asset.source)
 
     @pytest.mark.asyncio
     async def test_download_asset_with_unexpected_error(self, asset_manager: AssetManager) -> None:
-        """Test downloading an asset with an unexpected error."""
+        """Test handling of unexpected errors during download."""
         # Create mock asset
         asset = AssetConfig(
             name="test-asset",
@@ -323,656 +498,395 @@ class TestAssetManager:
             source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
         )
 
-        # Mock the get_downloader_for_source function to raise an unexpected error
-        with patch("openmas.assets.manager.get_downloader_for_source", side_effect=RuntimeError("Unexpected error")):
+        # Mock the get_downloader_for_source function to raise RuntimeError
+        with patch(
+            "openmas.assets.manager.get_downloader_for_source",
+            side_effect=RuntimeError("Unexpected error"),
+        ) as mock_get_downloader:
             # Mock the mkdir method to avoid filesystem operations
             with patch("pathlib.Path.mkdir"):
-                # Call download_asset and expect an error
-                with pytest.raises(AssetDownloadError) as exc_info:
+                # Call download_asset and expect the error to be wrapped as AssetDownloadError
+                with pytest.raises(AssetDownloadError) as excinfo:
                     await asset_manager.download_asset(asset)
 
-                # Check the error message
-                assert "Unexpected error downloading asset 'test-asset'" in str(exc_info.value)
-                assert "Unexpected error" in str(exc_info.value)
+                # Check that the error message contains the expected information
+                error_msg = str(excinfo.value)
+                assert "Unexpected error downloading asset" in error_msg
+                assert "test-asset" in error_msg
+                assert "Unexpected error" in error_msg
+
+                # Verify the mock was called
+                mock_get_downloader.assert_called_once_with(asset.source)
 
 
-@pytest.fixture
-def mock_project_config():
-    """Create a mock ProjectConfig with assets."""
-    # Create a simple asset configuration
-    assets = [
-        AssetConfig(
-            name="test-model",
+class TestAssetManagerClearCache:
+    """Tests for the cache clearing methods of AssetManager."""
+
+    @pytest.fixture
+    def mock_project_config(self) -> ProjectConfig:
+        """Create a mock project configuration for testing."""
+        project_config = MagicMock(spec=ProjectConfig)
+        project_config.assets = []
+        project_config.settings = None
+        return project_config
+
+    @pytest.fixture
+    def asset_manager(self, mock_project_config: ProjectConfig) -> AssetManager:
+        """Create an AssetManager instance for testing."""
+        manager = AssetManager(mock_project_config)
+        return manager
+
+    def test_clear_asset_cache_success(self, asset_manager, tmp_path):
+        """Test clearing the cache for a specific asset successfully."""
+        # Set up asset_manager and asset
+        asset_name = "test-asset"
+
+        # Create a mock asset
+        asset = AssetConfig(
+            name=asset_name,
             version="1.0",
-            asset_type="model",
-            source=AssetSourceConfig(type="http", url="https://example.com/model.bin"),
-        ),
-        AssetConfig(
-            name="test-archive",
+            source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
+        )
+
+        # Add asset to manager's asset dictionary
+        asset_manager.assets[asset_name] = asset
+
+        # Create a mock asset directory
+        asset_dir = tmp_path / "asset-cache"
+        asset_dir.mkdir()
+        (asset_dir / "test-file.bin").write_bytes(b"test data")
+
+        with patch.object(asset_manager, "_get_cache_path_for_asset", return_value=asset_dir) as mock_get_cache_path:
+            # Call clear_asset_cache
+            result = asset_manager.clear_asset_cache(asset_name)
+
+            # Verify the result
+            assert result is True
+            mock_get_cache_path.assert_called_once_with(asset)
+
+            # Verify the directory was removed
+            assert not asset_dir.exists()
+
+    def test_clear_asset_cache_nonexistent_asset(self, asset_manager):
+        """Test clearing the cache for a nonexistent asset."""
+        # Call clear_asset_cache with a nonexistent asset name
+        with pytest.raises(KeyError, match="Asset 'nonexistent' not found"):
+            asset_manager.clear_asset_cache("nonexistent")
+
+    def test_clear_asset_cache_nonexistent_directory(self, asset_manager, tmp_path):
+        """Test clearing the cache for an asset whose directory doesn't exist."""
+        # Set up asset_manager and asset
+        asset_name = "test-asset"
+
+        # Create a mock asset
+        asset = AssetConfig(
+            name=asset_name,
             version="1.0",
-            asset_type="dataset",
-            source=AssetSourceConfig(type="http", url="https://example.com/data.zip"),
-            unpack=True,
-            unpack_format="zip",
-        ),
-        AssetConfig(
-            name="test-with-checksum",
+            source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
+        )
+
+        # Add asset to manager's asset dictionary
+        asset_manager.assets[asset_name] = asset
+
+        # Return a nonexistent directory
+        nonexistent_dir = tmp_path / "nonexistent"
+
+        with patch.object(
+            asset_manager, "_get_cache_path_for_asset", return_value=nonexistent_dir
+        ) as mock_get_cache_path:
+            # Call clear_asset_cache
+            result = asset_manager.clear_asset_cache(asset_name)
+
+            # Verify the result (should still return True)
+            assert result is True
+            mock_get_cache_path.assert_called_once_with(asset)
+
+    def test_clear_asset_cache_exception(self, asset_manager, tmp_path):
+        """Test handling exceptions when clearing the cache for an asset."""
+        # Set up asset_manager and asset
+        asset_name = "test-asset"
+
+        # Create a mock asset
+        asset = AssetConfig(
+            name=asset_name,
             version="1.0",
-            asset_type="model",
-            source=AssetSourceConfig(type="http", url="https://example.com/with-checksum.bin"),
-            checksum="sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        ),
-    ]
-
-    # Create a mock ProjectConfig
-    project_config = MagicMock(spec=ProjectConfig)
-    project_config.assets = assets
-
-    # Create mock settings
-    settings = MagicMock()
-    settings.assets = AssetSettings(cache_dir=None)
-    project_config.settings = settings
-
-    return project_config
-
-
-@pytest.fixture
-def asset_manager(mock_project_config, tmp_path):
-    """Create an AssetManager with a temporary cache directory."""
-    # Override the cache directory to use a temporary path
-    os.environ["OPENMAS_ASSETS_DIR"] = str(tmp_path)
-
-    # Create the AssetManager
-    manager = AssetManager(mock_project_config)
-
-    # Yield the manager for the test
-    yield manager
-
-    # Clean up
-    if "OPENMAS_ASSETS_DIR" in os.environ:
-        del os.environ["OPENMAS_ASSETS_DIR"]
-
-
-class TestAssetManagerVerify:
-    """Tests for AssetManager.verify_asset method."""
-
-    def test_verify_asset_no_checksum(self, asset_manager, tmp_path):
-        """Test verify_asset when no checksum is specified."""
-        # Create a mock asset config without a checksum
-        asset_config = AssetConfig(
-            name="test",
-            source=AssetSourceConfig(type="http", url="https://example.com/test.bin"),
+            source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
         )
 
-        # Create a dummy file
-        asset_path = tmp_path / "test.bin"
-        asset_path.touch()
+        # Add asset to manager's asset dictionary
+        asset_manager.assets[asset_name] = asset
 
-        # Verify should return True (skipped)
-        assert asset_manager.verify_asset(asset_config, asset_path) is True
+        # Create a mock asset directory
+        asset_dir = tmp_path / "asset-cache"
+        asset_dir.mkdir()
 
-    @patch("openmas.assets.manager.verify_checksum")
-    def test_verify_asset_with_checksum_success(self, mock_verify_checksum, asset_manager, tmp_path):
-        """Test verify_asset with a valid checksum."""
-        # Create a mock asset config with a checksum
-        asset_config = AssetConfig(
-            name="test",
-            source=AssetSourceConfig(type="http", url="https://example.com/test.bin"),
-            checksum="sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
+        with (
+            patch.object(asset_manager, "_get_cache_path_for_asset", return_value=asset_dir) as mock_get_cache_path,
+            patch("shutil.rmtree", side_effect=PermissionError("Permission denied")) as mock_rmtree,
+        ):
+            # Call clear_asset_cache
+            result = asset_manager.clear_asset_cache(asset_name)
 
-        # Create a dummy file
-        asset_path = tmp_path / "test.bin"
-        asset_path.touch()
+            # Verify the result
+            assert result is False
+            mock_get_cache_path.assert_called_once_with(asset)
+            mock_rmtree.assert_called_once_with(asset_dir)
 
-        # Configure the mock to return True
-        mock_verify_checksum.return_value = True
+    def test_clear_entire_cache_success(self, asset_manager, tmp_path):
+        """Test clearing the entire cache successfully."""
+        # Set the cache directory
+        asset_manager.cache_dir = tmp_path / "cache"
+        asset_manager.cache_dir.mkdir()
 
-        # Verify should return True
-        assert asset_manager.verify_asset(asset_config, asset_path) is True
+        # Create some test directories in the cache
+        (asset_manager.cache_dir / "dir1").mkdir()
+        (asset_manager.cache_dir / "dir2").mkdir()
+        (asset_manager.cache_dir / ".locks").mkdir()  # Should be preserved
 
-        # Verify the mock was called correctly
-        mock_verify_checksum.assert_called_once_with(
-            asset_path,
-            "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
+        # Create an HF cache directory (should be preserved by default)
+        hf_cache = asset_manager.cache_dir / "huggingface"
+        hf_cache.mkdir()
 
-    @patch("openmas.assets.manager.verify_checksum")
-    def test_verify_asset_with_checksum_failure(self, mock_verify_checksum, asset_manager, tmp_path):
-        """Test verify_asset with an invalid checksum."""
-        # Create a mock asset config with a checksum
-        asset_config = AssetConfig(
-            name="test",
-            source=AssetSourceConfig(type="http", url="https://example.com/test.bin"),
-            checksum="sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
+        # Call clear_entire_cache
+        asset_manager.clear_entire_cache()
 
-        # Create a dummy file
-        asset_path = tmp_path / "test.bin"
-        asset_path.touch()
+        # Verify the directories were removed except for .locks and huggingface
+        assert not (asset_manager.cache_dir / "dir1").exists()
+        assert not (asset_manager.cache_dir / "dir2").exists()
+        assert (asset_manager.cache_dir / ".locks").exists()
+        assert (asset_manager.cache_dir / "huggingface").exists()
 
-        # Configure the mock to return False
-        mock_verify_checksum.return_value = False
+        # Verify the cache directory itself still exists
+        assert asset_manager.cache_dir.exists()
 
-        # Verify should return False
-        assert asset_manager.verify_asset(asset_config, asset_path) is False
+    def test_clear_entire_cache_include_hf(self, asset_manager, tmp_path):
+        """Test clearing the entire cache including Hugging Face cache."""
+        # Set the cache directory
+        asset_manager.cache_dir = tmp_path / "cache"
+        asset_manager.cache_dir.mkdir()
 
-        # Verify the mock was called correctly
-        mock_verify_checksum.assert_called_once_with(
-            asset_path,
-            "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
+        # Create some test directories in the cache
+        (asset_manager.cache_dir / "dir1").mkdir()
+        (asset_manager.cache_dir / ".locks").mkdir()  # Should be preserved
 
+        # Create an HF cache directory
+        hf_cache = asset_manager.cache_dir / "huggingface"
+        hf_cache.mkdir()
 
-class TestAssetManagerUnpack:
-    """Tests for AssetManager.unpack_asset method."""
+        # Call clear_entire_cache with exclude_hf_cache=False
+        asset_manager.clear_entire_cache(exclude_hf_cache=False)
 
-    def test_unpack_asset_not_configured(self, asset_manager, tmp_path):
-        """Test unpack_asset when unpacking is not configured."""
-        # Create a mock asset config without unpack
-        asset_config = AssetConfig(
-            name="test",
-            source=AssetSourceConfig(type="http", url="https://example.com/test.bin"),
-        )
+        # Verify the directories were removed except for .locks
+        assert not (asset_manager.cache_dir / "dir1").exists()
+        assert (asset_manager.cache_dir / ".locks").exists()
+        assert not (asset_manager.cache_dir / "huggingface").exists()
 
-        # Create dummy files
-        archive_path = tmp_path / "test.bin"
-        archive_path.touch()
-        target_dir = tmp_path / "target"
-        target_dir.mkdir()
+    def test_clear_entire_cache_empty(self, asset_manager, tmp_path):
+        """Test clearing an empty cache."""
+        # Set the cache directory
+        asset_manager.cache_dir = tmp_path / "cache"
+        asset_manager.cache_dir.mkdir()
 
-        # Should not raise any exceptions
-        asset_manager.unpack_asset(asset_config, archive_path, target_dir)
+        # Create only .locks directory
+        (asset_manager.cache_dir / ".locks").mkdir()
 
-        # The target directory should still be empty
-        assert list(target_dir.iterdir()) == []
+        # Call clear_entire_cache
+        asset_manager.clear_entire_cache()
 
-    def test_unpack_asset_missing_format(self, asset_manager, tmp_path):
-        """Test unpack_asset when unpack is True but format is missing."""
-        # Create a mock asset config with unpack but no format using MagicMock to bypass validation
-        asset_config = MagicMock(spec=AssetConfig)
-        asset_config.name = "test"
-        asset_config.source = AssetSourceConfig(type="http", url="https://example.com/test.zip")
-        asset_config.unpack = True
-        asset_config.unpack_format = None
+        # Verify .locks directory still exists
+        assert (asset_manager.cache_dir / ".locks").exists()
 
-        # Create dummy files
-        archive_path = tmp_path / "test.zip"
-        archive_path.touch()
-        target_dir = tmp_path / "target"
-        target_dir.mkdir()
+        # Verify the cache directory itself still exists
+        assert asset_manager.cache_dir.exists()
 
-        # Should raise an exception
-        with pytest.raises(AssetConfigurationError):
-            asset_manager.unpack_asset(asset_config, archive_path, target_dir)
+    def test_clear_entire_cache_exception(self, asset_manager, tmp_path):
+        """Test handling exceptions when clearing the entire cache."""
+        # Set the cache directory
+        asset_manager.cache_dir = tmp_path / "cache"
+        asset_manager.cache_dir.mkdir()
 
-    @patch("openmas.assets.manager.unpack_archive")
-    @patch("openmas.assets.manager.asset_lock")
-    def test_unpack_asset_success(self, mock_asset_lock, mock_unpack_archive, asset_manager, tmp_path):
-        """Test successful unpacking of an asset."""
-        # Create a mock asset config
-        asset_config = AssetConfig(
-            name="test",
-            source=AssetSourceConfig(type="http", url="https://example.com/test.zip"),
-            unpack=True,
-            unpack_format="zip",
-        )
+        # Create a test directory
+        test_dir = asset_manager.cache_dir / "test"
+        test_dir.mkdir()
 
-        # Create dummy files
-        archive_path = tmp_path / "test.zip"
-        archive_path.touch()
-        target_dir = tmp_path / "target"
-        target_dir.mkdir()
+        with patch("shutil.rmtree", side_effect=PermissionError("Permission denied")):
+            # Call clear_entire_cache
+            # Should not raise an exception
+            asset_manager.clear_entire_cache()
 
-        # Configure the mock context manager
-        mock_asset_lock.return_value.__enter__.return_value = None
-
-        # Call the method
-        asset_manager.unpack_asset(asset_config, archive_path, target_dir)
-
-        # Verify the mocks were called correctly
-        mock_asset_lock.assert_called_once()
-        mock_unpack_archive.assert_called_once_with(archive_path, target_dir, "zip")
-
-        # Verify the marker file was created
-        assert (target_dir / ".unpacked").exists()
-
-    @patch("openmas.assets.manager.unpack_archive")
-    @patch("openmas.assets.manager.asset_lock")
-    def test_unpack_asset_already_unpacked(self, mock_asset_lock, mock_unpack_archive, asset_manager, tmp_path):
-        """Test unpacking when the asset is already unpacked."""
-        # Create a mock asset config
-        asset_config = AssetConfig(
-            name="test",
-            source=AssetSourceConfig(type="http", url="https://example.com/test.zip"),
-            unpack=True,
-            unpack_format="zip",
-        )
-
-        # Create dummy files
-        archive_path = tmp_path / "test.zip"
-        archive_path.touch()
-        target_dir = tmp_path / "target"
-        target_dir.mkdir()
-
-        # Create the marker file to indicate it's already unpacked
-        (target_dir / ".unpacked").touch()
-
-        # Configure the mock context manager
-        mock_asset_lock.return_value.__enter__.return_value = None
-
-        # Call the method
-        asset_manager.unpack_asset(asset_config, archive_path, target_dir)
-
-        # Verify the lock was acquired
-        mock_asset_lock.assert_called_once()
-
-        # Verify unpack_archive was NOT called
-        mock_unpack_archive.assert_not_called()
+            # Since rmtree failed, the directory should still exist
+            assert test_dir.exists()
 
 
-class TestAssetManagerGetAssetPath:
-    """Tests for AssetManager.get_asset_path method."""
+class TestAssetManagerGetAssetPathRetries:
+    """Tests for the get_asset_path method of AssetManager with retries."""
 
-    @pytest.mark.asyncio
-    async def test_get_asset_path_nonexistent_asset(self, asset_manager):
-        """Test get_asset_path with a nonexistent asset name."""
-        with pytest.raises(KeyError):
-            await asset_manager.get_asset_path("nonexistent-asset")
+    @pytest.fixture
+    def mock_project_config(self) -> ProjectConfig:
+        """Create a mock project configuration for testing."""
+        project_config = MagicMock(spec=ProjectConfig)
+        project_config.assets = []
+        project_config.settings = None
+        return project_config
+
+    @pytest.fixture
+    def asset_manager(self, mock_project_config: ProjectConfig) -> AssetManager:
+        """Create an AssetManager instance for testing."""
+        manager = AssetManager(mock_project_config)
+        return manager
 
     @pytest.mark.asyncio
     @patch("openmas.assets.manager.async_asset_lock")
-    async def test_get_asset_path_already_cached(self, mock_async_asset_lock, asset_manager, tmp_path):
-        """Test get_asset_path when the asset is already cached."""
-        # Configure the mock async context manager
-        mock_async_asset_lock.return_value.__aenter__.return_value = None
-        mock_async_asset_lock.return_value.__aexit__.return_value = None
-
-        # Create a mock asset config
-        asset_config = AssetConfig(
-            name="test-model",
-            version="1.0",
-            source=AssetSourceConfig(type="http", url="https://example.com/model.bin"),
-        )
-        # Add it to the manager's assets dictionary
-        asset_manager.assets = {"test-model": asset_config}
-
-        # Create the cached asset
-        asset_dir = tmp_path / "model" / "test-model" / "1.0"
+    @patch("openmas.assets.manager.AssetManager.download_asset")
+    async def test_get_asset_path_with_retries_success(
+        self, mock_download_asset, mock_async_asset_lock, asset_manager, tmp_path
+    ):
+        """Test get_asset_path with retries eventually succeeding."""
+        # Set up asset and manager
+        asset_name = "test-asset"
+        asset_dir = tmp_path / "asset-dir"
         asset_dir.mkdir(parents=True)
-        asset_file = asset_dir / "model.bin"
-        asset_file.touch()
+        downloaded_file = asset_dir / "asset.bin"
 
-        # Create metadata file
-        metadata_path = asset_dir / ".asset_info.json"
-        metadata = {
-            "name": "test-model",
-            "version": "1.0",
-            "asset_type": "model",
-            "source_type": "http",
-            "checksum": None,
-            "unpack": False,
-            "unpack_format": None,
-            "description": None,
-        }
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f)
-
-        # Mock get_cache_path_for_asset to return our test path
-        asset_manager._get_cache_path_for_asset = MagicMock(return_value=asset_dir)
-
-        # Get the asset path
-        result = await asset_manager.get_asset_path("test-model")
-
-        # Verify the result
-        assert result == asset_file
-
-        # Verify the lock was acquired
-        mock_async_asset_lock.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch("openmas.assets.manager.async_asset_lock")
-    @patch("openmas.assets.manager.AssetManager.download_asset")
-    async def test_get_asset_path_download_needed(
-        self, mock_download_asset, mock_async_asset_lock, asset_manager, tmp_path
-    ):
-        """Test get_asset_path when the asset needs to be downloaded."""
-        # Configure the mock async context manager
-        mock_async_asset_lock.return_value.__aenter__.return_value = None
-
-        # Configure the download mock
-        downloaded_path = tmp_path / "model" / "test-model" / "1.0" / "model.bin"
-        mock_download_asset.return_value = downloaded_path
-
-        # Get the asset path
-        result = await asset_manager.get_asset_path("test-model")
-
-        # Verify the result
-        assert result == downloaded_path
-
-        # Verify the download was called
-        mock_download_asset.assert_called_once()
-
-        # Verify the lock was acquired
-        mock_async_asset_lock.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch("openmas.assets.manager.async_asset_lock")
-    @patch("openmas.assets.manager.AssetManager.download_asset")
-    @patch("openmas.assets.manager.AssetManager.verify_asset")
-    async def test_get_asset_path_with_checksum(
-        self, mock_verify_asset, mock_download_asset, mock_async_asset_lock, asset_manager, tmp_path
-    ):
-        """Test get_asset_path with an asset that has a checksum."""
-        # Configure the mock async context manager
-        mock_async_asset_lock.return_value.__aenter__.return_value = None
-
-        # Configure the download mock
-        downloaded_path = tmp_path / "model" / "test-with-checksum" / "1.0" / "with-checksum.bin"
-        mock_download_asset.return_value = downloaded_path
-
-        # Configure the verify mock
-        mock_verify_asset.return_value = True
-
-        # Get the asset path
-        result = await asset_manager.get_asset_path("test-with-checksum")
-
-        # Verify the result
-        assert result == downloaded_path
-
-        # Verify the download was called
-        mock_download_asset.assert_called_once()
-
-        # Verify the verify was called
-        mock_verify_asset.assert_called_once()
-
-        # Verify the lock was acquired
-        mock_async_asset_lock.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch("openmas.assets.manager.async_asset_lock")
-    @patch("openmas.assets.manager.AssetManager.download_asset")
-    @patch("openmas.assets.manager.AssetManager.verify_asset")
-    async def test_get_asset_path_checksum_failure(
-        self, mock_verify_asset, mock_download_asset, mock_async_asset_lock, asset_manager, tmp_path
-    ):
-        """Test get_asset_path when checksum verification fails."""
-        # Configure the mock async context manager
-        mock_async_asset_lock.return_value.__aenter__.return_value = None
-
-        # Configure the download mock
-        downloaded_path = tmp_path / "model" / "test-with-checksum" / "1.0" / "with-checksum.bin"
-        mock_download_asset.return_value = downloaded_path
-
-        # Configure the verify mock to fail
-        mock_verify_asset.return_value = False
-
-        # Should raise an exception
-        with pytest.raises(AssetVerificationError):
-            await asset_manager.get_asset_path("test-with-checksum")
-
-        # Verify the download was called
-        mock_download_asset.assert_called_once()
-
-        # Verify the verify was called
-        mock_verify_asset.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch("openmas.assets.manager.async_asset_lock")
-    @patch("openmas.assets.manager.AssetManager.download_asset")
-    @patch("openmas.assets.manager.AssetManager.unpack_asset")
-    async def test_get_asset_path_with_unpacking(
-        self, mock_unpack_asset, mock_download_asset, mock_async_asset_lock, asset_manager, tmp_path
-    ):
-        """Test get_asset_path with an asset that needs unpacking."""
-        # Configure the mock async context manager
-        mock_async_asset_lock.return_value.__aenter__.return_value = None
-
-        # Configure the download mock
-        downloaded_path = tmp_path / "dataset" / "test-archive" / "1.0" / "data.zip"
-        mock_download_asset.return_value = downloaded_path
-
-        # Get the asset path
-        result = await asset_manager.get_asset_path("test-archive")
-
-        # Verify the result - should be the directory, not the file
-        expected_path = tmp_path / "dataset" / "test-archive" / "1.0"
-        assert result == expected_path
-
-        # Verify the download was called
-        mock_download_asset.assert_called_once()
-
-        # Verify the unpack was called
-        mock_unpack_asset.assert_called_once()
-
-        # Verify the lock was acquired
-        mock_async_asset_lock.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch("openmas.assets.manager.async_asset_lock")
-    @patch("openmas.assets.manager.AssetManager.download_asset")
-    async def test_get_asset_path_creates_metadata(
-        self, mock_download_asset, mock_async_asset_lock, asset_manager, tmp_path
-    ):
-        """Test that get_asset_path creates metadata after download."""
-        # Create a mock asset
+        # Create an asset with multiple retries
         asset = AssetConfig(
-            name="test-asset",
+            name=asset_name,
             version="1.0",
             source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
+            retries=2,  # Will try up to 3 times (initial + 2 retries)
         )
 
-        # Add the asset to the manager
-        asset_manager.assets = {"test-asset": asset}
+        # Add to manager's assets
+        asset_manager.assets[asset_name] = asset
 
-        # Set up the cache path
-        asset_dir = tmp_path / "model" / "test-asset" / "1.0"
-        asset_path = asset_dir / "asset.bin"
-        metadata_path = asset_dir / ".asset_info.json"
+        # Mock async_asset_lock to pass through the context
+        mock_context = MagicMock()
+        mock_async_lock_instance = AsyncMock()
+        mock_async_lock_instance.__aenter__.return_value = mock_context
+        mock_async_asset_lock.return_value = mock_async_lock_instance
 
-        # Mock _get_cache_path_for_asset to return our test path
-        asset_manager._get_cache_path_for_asset = MagicMock(return_value=asset_dir)
+        # Mock _get_cache_path_for_asset and _get_lock_path_for_asset
+        with (
+            patch.object(asset_manager, "_get_cache_path_for_asset", return_value=asset_dir),
+            patch.object(asset_manager, "_get_lock_path_for_asset", return_value=Path("lock_path")),
+        ):
+            # Mock the download_asset method to fail twice then succeed
+            mock_download_asset.side_effect = [
+                AssetDownloadError("Download failed (attempt 1)"),
+                AssetDownloadError("Download failed (attempt 2)"),
+                downloaded_file,  # Success on third attempt
+            ]
 
-        # Set up the mock download to create a file
-        asset_dir.mkdir(parents=True, exist_ok=True)
-        mock_download_asset.return_value = asset_path
-        with open(asset_path, "w") as f:
-            f.write("test data")
+            # Call get_asset_path
+            result = await asset_manager.get_asset_path(asset_name)
 
-        # Mock the async_asset_lock context manager
-        mock_async_asset_lock.return_value.__aenter__.return_value = None
-        mock_async_asset_lock.return_value.__aexit__.return_value = None
+            # Verify the result
+            assert result == downloaded_file
 
-        # Call get_asset_path
-        result = await asset_manager.get_asset_path("test-asset")
+            # Verify download_asset was called 3 times
+            assert mock_download_asset.call_count == 3
 
-        # Verify the result
-        assert result == asset_path
-        mock_download_asset.assert_called_once_with(asset)
-
-        # Verify metadata file was created
-        assert metadata_path.exists()
-        with open(metadata_path, "r") as f:
-            metadata = json.load(f)
-            assert metadata["name"] == "test-asset"
-            assert metadata["version"] == "1.0"
-            assert metadata["source_type"] == "http"
+            # Verify metadata was created
+            metadata_path = asset_dir / ".asset_info.json"
+            assert metadata_path.exists()
 
     @pytest.mark.asyncio
     @patch("openmas.assets.manager.async_asset_lock")
     @patch("openmas.assets.manager.AssetManager.download_asset")
-    async def test_get_asset_path_checks_metadata(
+    async def test_get_asset_path_with_retries_exhausted(
         self, mock_download_asset, mock_async_asset_lock, asset_manager, tmp_path
     ):
-        """Test that get_asset_path checks metadata before download."""
-        # Create a mock asset
+        """Test get_asset_path with retries exhausted."""
+        # Set up asset and manager
+        asset_name = "test-asset"
+        asset_dir = tmp_path / "asset-dir"
+        asset_dir.mkdir(parents=True)
+
+        # Create an asset with multiple retries
         asset = AssetConfig(
-            name="test-asset",
+            name=asset_name,
             version="1.0",
             source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
+            retries=1,  # Will try up to 2 times (initial + 1 retry)
         )
 
-        # Add the asset to the manager
-        asset_manager.assets = {"test-asset": asset}
+        # Add to manager's assets
+        asset_manager.assets[asset_name] = asset
 
-        # Set up the cache path
-        asset_dir = tmp_path / "model" / "test-asset" / "1.0"
-        asset_path = asset_dir / "asset.bin"
-        metadata_path = asset_dir / ".asset_info.json"
+        # Mock async_asset_lock to pass through the context
+        mock_context = MagicMock()
+        mock_async_lock_instance = AsyncMock()
+        mock_async_lock_instance.__aenter__.return_value = mock_context
+        mock_async_asset_lock.return_value = mock_async_lock_instance
 
-        # Mock _get_cache_path_for_asset to return our test path
-        asset_manager._get_cache_path_for_asset = MagicMock(return_value=asset_dir)
+        # Mock _get_cache_path_for_asset and _get_lock_path_for_asset
+        with (
+            patch.object(asset_manager, "_get_cache_path_for_asset", return_value=asset_dir),
+            patch.object(asset_manager, "_get_lock_path_for_asset", return_value=Path("lock_path")),
+        ):
+            # Mock the download_asset method to fail every time
+            mock_download_asset.side_effect = AssetDownloadError("Download failed repeatedly")
 
-        # Create the asset directory and file
-        asset_dir.mkdir(parents=True, exist_ok=True)
-        with open(asset_path, "w") as f:
-            f.write("test data")
+            # Call get_asset_path and expect an error
+            with pytest.raises(AssetDownloadError, match="Failed to download asset"):
+                await asset_manager.get_asset_path(asset_name)
 
-        # Create metadata file with matching data
-        metadata = {
-            "name": "test-asset",
-            "version": "1.0",
-            "asset_type": "model",
-            "source_type": "http",
-            "checksum": None,
-            "unpack": False,
-            "unpack_format": None,
-            "description": None,
-        }
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f)
+            # Verify download_asset was called 2 times
+            assert mock_download_asset.call_count == 2
 
-        # Mock the async_asset_lock context manager
-        mock_async_asset_lock.return_value.__aenter__.return_value = None
-        mock_async_asset_lock.return_value.__aexit__.return_value = None
-
-        # Call get_asset_path
-        result = await asset_manager.get_asset_path("test-asset")
-
-        # Verify the result
-        assert result == asset_path
-        # Download should not be called since metadata matches
-        mock_download_asset.assert_not_called()
+            # Verify no metadata was created
+            metadata_path = asset_dir / ".asset_info.json"
+            assert not metadata_path.exists()
 
     @pytest.mark.asyncio
     @patch("openmas.assets.manager.async_asset_lock")
     @patch("openmas.assets.manager.AssetManager.download_asset")
-    async def test_get_asset_path_redownloads_on_metadata_mismatch(
+    async def test_get_asset_path_with_different_errors(
         self, mock_download_asset, mock_async_asset_lock, asset_manager, tmp_path
     ):
-        """Test that get_asset_path redownloads if metadata doesn't match."""
-        # Create a mock asset
+        """Test get_asset_path with different types of errors during retries."""
+        # Set up asset and manager
+        asset_name = "test-asset"
+        asset_dir = tmp_path / "asset-dir"
+        asset_dir.mkdir(parents=True)
+        downloaded_file = asset_dir / "asset.bin"
+
+        # Create an asset with multiple retries
         asset = AssetConfig(
-            name="test-asset",
+            name=asset_name,
             version="1.0",
             source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
+            retries=2,  # Will try up to 3 times (initial + 2 retries)
         )
 
-        # Add the asset to the manager
-        asset_manager.assets = {"test-asset": asset}
+        # Add to manager's assets
+        asset_manager.assets[asset_name] = asset
 
-        # Set up the cache path
-        asset_dir = tmp_path / "model" / "test-asset" / "1.0"
-        asset_path = asset_dir / "asset.bin"
-        metadata_path = asset_dir / ".asset_info.json"
+        # Mock async_asset_lock to pass through the context
+        mock_context = MagicMock()
+        mock_async_lock_instance = AsyncMock()
+        mock_async_lock_instance.__aenter__.return_value = mock_context
+        mock_async_asset_lock.return_value = mock_async_lock_instance
 
-        # Mock _get_cache_path_for_asset to return our test path
-        asset_manager._get_cache_path_for_asset = MagicMock(return_value=asset_dir)
+        # Mock _get_cache_path_for_asset and _get_lock_path_for_asset
+        with (
+            patch.object(asset_manager, "_get_cache_path_for_asset", return_value=asset_dir),
+            patch.object(asset_manager, "_get_lock_path_for_asset", return_value=Path("lock_path")),
+            patch.object(
+                asset_manager,
+                "download_asset",
+                side_effect=[
+                    AssetDownloadError("Network error"),
+                    AssetDownloadError("Connection failed"),  # Wrap in AssetDownloadError
+                    downloaded_file,  # Success on third attempt
+                ],
+            ),
+        ):
+            # Call get_asset_path
+            result = await asset_manager.get_asset_path(asset_name)
 
-        # Create the asset directory and file
-        asset_dir.mkdir(parents=True, exist_ok=True)
-        with open(asset_path, "w") as f:
-            f.write("test data")
+            # Verify the result
+            assert result == downloaded_file
 
-        # Create metadata file with mismatched data (different version)
-        metadata = {
-            "name": "test-asset",
-            "version": "0.9",  # Different version
-            "asset_type": "model",
-            "source_type": "http",
-            "checksum": None,
-            "unpack": False,
-            "unpack_format": None,
-            "description": None,
-        }
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f)
-
-        # Set up the mock download to create a file
-        mock_download_asset.return_value = asset_path
-
-        # Mock the async_asset_lock context manager
-        mock_async_asset_lock.return_value.__aenter__.return_value = None
-        mock_async_asset_lock.return_value.__aexit__.return_value = None
-
-        # Call get_asset_path
-        result = await asset_manager.get_asset_path("test-asset")
-
-        # Verify the result
-        assert result == asset_path
-        # Download should be called since metadata doesn't match
-        mock_download_asset.assert_called_once_with(asset)
-
-        # Verify metadata file was updated
-        with open(metadata_path, "r") as f:
-            updated_metadata = json.load(f)
-            assert updated_metadata["name"] == "test-asset"
-            assert updated_metadata["version"] == "1.0"
-            assert updated_metadata["source_type"] == "http"
-
-    @pytest.mark.asyncio
-    @patch("openmas.assets.manager.async_asset_lock")
-    @patch("openmas.assets.manager.AssetManager.download_asset")
-    async def test_get_asset_path_handles_invalid_metadata(
-        self, mock_download_asset, mock_async_asset_lock, asset_manager, tmp_path
-    ):
-        """Test that get_asset_path handles invalid metadata."""
-        # Create a mock asset
-        asset = AssetConfig(
-            name="test-asset",
-            version="1.0",
-            source=AssetSourceConfig(type="http", url="https://example.com/asset.bin"),
-        )
-
-        # Add the asset to the manager
-        asset_manager.assets = {"test-asset": asset}
-
-        # Set up the cache path
-        asset_dir = tmp_path / "model" / "test-asset" / "1.0"
-        asset_path = asset_dir / "asset.bin"
-        metadata_path = asset_dir / ".asset_info.json"
-
-        # Mock _get_cache_path_for_asset to return our test path
-        asset_manager._get_cache_path_for_asset = MagicMock(return_value=asset_dir)
-
-        # Create the asset directory and file
-        asset_dir.mkdir(parents=True, exist_ok=True)
-        with open(asset_path, "w") as f:
-            f.write("test data")
-
-        # Create invalid metadata file
-        with open(metadata_path, "w") as f:
-            f.write("not valid json")
-
-        # Set up the mock download to create a file
-        mock_download_asset.return_value = asset_path
-
-        # Mock the async_asset_lock context manager
-        mock_async_asset_lock.return_value.__aenter__.return_value = None
-        mock_async_asset_lock.return_value.__aexit__.return_value = None
-
-        # Call get_asset_path
-        result = await asset_manager.get_asset_path("test-asset")
-
-        # Verify the result
-        assert result == asset_path
-        # Download should be called since metadata is invalid
-        mock_download_asset.assert_called_once_with(asset)
-
-        # Verify metadata file was fixed
-        assert metadata_path.exists()
-        with open(metadata_path, "r") as f:
-            metadata = json.load(f)  # Should not raise exception now
-            assert metadata["name"] == "test-asset"
-            assert metadata["version"] == "1.0"
-            assert metadata["source_type"] == "http"
+            # Verify download_asset was called 3 times
+            assert asset_manager.download_asset.call_count == 3

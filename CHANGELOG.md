@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2]
+
+### Added
+
+- **Enhanced Asset Management:**
+  - **Automatic .env Loading:** Detects and loads environment variables from `.env` file for all CLI commands
+  - **Secure Authentication:** Added support for authentication with gated assets (Hugging Face Hub, HTTP)
+  - **Configurable Retries:** Improved download reliability with customizable retry mechanism
+  - **Progress Reporting:** Added visual progress bars and interval logging for downloads
+  - **Force Download Option:** Added `--force` flag to CLI for re-downloading cached assets
+  - **Cache Control Commands:** Enhanced CLI commands for cache management
+
+### Changed
+
+- **Documentation:** Updated guides for asset management, configuration, and CLI
+- **Dependency Management:** Added `python-dotenv` as a core dependency
+
+### Future Improvements
+
+- **Test Coverage:** Overall test coverage is at ~70%, with key modules needing additional tests:
+  - The next release should include additional test cases to reach the new 80% target coverage
+
+## [0.2.1]
+
+### Fixed
+
+- Correct openmas toml and cli version logic (#86).
+
+
 ## [0.2.0]
 
 ### Added

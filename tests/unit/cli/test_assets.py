@@ -153,7 +153,7 @@ def test_download_command_success(
     # Verify the result
     assert result.exit_code == 0
     assert "Successfully downloaded asset" in result.stdout
-    mock_asset_manager.get_asset_path.assert_called_once_with("asset1")
+    mock_asset_manager.get_asset_path.assert_called_once_with("asset1", force_download=False)
 
 
 @patch("openmas.cli.assets.load_project_config")
@@ -417,3 +417,23 @@ def test_clear_cache_user_cancels(
     # Verify the result
     assert result.exit_code == 0
     assert "cancelled" in result.stdout.lower() or "operation cancelled" in result.stdout.lower()
+
+
+@patch("openmas.cli.assets.load_project_config")
+@patch("openmas.cli.assets.AssetManager")
+def test_download_command_with_force(
+    mock_asset_manager_cls, mock_load_config, cli_runner, mock_project_config, mock_asset_manager, asset1
+):
+    """Test the download command with force option."""
+    # Setup mocks
+    mock_load_config.return_value = mock_project_config
+    mock_asset_manager_cls.return_value = mock_asset_manager
+    mock_asset_manager.get_asset_path.return_value = Path("/cache/path/asset1")
+
+    # Run the command with force option
+    result = cli_runner.invoke(assets_app, ["download", "asset1", "--force"])
+
+    # Verify the result
+    assert result.exit_code == 0
+    assert "Successfully downloaded asset" in result.stdout
+    mock_asset_manager.get_asset_path.assert_called_once_with("asset1", force_download=True)

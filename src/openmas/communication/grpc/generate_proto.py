@@ -6,6 +6,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Check for the environment variable to skip proto generation
+if os.environ.get("SKIP_PROTO_GEN") == "true":
+    print("Skipping proto generation as SKIP_PROTO_GEN is set to true")
+    sys.exit(0)
+
 
 def generate_proto(proto_file: str, output_dir: str) -> None:
     """Generate Python code from a proto file.

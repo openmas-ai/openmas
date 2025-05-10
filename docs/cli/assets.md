@@ -7,7 +7,7 @@ OpenMAS provides a set of CLI commands to manage assets defined in your project.
 The `openmas assets` command group helps you:
 
 - List all assets defined in your project and their current status
-- Download assets on-demand
+- Download assets on-demand, with options to force re-download
 - Verify the integrity of downloaded assets
 - Clear the asset cache when needed
 
@@ -41,21 +41,28 @@ The status column shows:
 ### Download Asset
 
 ```bash
-openmas assets download <asset_name>
+openmas assets download <asset_name> [--force]
 ```
 
 Downloads a specific asset to the cache.
 
-**Arguments:**
+**Arguments and Options:**
 
-| Argument | Description |
-|----------|-------------|
+| Argument/Option | Description |
+|-----------------|-------------|
 | `asset_name` | Name of the asset to download |
+| `--force`, `-f` | Force re-download even if the asset exists in cache |
 
-**Example:**
+**Examples:**
 
+Download an asset if not already cached:
 ```bash
 openmas assets download llama3-8b
+```
+
+Force re-download even if cached:
+```bash
+openmas assets download llama3-8b --force
 ```
 
 Output:
@@ -70,7 +77,7 @@ Asset downloaded to: /home/user/.openmas/assets/model/llama3-8b/1.0/model.safete
 The command will:
 1. Check if the asset exists in the project configuration
 2. Determine the appropriate downloader based on the source type
-3. Download the asset to the cache
+3. Download the asset to the cache (or skip if already cached and `--force` is not used)
 4. Verify the checksum (if provided)
 5. Unpack the asset (if configured)
 
@@ -154,6 +161,7 @@ Output:
 ```
 Clearing asset "llama3-8b" (version 1.0) from cache...
 Cache location: /home/user/.openmas/assets/model/llama3-8b/1.0
+Are you sure you want to clear the cache for asset 'llama3-8b'? [y/N]: y
 Asset cache successfully cleared.
 ```
 
@@ -167,9 +175,8 @@ Output:
 This will clear the entire asset cache at:
 /home/user/.openmas/assets/
 
-Are you sure? [y/N]: y
-Clearing asset cache...
-Cache successfully cleared.
+Are you sure you want to clear the entire asset cache? [y/N]: y
+Successfully cleared entire assets cache.
 ```
 
 ## Environment Variables
@@ -180,6 +187,25 @@ The asset CLI commands respect the same environment variables as the core asset 
 |----------------------|-------------|---------|
 | `OPENMAS_ASSETS_DIR` | Override the default asset cache directory | `~/.openmas/assets/` |
 | `OPENMAS_ENV` | Environment name for loading configuration | `local` |
+
+In addition, asset authentication can use environment variables like:
+
+| Environment Variable | Description |
+|----------------------|-------------|
+| `HUGGING_FACE_HUB_TOKEN` | Default token for Hugging Face Hub authentication |
+| Custom variables | Any custom variable referenced in `authentication.*.token_env_var` |
+
+## Using .env for Authentication
+
+When using the asset commands, OpenMAS automatically loads environment variables from a `.env` file in your project root. This is especially useful for storing authentication tokens for gated assets:
+
+```
+# .env file
+HUGGING_FACE_HUB_TOKEN=hf_abcdefghijklmnopqrstuvwxyz
+MY_CUSTOM_API_KEY=api_123456789abcdef
+```
+
+Make sure to add `.env` to your `.gitignore` to prevent accidentally committing sensitive tokens.
 
 ## Examples
 
@@ -207,6 +233,6 @@ grep "failed" verification_results.txt | awk '{print $1}' > failed_assets.txt
 # Re-download failed assets
 while read asset; do
   openmas assets clear-cache --asset $asset
-  openmas assets download $asset
+  openmas assets download $asset --force
 done < failed_assets.txt
 ```

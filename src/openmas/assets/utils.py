@@ -82,13 +82,17 @@ def verify_checksum(file_path: Path, expected_checksum: str) -> bool:
         raise AssetVerificationError(f"Error verifying checksum: {str(e)}") from e
 
 
-def unpack_archive(archive_path: Path, target_dir: Path, format: str) -> None:
+def unpack_archive(archive_path: Path, target_dir: Path, format: str, destination_is_file: bool = False) -> Path:
     """Unpack an archive file.
 
     Args:
         archive_path: Path to the archive file
         target_dir: Directory to extract the archive to
         format: Format of the archive ("zip", "tar", "tar.gz", "tar.bz2")
+        destination_is_file: If True, expects the archive to contain a single file and returns the path to it
+
+    Returns:
+        Path to the unpacked directory or file (if destination_is_file is True)
 
     Raises:
         FileNotFoundError: If the archive file does not exist
@@ -107,6 +111,39 @@ def unpack_archive(archive_path: Path, target_dir: Path, format: str) -> None:
         if format == "zip":
             with zipfile.ZipFile(archive_path, "r") as zip_ref:
                 zip_ref.extractall(target_dir)
+
+                # If destination_is_file is True, find the content file
+                if destination_is_file:
+                    # Get list of files (not directories) in the archive
+                    files = [f for f in zip_ref.namelist() if not f.endswith("/")]
+
+                    if not files:
+                        raise AssetUnpackError("No files found in ZIP archive")
+
+                    # Check if there's only one file or one main file (ignoring metadata)
+                    content_files = [f for f in files if not f.startswith(".") and not f.startswith("__MACOSX/")]
+
+                    if len(content_files) == 1:
+                        # Return the path to the single file
+                        return target_dir / content_files[0]
+                    else:
+                        # If multiple files, find a possible primary file or the first one
+                        file_path = None
+                        # Check for a common root file
+                        root_files = [f for f in content_files if "/" not in f]
+                        if root_files:
+                            file_path = target_dir / root_files[0]
+                        else:
+                            file_path = target_dir / content_files[0]
+
+                        logger.warning(
+                            f"Multiple files found in archive when destination_is_file=True. "
+                            f"Using {file_path.relative_to(target_dir)} as the primary file."
+                        )
+                        return file_path
+
+                return target_dir
+
         elif format in ("tar", "tar.gz", "tar.bz2"):
             mode = {
                 "tar": "r",
@@ -122,10 +159,43 @@ def unpack_archive(archive_path: Path, target_dir: Path, format: str) -> None:
                 # Get safe members
                 members = [member for member in tar_ref.getmembers() if is_safe(member)]
                 tar_ref.extractall(target_dir, members=members)
+
+                # If destination_is_file is True, find the content file
+                if destination_is_file:
+                    # Get list of files (not directories) in the archive
+                    files = [m.name for m in members if m.isfile()]
+
+                    if not files:
+                        raise AssetUnpackError("No files found in TAR archive")
+
+                    # Check if there's only one file or one main file (ignoring metadata)
+                    content_files = [f for f in files if not f.startswith(".") and not f.startswith("__MACOSX/")]
+
+                    if len(content_files) == 1:
+                        # Return the path to the single file
+                        return target_dir / content_files[0]
+                    else:
+                        # If multiple files, find a possible primary file or the first one
+                        file_path = None
+                        # Check for a common root file
+                        root_files = [f for f in content_files if "/" not in f]
+                        if root_files:
+                            file_path = target_dir / root_files[0]
+                        else:
+                            file_path = target_dir / content_files[0]
+
+                        logger.warning(
+                            f"Multiple files found in archive when destination_is_file=True. "
+                            f"Using {file_path.relative_to(target_dir)} as the primary file."
+                        )
+                        return file_path
+
+                return target_dir
         else:
             raise ValueError(f"Unsupported archive format: {format}")
 
         logger.info(f"Successfully unpacked {archive_path}")
+        return target_dir
     except (zipfile.BadZipFile, tarfile.TarError) as e:
         raise AssetUnpackError(f"Error unpacking archive: {str(e)}") from e
     except Exception as e:

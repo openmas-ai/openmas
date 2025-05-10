@@ -1,5 +1,6 @@
 """Asset management functionality for OpenMAS."""
 
+import asyncio
 import json
 import os
 import shutil
@@ -99,18 +100,19 @@ class AssetManager:
             "path": final_asset_path if exists else None,
         }
 
-    async def get_asset_path(self, asset_name: str) -> Path:
+    async def get_asset_path(self, asset_name: str, force_download: bool = False) -> Path:
         """Get the path to a cached asset, downloading it if necessary.
 
         This method handles the complete asset retrieval workflow:
         1. Check if the asset is already in the cache
-        2. If not, download it
+        2. If not, download it (with retries if configured)
         3. Verify the asset checksum if specified
         4. Unpack the asset if specified
         5. Return the path to the asset
 
         Args:
             asset_name: The name of the asset to retrieve.
+            force_download: If True, re-download the asset even if it exists in cache.
 
         Returns:
             Path to the cached asset.
@@ -140,18 +142,25 @@ class AssetManager:
             filename = "asset"
 
         # The final path where we expect the asset to be, either unpacked or as-is
-        final_asset_path = asset_dir / filename
-
-        # For unpacked assets, we need a different final path
-        if asset_config.unpack:
-            # The actual asset will be the unpacked directory
+        if not asset_config.unpack:
+            # Regular case: downloaded file with no unpacking
+            final_asset_path = asset_dir / filename
+        elif asset_config.unpack and asset_config.unpack_destination_is_file:
+            # Unpacked archive containing a single file we want to access directly
+            # The actual file path will be determined in unpack_asset
+            # For now, we set final_asset_path to the asset_dir, and we'll update it
+            # with the actual file path after unpacking
+            final_asset_path = asset_dir
+            # We'll need to check files in this directory after unpacking
+        else:
+            # Unpacked archive with content directory structure
             final_asset_path = asset_dir
 
         # Check if we need to download or unpack
-        need_download = False
+        need_download = force_download
 
         # Check if metadata exists and matches our configuration
-        if metadata_path.exists() and final_asset_path.exists():
+        if not force_download and metadata_path.exists() and final_asset_path.exists():
             try:
                 with open(metadata_path, "r") as f:
                     metadata = json.load(f)
@@ -176,37 +185,174 @@ class AssetManager:
         # Try to lock and download if necessary
         async with async_asset_lock(lock_path):
             # Re-check after acquiring the lock
-            if metadata_path.exists() and final_asset_path.exists() and not need_download:
+            if not force_download and metadata_path.exists() and final_asset_path.exists() and not need_download:
                 # Verify the asset if a checksum is provided
-                if asset_config.checksum and not self.verify_asset(asset_config, final_asset_path):
-                    logger.warning(
-                        f"Asset '{asset_name}' failed checksum verification. " f"Expected: {asset_config.checksum}"
-                    )
-                    need_download = True
+                if asset_config.checksum:
+                    # If this is an unpacked file destination, we may need to find the actual file first
+                    asset_to_verify = final_asset_path
+                    if asset_config.unpack and asset_config.unpack_destination_is_file:
+                        # If we have an unpacked file as a destination, we need to find which file to verify
+                        # Look for files in the asset directory
+                        content_files = [f for f in asset_dir.glob("*") if not f.name.startswith(".") and f.is_file()]
+                        if content_files:
+                            asset_to_verify = content_files[0]
+                            final_asset_path = asset_to_verify  # Update final path
+                            logger.debug(f"Using previously unpacked file for verification: {asset_to_verify}")
+
+                    if not self.verify_asset(asset_config, asset_to_verify):
+                        logger.warning(f"Asset '{asset_name}' failed checksum verification. Removing downloaded file.")
+                        if asset_to_verify.exists():
+                            if asset_to_verify.is_dir():
+                                shutil.rmtree(asset_to_verify)
+                            else:
+                                asset_to_verify.unlink()
+                        raise AssetVerificationError(
+                            f"Asset '{asset_name}' failed checksum verification. " f"Expected: {asset_config.checksum}"
+                        )
 
             # Check for unpacked marker
-            if asset_config.unpack and not (final_asset_path / ".unpacked").exists() and final_asset_path.exists():
-                logger.info(f"Asset '{asset_name}' found but unpacking not complete")
-                need_download = True
+            if asset_config.unpack:
+                # Determine the appropriate marker path based on unpack_destination_is_file
+                if asset_config.unpack_destination_is_file:
+                    # For file unpacking, the marker is in the asset directory
+                    unpacked_marker = asset_dir / ".unpacked"
+                else:
+                    # For directory unpacking, the marker is in the final_asset_path
+                    unpacked_marker = final_asset_path / ".unpacked"
+
+                # Check if marker exists and if the final_asset_path exists
+                if not unpacked_marker.exists() and final_asset_path.exists():
+                    logger.info(f"Asset '{asset_name}' found but unpacking not complete")
+                    need_download = True
 
             # Download if needed
             if need_download:
-                logger.info(f"Downloading asset '{asset_name}'")
+                logger.info(f"Downloading asset '{asset_name}'{' (forced)' if force_download else ''}")
 
                 # Create asset directory if it doesn't exist
                 asset_dir.mkdir(parents=True, exist_ok=True)
 
-                downloaded_path = await self.download_asset(asset_config)
+                # If force_download, remove existing files
+                if force_download and final_asset_path.exists():
+                    if final_asset_path.is_dir():
+                        shutil.rmtree(final_asset_path)
+                    else:
+                        final_asset_path.unlink()
+                    logger.info(f"Removed existing asset '{asset_name}' for forced download")
 
-                # Verify the checksum if provided
-                if asset_config.checksum and not self.verify_asset(asset_config, downloaded_path):
-                    raise AssetVerificationError(
-                        f"Asset '{asset_name}' failed checksum verification. " f"Expected: {asset_config.checksum}"
+                # Initialize retry variables
+                max_attempts = asset_config.retries + 1  # +1 for the initial attempt
+                attempts = 0
+                downloaded_path = None
+
+                # Retry loop for download
+                while attempts < max_attempts:
+                    attempts += 1
+                    downloaded_path = None
+                    try:
+                        logger.info(f"Download attempt {attempts}/{max_attempts} for asset '{asset_name}'")
+                        downloaded_path = await self.download_asset(asset_config)
+
+                        # Verify the checksum if provided
+                        if asset_config.checksum:
+                            if not self.verify_asset(asset_config, downloaded_path):
+                                # If checksum fails, clean up and retry or fail
+                                logger.warning(
+                                    f"Asset '{asset_name}' failed checksum verification. Removing downloaded file."
+                                )
+                                if downloaded_path and downloaded_path.exists():
+                                    downloaded_path.unlink()
+                                raise AssetVerificationError(
+                                    f"Asset '{asset_name}' failed checksum verification. "
+                                    f"Expected: {asset_config.checksum}"
+                                )
+                            logger.info(f"Asset '{asset_name}' checksum verified successfully")
+
+                        # If we get here, download and verification succeeded
+                        break
+
+                    except (AssetDownloadError, AssetVerificationError) as e:
+                        # Clean up failed download if it exists
+                        if downloaded_path and downloaded_path.exists():
+                            try:
+                                if downloaded_path.is_dir():
+                                    shutil.rmtree(downloaded_path)
+                                else:
+                                    downloaded_path.unlink()
+                            except (OSError, PermissionError) as unlink_error:
+                                logger.warning(f"Could not delete failed download: {unlink_error}")
+
+                        # Log the error and wait before retrying
+                        logger.warning(
+                            f"Download attempt {attempts}/{max_attempts} failed for asset '{asset_name}': {str(e)}"
+                        )
+
+                        # Handle errors that can trigger a retry
+                        if attempts >= max_attempts:
+                            logger.error(f"All {max_attempts} download attempts failed for asset '{asset_name}'")
+                            source_info = getattr(asset_config.source, "url", None) or getattr(
+                                asset_config.source, "repo_id", None
+                            )
+
+                            # Include the original error message in the new exception
+                            error_message = f"Failed to download asset '{asset_name}' after {max_attempts} attempts"
+                            if isinstance(e, AssetVerificationError):
+                                error_message += f": {str(e)}"
+                            else:
+                                # Use consistent format expected by tests
+                                error_message = (
+                                    f"Failed to download asset '{asset_name}' after {max_attempts} attempts: {str(e)}"
+                                )
+
+                            raise AssetDownloadError(
+                                error_message, source_type=asset_config.source.type, source_info=source_info
+                            )
+
+                        # If we still have retries left, add a delay and continue
+                        retry_delay = asset_config.retry_delay_seconds
+                        logger.info(f"Retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+
+                # Check if all download attempts failed and we didn't break out of the loop
+                if attempts >= max_attempts and not downloaded_path:
+                    logger.error(
+                        f"All {max_attempts} download attempts failed for asset '{asset_name}' with no path returned"
+                    )
+                    source_info = getattr(asset_config.source, "url", None) or getattr(
+                        asset_config.source, "repo_id", None
+                    )
+                    # Make sure to include the original error message if available
+                    last_error_msg = ""
+                    for attempt in range(max_attempts, 0, -1):
+                        error_log = f"Download attempt {attempt}/{max_attempts} failed for asset '{asset_name}'"
+                        if error_log in str(logger.handlers):
+                            last_error_msg = str(logger.handlers).split(error_log)[1].split("]")[0].strip(": ")
+                            break
+
+                    error_message = f"Failed to download asset '{asset_name}' after {max_attempts} attempts"
+                    if last_error_msg:
+                        error_message += f": {last_error_msg}"
+
+                    raise AssetDownloadError(
+                        error_message, source_type=asset_config.source.type, source_info=source_info
                     )
 
                 # Unpack if needed
-                if asset_config.unpack:
-                    self.unpack_asset(asset_config, downloaded_path, asset_dir)
+                if asset_config.unpack and downloaded_path is not None:
+                    unpacked_path = self.unpack_asset(asset_config, downloaded_path, asset_dir)
+
+                    # If unpack_destination_is_file is True, update final_asset_path to the actual file
+                    if asset_config.unpack_destination_is_file and unpacked_path != asset_dir:
+                        final_asset_path = unpacked_path
+                        logger.debug(f"Asset '{asset_name}' unpacked with destination_is_file=True: {final_asset_path}")
+                        # For a file, the marker should be in the parent directory
+                        unpacked_marker = asset_dir / ".unpacked"
+                    else:
+                        # For a directory, the marker goes in the directory itself
+                        unpacked_marker = final_asset_path / ".unpacked"
+
+                    # Create a marker file to indicate successful unpacking
+                    unpacked_marker.touch()
 
                 # Write metadata file
                 metadata = {
@@ -317,7 +463,7 @@ class AssetManager:
             logger.error(f"Error verifying asset '{asset_config.name}': {str(e)}")
             raise
 
-    def unpack_asset(self, asset_config: AssetConfig, archive_path: Path, target_dir: Path) -> None:
+    def unpack_asset(self, asset_config: AssetConfig, archive_path: Path, target_dir: Path) -> Path:
         """Unpack an archived asset.
 
         Args:
@@ -325,13 +471,16 @@ class AssetManager:
             archive_path: The path to the archive file.
             target_dir: The directory to unpack the archive to.
 
+        Returns:
+            Path to the unpacked directory or file (if unpack_destination_is_file is True)
+
         Raises:
             AssetUnpackError: If there is an error unpacking the asset.
             ValueError: If the format is not supported.
         """
         if not asset_config.unpack:
             logger.debug(f"Asset '{asset_config.name}' is not configured for unpacking")
-            return
+            return archive_path  # Just return the original archive path if unpacking is not required
 
         if not asset_config.unpack_format:
             raise AssetConfigurationError(
@@ -342,26 +491,61 @@ class AssetManager:
         lock_path = self._get_lock_path_for_asset(asset_config)
         logger.info(f"Unpacking asset '{asset_config.name}' to {target_dir}")
 
+        unpacked_path = target_dir  # Default to returning the target directory
+
         try:
             with asset_lock(lock_path):
-                # Check if we've already unpacked
-                if (target_dir / ".unpacked").exists():
+                # Check if we've already unpacked and the marker exists
+                unpacked_marker = target_dir / ".unpacked"
+                if unpacked_marker.exists():
                     logger.info(f"Asset '{asset_config.name}' is already unpacked")
-                    return
+
+                    # If unpack_destination_is_file is True, attempt to find the single file
+                    if asset_config.unpack_destination_is_file:
+                        # If we've already unpacked, try to find the file we want
+                        files = list(target_dir.glob("*"))
+                        content_files = [f for f in files if not f.name.startswith(".") and f.is_file()]
+
+                        if content_files:
+                            # Use the first file as the destination
+                            unpacked_path = content_files[0]
+                            logger.debug(f"Using previously unpacked file: {unpacked_path}")
+                        else:
+                            logger.warning(
+                                f"Asset '{asset_config.name}' is marked as unpacked "
+                                "with unpack_destination_is_file=True, "
+                                f"but no suitable files found in {target_dir}"
+                            )
+
+                    return unpacked_path
 
                 # Ensure the target directory exists
                 target_dir.mkdir(parents=True, exist_ok=True)
 
                 # Unpack the archive
-                unpack_archive(archive_path, target_dir, asset_config.unpack_format)
+                unpacked_path = unpack_archive(
+                    archive_path,
+                    target_dir,
+                    asset_config.unpack_format,
+                    destination_is_file=asset_config.unpack_destination_is_file,
+                )
 
                 # Create a marker file to indicate successful unpacking
-                (target_dir / ".unpacked").touch()
+                # For file destinations, place the marker in the parent directory
+                if asset_config.unpack_destination_is_file and unpacked_path != target_dir:
+                    # Place marker in the parent directory
+                    unpacked_marker = target_dir / ".unpacked"
+                else:
+                    # For directory unpacking, place marker in the directory itself
+                    unpacked_marker = target_dir / ".unpacked"
+
+                unpacked_marker.touch()
 
                 # Optionally, delete the archive file to save space
                 archive_path.unlink()
 
-                logger.info(f"Successfully unpacked asset '{asset_config.name}'")
+                logger.info(f"Successfully unpacked asset '{asset_config.name}' to {unpacked_path}")
+                return unpacked_path
         except Exception as e:
             # Clean up potentially partially unpacked files
             if not (target_dir / ".unpacked").exists():
@@ -414,3 +598,79 @@ class AssetManager:
 
         # Return the full path to the lock file
         return self.locks_dir / lock_filename
+
+    def clear_asset_cache(self, asset_name: str) -> bool:
+        """Clear a specific asset from the cache.
+
+        Args:
+            asset_name: The name of the asset to clear.
+
+        Returns:
+            bool: True if the asset was cleared, False if it wasn't found in the cache.
+
+        Raises:
+            KeyError: If the asset name is not found in the project configuration.
+        """
+        # Check if asset exists in configuration
+        if asset_name not in self.assets:
+            raise KeyError(f"Asset '{asset_name}' not found in project configuration")
+
+        asset_config = self.assets[asset_name]
+        asset_dir = self._get_cache_path_for_asset(asset_config)
+        lock_path = self._get_lock_path_for_asset(asset_config)
+
+        # Check if the asset directory exists
+        if not asset_dir.exists():
+            logger.info(f"Asset '{asset_name}' not found in cache at '{asset_dir}'")
+            return True
+
+        # Lock to ensure we don't clear during a download
+        with asset_lock(lock_path):
+            logger.info(f"Clearing cache for asset '{asset_name}' at '{asset_dir}'")
+
+            # Remove the directory
+            try:
+                if asset_dir.is_dir():
+                    shutil.rmtree(asset_dir)
+                else:
+                    asset_dir.unlink()
+                logger.info(f"Cache for asset '{asset_name}' cleared successfully")
+                return True
+            except Exception as e:
+                logger.warning(f"Error clearing cache for asset '{asset_name}': {e}")
+                return False
+
+    def clear_entire_cache(self, exclude_hf_cache: bool = True) -> None:
+        """Clear the entire asset cache.
+
+        Args:
+            exclude_hf_cache: If True, preserve the shared Hugging Face cache.
+        """
+        logger.info(f"Clearing entire asset cache at '{self.cache_dir}'")
+
+        # Get list of all items in the cache directory
+        if not self.cache_dir.exists():
+            logger.info(f"Cache directory '{self.cache_dir}' does not exist")
+            return
+
+        for item in self.cache_dir.iterdir():
+            # Skip the locks directory
+            if item.name == ".locks":
+                continue
+
+            # Skip the HF cache if requested
+            if exclude_hf_cache and (item.name == ".hf_cache" or item.name == "huggingface"):
+                logger.debug(f"Skipping {item.name} directory as requested")
+                continue
+
+            # Remove the item
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+                logger.debug(f"Removed '{item}'")
+            except Exception as e:
+                logger.warning(f"Error removing '{item}': {e}")
+
+        logger.info("Asset cache cleared successfully")

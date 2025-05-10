@@ -10,9 +10,39 @@ OpenMAS loads configuration from multiple sources in the following order (from l
 2. **Project Configuration (`openmas_project.yml`)**: Values in the `default_config` section of the project configuration file.
 3. **Default Configuration File (`config/default.yml`)**: Settings shared by all environments.
 4. **Environment-Specific Configuration (`config/<OPENMAS_ENV>.yml`)**: Settings specific to the current environment.
-5. **Environment Variables**: The highest precedence, overriding all other sources.
+5. **Environment Variables in `.env`**: Variables loaded from the `.env` file in your project root.
+6. **Environment Variables**: The highest precedence, overriding all other sources.
 
 This layered approach allows you to define sane defaults, environment-specific configurations, and easily override settings for testing or deployment without modifying code.
+
+## Automatic .env File Loading
+
+OpenMAS automatically detects and loads environment variables from a `.env` file located in your project root whenever any OpenMAS CLI command is executed. This provides a convenient way to manage project-specific secrets and configurations without polluting your global shell environment.
+
+Example `.env` file:
+
+```
+# API Keys
+HUGGING_FACE_HUB_TOKEN=hf_abcdefghijklmnopqrstuvwxyz
+MY_CUSTOM_SERVICE_API_KEY=sk-1234567890abcdef
+
+# Configuration overrides
+LOG_LEVEL=DEBUG
+SERVICE_URL_VISION=http://localhost:8001
+```
+
+Benefits of using a `.env` file:
+- Keeps sensitive values out of your codebase and shell history
+- Makes it easy to switch between different configurations
+- Provides a standard location for environment variables
+- Works seamlessly with the rest of the OpenMAS configuration system
+
+Best practices:
+- Add `.env` to your `.gitignore` to prevent accidentally committing secrets
+- Create a `.env.example` file with dummy values as a template for other developers
+- Use `.env` for development and test environments, but prefer proper environment variables or secrets management in production
+
+For compatibility with containerized environments, you can still use standard environment variables which will take precedence over values in the `.env` file.
 
 ## Configuration Files
 

@@ -1,4 +1,4 @@
-# OpenMAS
+# ![OpenMAS](openmas.svg "OpenMAS") OpenMAS
 
 [![PyPI version](https://img.shields.io/pypi/v/openmas.svg)](https://pypi.org/project/openmas/)
 [![Python Version](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/)
